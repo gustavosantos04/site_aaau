@@ -1,0 +1,25 @@
+[
+  {
+    "id": "p001",
+    "name": "Camiseta Oficial - Edição 2025",
+    "slug": "camiseta-oficial-2025",
+    "price": 70.0,
+    "currency": "BRL",
+    "images": ["/images/camisa1.jpg","/images/camisa1-2.jpg"],
+    "sizes": ["P","M","G","GG"],
+    "stock": 120,
+    "category": "camisetas",
+    "description": "Dry fit, silk frontal com logo da atlética."
+  },
+  {
+    "id": "p002",
+    "name": "Caneca Oficial",
+    "slug": "caneca-oficial",
+    "price": 35.0,
+    "currency": "BRL",
+    "images": ["/images/caneca1.jpg"],
+    "stock": 80,
+    "category": "canecas",
+    "description": "Caneca cerâmica 350ml com gravação especial."
+  }
+]
