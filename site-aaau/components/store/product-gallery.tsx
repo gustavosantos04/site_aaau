@@ -15,7 +15,7 @@ export function ProductGallery({ images }: { images: ProductImage[] }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <div className="relative aspect-[4/4.5] overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(166,23,48,0.34),transparent_40%),linear-gradient(180deg,#161616,#090909)]">
         <Image
           src={activeImage.url}
@@ -25,7 +25,7 @@ export function ProductGallery({ images }: { images: ProductImage[] }) {
           className="object-cover"
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {images.map((image, index) => (
           <button
             key={image.id}

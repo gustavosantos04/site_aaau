@@ -19,34 +19,34 @@ export function HeroContent({
 
       <p
         data-hero-copy
-        className="rounded-full border border-white/[0.12] bg-black/[0.26] px-4 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-white/70 backdrop-blur-md"
+        className="max-w-full rounded-full border border-white/[0.12] bg-black/[0.26] px-3 py-2 text-[0.58rem] font-semibold uppercase tracking-[0.24em] text-white/70 backdrop-blur-md sm:px-4 sm:text-[0.68rem] sm:tracking-[0.34em]"
       >
         Associacao Atletica Academica Uniritter
       </p>
 
       <h1
         data-hero-copy
-        className="mt-6 max-w-5xl font-display text-[17vw] uppercase leading-[0.88] tracking-[0.05em] text-white sm:text-[5.9rem] lg:text-[8.6rem]"
+        className="mt-5 max-w-5xl text-balance font-display text-[17vw] uppercase leading-[0.9] tracking-[0.04em] text-white sm:mt-6 sm:text-[5.4rem] lg:text-[8.6rem]"
       >
         1,2,3... AAAU!
       </h1>
 
       <p
         data-hero-copy
-        className="mt-5 max-w-2xl text-sm leading-7 text-white/[0.76] sm:text-base md:text-lg"
+        className="mt-4 max-w-[36rem] text-sm leading-6 text-white/[0.76] sm:mt-5 sm:text-base sm:leading-7 md:text-lg"
       >
         A AAAU entra em campo com marca forte, barulho de arquibancada e presenca
         premium. Uma hero viva para vender produto, identidade e energia
         universitaria.
       </p>
 
-      <div data-hero-copy className="mt-8 flex flex-col gap-3 sm:flex-row">
+      <div data-hero-copy className="mt-7 flex w-full max-w-xl flex-col gap-3 sm:mt-8 sm:flex-row sm:justify-center">
         <Link
           href="/#sobre"
           className={buttonVariants({
             variant: "secondary",
             size: "lg",
-            className: "min-w-[220px]",
+            className: "w-full sm:min-w-[220px] sm:w-auto",
           })}
         >
           Conheca a Atletica
@@ -56,7 +56,7 @@ export function HeroContent({
           className={buttonVariants({
             variant: "primary",
             size: "lg",
-            className: "min-w-[220px]",
+            className: "w-full sm:min-w-[220px] sm:w-auto",
           })}
         >
           Vista-se de AAAU

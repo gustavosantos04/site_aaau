@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SummaryCard } from "@/components/admin/summary-card";
-import { formatCurrency, formatDate } from "@/lib/utils";
 import { getDashboardSnapshot, getOrders, getProducts } from "@/lib/data/store";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -20,7 +20,7 @@ export default async function AdminDashboardPage() {
     <AdminShell
       activeHref="/admin"
       title="Painel"
-      description="Visão geral da operação inicial da loja, pedidos e catálogo."
+      description="Visao geral da operacao inicial da loja, pedidos e catalogo."
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Produtos" value={snapshot.totalProducts} helper="Itens ativos na base." />
@@ -30,7 +30,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr,0.9fr]">
-        <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-6">
+        <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
             Pedidos recentes
           </p>
@@ -59,15 +59,15 @@ export default async function AdminDashboardPage() {
           </div>
         </article>
 
-        <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-6">
+        <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
-            Catálogo resumido
+            Catalogo resumido
           </p>
           <div className="mt-6 space-y-4">
             {products.map((product) => (
               <div
                 key={product.id}
-                className="flex items-center justify-between gap-4 rounded-[1.2rem] border border-white/10 bg-black/20 p-4"
+                className="flex flex-col gap-3 rounded-[1.2rem] border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-semibold text-white">{product.name}</p>

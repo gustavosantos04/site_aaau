@@ -16,10 +16,10 @@ export function SectionHeading({
     <div className={cn("max-w-2xl space-y-4", className)}>
       <Badge>{eyebrow}</Badge>
       <div className="space-y-3">
-        <h2 className="font-display text-4xl uppercase tracking-[0.08em] text-white md:text-5xl">
+        <h2 className="font-display text-3xl uppercase tracking-[0.08em] text-white sm:text-4xl md:text-5xl">
           {title}
         </h2>
-        <p className="text-base leading-7 text-white/[0.72] md:text-lg">{description}</p>
+        <p className="text-sm leading-7 text-white/[0.72] sm:text-base md:text-lg">{description}</p>
       </div>
     </div>
   );

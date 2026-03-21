@@ -43,8 +43,8 @@ export default async function ProductDetailPage({
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="grid gap-8 lg:grid-cols-[1fr,0.92fr]">
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+      <div className="grid gap-6 lg:grid-cols-[1fr,0.92fr] lg:gap-8">
         <ProductGallery images={product.images} />
         <ProductPurchasePanel product={product} />
       </div>

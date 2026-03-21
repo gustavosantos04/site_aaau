@@ -7,8 +7,8 @@ import { useState } from "react";
 
 import { Button, buttonVariants } from "@/components/shared/button";
 import { useCart } from "@/features/cart/cart-provider";
-import { formatCurrency } from "@/lib/utils";
 import { siteConfig } from "@/lib/site";
+import { formatCurrency } from "@/lib/utils";
 
 export function CartPageView() {
   const {
@@ -27,12 +27,12 @@ export function CartPageView() {
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
       <div className="max-w-2xl space-y-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
           Carrinho
         </p>
-        <h1 className="font-display text-5xl uppercase tracking-[0.08em] text-white">
+        <h1 className="font-display text-4xl uppercase tracking-[0.08em] text-white sm:text-5xl">
           Revise seu pedido.
         </h1>
         <p className="text-base leading-7 text-white/[0.68]">
@@ -40,13 +40,13 @@ export function CartPageView() {
         </p>
       </div>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[1.05fr,0.95fr]">
+      <div className="mt-8 grid gap-6 lg:mt-10 lg:grid-cols-[1.05fr,0.95fr] lg:gap-8">
         <div className="space-y-4">
           {items.length === 0 ? (
             <div className="rounded-[2rem] border border-dashed border-white/[0.15] bg-white/[0.03] p-8 text-white/[0.68]">
               <p className="text-lg font-semibold text-white">Nenhum item no carrinho.</p>
               <p className="mt-2 text-sm leading-7">
-                Vá para o catálogo e monte o primeiro pedido da coleção AAAU.
+                Va para o catalogo e monte o primeiro pedido da colecao AAAU.
               </p>
               <Link
                 href="/produtos"
@@ -69,7 +69,7 @@ export function CartPageView() {
                   <Image src={item.image} alt={item.name} fill className="object-cover" />
                 </div>
                 <div className="space-y-4">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="text-lg font-semibold text-white">{item.name}</h2>
                       <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
@@ -120,7 +120,7 @@ export function CartPageView() {
           )}
         </div>
 
-        <aside className="h-fit rounded-[2rem] border border-white/10 bg-black/20 p-6">
+        <aside className="h-fit rounded-[2rem] border border-white/10 bg-black/20 p-5 sm:p-6">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
               Resumo
@@ -153,7 +153,7 @@ export function CartPageView() {
               </p>
             </div>
 
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <input
                 value={couponInput}
                 onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
@@ -162,10 +162,11 @@ export function CartPageView() {
               />
               <Button
                 variant="secondary"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   const valid = applyCoupon(couponInput);
                   setCouponMessage(
-                    valid ? "Cupom aplicado com sucesso." : "Cupom inválido.",
+                    valid ? "Cupom aplicado com sucesso." : "Cupom invalido.",
                   );
                 }}
               >

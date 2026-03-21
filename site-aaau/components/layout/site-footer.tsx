@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 
-import { LogoMark } from "@/components/shared/logo-mark";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { contactInfo, siteConfig } from "@/lib/site";
 
 export function SiteFooter() {
@@ -10,9 +10,9 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.2fr,0.8fr,0.8fr] lg:px-8">
         <div className="space-y-5">
           <div className="flex items-center gap-3">
-            <LogoMark />
+            <BrandLogo className="h-12 w-12" />
             <div>
-              <p className="font-display text-2xl uppercase tracking-[0.12em] text-white">
+              <p className="font-display text-xl uppercase tracking-[0.12em] text-white sm:text-2xl">
                 AAAU
               </p>
               <p className="text-xs uppercase tracking-[0.22em] text-white/50">

@@ -5,8 +5,8 @@ import { useState } from "react";
 
 import { Button } from "@/components/shared/button";
 import { useCart } from "@/features/cart/cart-provider";
-import { formatCurrency } from "@/lib/utils";
 import { siteConfig } from "@/lib/site";
+import { formatCurrency } from "@/lib/utils";
 
 export function CheckoutPageView() {
   const router = useRouter();
@@ -16,23 +16,23 @@ export function CheckoutPageView() {
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
       <div className="max-w-2xl space-y-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
           Checkout
         </p>
-        <h1 className="font-display text-5xl uppercase tracking-[0.08em] text-white">
-          Finalização preparada para expansão.
+        <h1 className="font-display text-4xl uppercase tracking-[0.08em] text-white sm:text-5xl">
+          Finalizacao preparada para expansao.
         </h1>
         <p className="text-base leading-7 text-white/[0.68]">
-          Fluxo base pronto para futura integração com Mercado Pago, enquanto a
-          confirmação inicial seguirá por WhatsApp.
+          Fluxo base pronto para futura integracao com Mercado Pago, enquanto a
+          confirmacao inicial seguira por WhatsApp.
         </p>
       </div>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[1fr,420px]">
+      <div className="mt-8 grid gap-6 lg:mt-10 lg:grid-cols-[1fr,420px] lg:gap-8">
         <form
-          className="space-y-6 rounded-[2rem] border border-white/10 bg-white/[0.03] p-6"
+          className="space-y-6 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6"
           onSubmit={(event) => {
             event.preventDefault();
             if (items.length === 0) {
@@ -94,12 +94,12 @@ export function CheckoutPageView() {
 
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
-              Observações
+              Observacoes
             </span>
             <textarea
               rows={4}
               className="w-full rounded-[1rem] border border-white/[0.12] bg-black/20 px-4 py-3 text-sm text-white outline-none focus:border-aaau-ember"
-              placeholder="Preferência de entrega, turma, atleta responsável..."
+              placeholder="Preferencia de entrega, turma, atleta responsavel..."
             />
           </label>
 
@@ -112,7 +112,7 @@ export function CheckoutPageView() {
           </Button>
         </form>
 
-        <aside className="h-fit rounded-[2rem] border border-white/10 bg-black/20 p-6">
+        <aside className="h-fit rounded-[2rem] border border-white/10 bg-black/20 p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
             Resumo do pedido
           </p>
@@ -124,7 +124,7 @@ export function CheckoutPageView() {
             {items.map((item) => (
               <div
                 key={`${item.productId}-${item.size}`}
-                className="flex items-center justify-between gap-4 border-b border-white/10 pb-4 text-sm text-white/70"
+                className="flex items-start justify-between gap-4 border-b border-white/10 pb-4 text-sm text-white/70"
               >
                 <div>
                   <p className="font-semibold text-white">{item.name}</p>

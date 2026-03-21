@@ -5,7 +5,7 @@ import type { Route } from "next";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
-import { LogoMark } from "@/components/shared/logo-mark";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { buttonVariants } from "@/components/shared/button";
 import { siteConfig } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -32,18 +32,18 @@ export function MobileNav() {
       >
         <div
           className={cn(
-            "absolute right-0 top-0 flex h-full w-[86vw] max-w-sm flex-col border-l border-white/10 bg-[#111111] p-6 transition duration-300",
+            "absolute right-0 top-0 flex h-full w-[88vw] max-w-sm flex-col border-l border-white/10 bg-[#111111] px-5 py-6 transition duration-300 sm:px-6",
             open ? "translate-x-0" : "translate-x-full",
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <LogoMark />
-              <div>
+            <div className="flex min-w-0 items-center gap-3">
+              <BrandLogo className="h-12 w-12" />
+              <div className="min-w-0">
                 <p className="font-display text-2xl uppercase tracking-[0.12em] text-white">
                   AAAU
                 </p>
-                <p className="text-xs uppercase tracking-[0.22em] text-white/50">
+                <p className="text-[0.62rem] uppercase tracking-[0.22em] text-white/50 sm:text-xs">
                   Uniritter
                 </p>
               </div>
@@ -59,20 +59,24 @@ export function MobileNav() {
             </button>
           </div>
 
-          <nav className="mt-10 flex flex-col gap-3">
+          <nav className="mt-8 flex flex-col gap-3">
             {siteConfig.nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href as Route}
                 onClick={() => setOpen(false)}
-                className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-white/80"
+                className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm font-semibold uppercase tracking-[0.16em] text-white/80"
               >
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          <div className="mt-auto">
+          <div className="mt-auto space-y-4 pt-8">
+            <p className="text-xs leading-6 text-white/[0.58]">
+              Navegacao pensada para celular, com acesso rapido ao catalogo e ao
+              carrinho.
+            </p>
             <Link
               href="/produtos"
               onClick={() => setOpen(false)}

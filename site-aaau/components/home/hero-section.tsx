@@ -30,24 +30,24 @@ export function HeroSection() {
   return (
     <section
       ref={rootRef}
-      className="relative isolate min-h-[calc(100svh-81px)] overflow-hidden border-b border-white/10"
+      className="relative isolate min-h-[calc(100svh-73px)] overflow-hidden border-b border-white/10 sm:min-h-[calc(100svh-81px)]"
     >
       <HeroBackgroundMedia items={heroMediaSlides} backgroundRef={backgroundRef} />
       <HeroAtmosphere atmosphereRef={atmosphereRef} />
       <HeroMascots leftRef={leftRef} rightRef={rightRef} />
 
-      <div className="relative z-10 flex min-h-[calc(100svh-81px)] items-center justify-center px-4 pb-32 pt-14 sm:px-6 lg:px-8">
+      <div className="relative z-10 flex min-h-[calc(100svh-73px)] items-center justify-center px-4 pb-10 pt-10 sm:min-h-[calc(100svh-81px)] sm:px-6 sm:pb-36 sm:pt-14 lg:px-8 lg:pb-32">
         <HeroContent contentRef={contentRef} />
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 border-t border-white/[0.08] bg-black/[0.36] backdrop-blur-md">
+      <div className="relative z-10 border-t border-white/[0.08] bg-black/[0.36] backdrop-blur-md md:absolute md:inset-x-0 md:bottom-0">
         <div className="mx-auto grid max-w-7xl gap-px overflow-hidden sm:grid-cols-2 xl:grid-cols-4">
           {featuredStats.map((stat) => (
             <div
               key={stat.label}
-              className="bg-white/[0.03] px-5 py-4 text-center sm:text-left"
+              className="bg-white/[0.03] px-4 py-4 text-center sm:px-5 sm:text-left"
             >
-              <p className="font-display text-4xl uppercase tracking-[0.08em] text-white">
+              <p className="font-display text-3xl uppercase tracking-[0.08em] text-white sm:text-4xl">
                 {stat.value}
               </p>
               <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/[0.45]">

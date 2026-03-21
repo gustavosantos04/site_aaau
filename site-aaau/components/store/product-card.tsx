@@ -17,10 +17,10 @@ export function ProductCard({ product }: { product: Product }) {
         href={`/produtos/${product.slug}` as Route}
         className="relative block overflow-hidden"
       >
-        <div className="absolute left-4 top-4 z-10 flex gap-2">
+        <div className="absolute left-4 top-4 z-10 flex flex-wrap gap-2">
           {product.featured ? <Badge>Destaque</Badge> : null}
           {product.isNew ? (
-            <Badge className="border-aaau-ember/[0.60] text-white">Lançamento</Badge>
+            <Badge className="border-aaau-ember/[0.60] text-white">Lancamento</Badge>
           ) : null}
         </div>
 
@@ -37,21 +37,21 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
       </Link>
 
-      <div className="space-y-5 p-5">
+      <div className="space-y-5 p-4 sm:p-5">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
             {siteConfig.categoryLabels[product.category]}
           </p>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="font-display text-3xl uppercase tracking-[0.08em] text-white">
+              <h3 className="font-display text-[1.85rem] uppercase tracking-[0.08em] text-white sm:text-3xl">
                 {product.name}
               </h3>
               <p className="mt-2 text-sm leading-6 text-white/[0.65]">
                 {product.description}
               </p>
             </div>
-            <span className="text-sm font-semibold uppercase tracking-[0.18em] text-aaau-sand">
+            <span className="text-sm font-semibold uppercase tracking-[0.18em] text-aaau-sand sm:pt-1">
               {formatCurrency(product.price)}
             </span>
           </div>
@@ -68,7 +68,7 @@ export function ProductCard({ product }: { product: Product }) {
           ))}
         </div>
 
-        <AddToCartButton product={product} defaultSize={product.sizes[0] ?? "Único"} />
+        <AddToCartButton product={product} defaultSize={product.sizes[0] ?? "Unico"} />
       </div>
     </article>
   );
