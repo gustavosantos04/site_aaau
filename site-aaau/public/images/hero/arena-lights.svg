@@ -1,0 +1,24 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1000" fill="#070707"/>
+  <rect width="1600" height="1000" fill="url(#paint0_linear)"/>
+  <path d="M256 884L518 566H1082L1344 884" stroke="#F4EFE7" stroke-opacity="0.16" stroke-width="2"/>
+  <path d="M374 884L574 644H1026L1226 884" stroke="#8B1730" stroke-opacity="0.46" stroke-width="2"/>
+  <path d="M798 0V1000" stroke="url(#paint1_linear)" stroke-width="2"/>
+  <path d="M0 592C164 524 298 490 468 490C650 490 734 596 920 596C1080 596 1222 508 1600 418V1000H0V592Z" fill="#0C0C0C"/>
+  <circle cx="800" cy="212" r="208" fill="#8B1730" fill-opacity="0.22"/>
+  <circle cx="800" cy="212" r="112" fill="#F4EFE7" fill-opacity="0.1"/>
+  <text x="800" y="250" text-anchor="middle" fill="#FFFFFF" font-size="38" font-family="Arial, sans-serif" letter-spacing="12">CINEMATIC PLACEHOLDER</text>
+  <text x="800" y="344" text-anchor="middle" fill="#F4EFE7" font-size="120" font-family="Arial, sans-serif" font-weight="700" letter-spacing="16">ARENA LIGHTS</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="800" y1="0" x2="800" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#311016"/>
+      <stop offset="0.42" stop-color="#090909"/>
+      <stop offset="1" stop-color="#070707"/>
+    </linearGradient>
+    <linearGradient id="paint1_linear" x1="799" y1="0" x2="799" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.46" stop-color="#FFFFFF" stop-opacity="0.46"/>
+      <stop offset="1" stop-color="#8B1730" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
