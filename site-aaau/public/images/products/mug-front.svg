@@ -1,0 +1,8 @@
+<svg width="1200" height="1400" viewBox="0 0 1200 1400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="1400" fill="#090909"/>
+  <rect x="160" y="160" width="880" height="1080" rx="72" fill="#111111"/>
+  <rect x="360" y="300" width="360" height="540" rx="48" fill="#F4EFE7"/>
+  <path d="M720 400H830C873.078 400 908 434.922 908 478V570C908 613.078 873.078 648 830 648H720V400Z" stroke="#F4EFE7" stroke-width="36"/>
+  <text x="540" y="590" text-anchor="middle" fill="#7C1228" font-size="76" font-family="Arial, sans-serif" font-weight="700" letter-spacing="10">AAAU</text>
+  <text x="600" y="1010" text-anchor="middle" fill="#F4EFE7" font-size="86" font-family="Arial, sans-serif" font-weight="700" letter-spacing="14">CANECA</text>
+</svg>

@@ -1,0 +1,15 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="900" fill="#090909"/>
+  <rect x="84" y="84" width="1032" height="732" rx="64" fill="#131313"/>
+  <rect x="184" y="180" width="832" height="540" rx="48" fill="url(#paint0_linear)"/>
+  <circle cx="600" cy="450" r="160" fill="#F4EFE7" fill-opacity="0.15"/>
+  <text x="600" y="404" text-anchor="middle" fill="#EDE7DE" font-size="36" font-family="Arial, sans-serif" letter-spacing="6">COLEÇÃO</text>
+  <text x="600" y="470" text-anchor="middle" fill="#FFFFFF" font-size="78" font-family="Arial, sans-serif" font-weight="700" letter-spacing="8">BASIC</text>
+  <text x="600" y="532" text-anchor="middle" fill="#EDE7DE" font-size="30" font-family="Arial, sans-serif" letter-spacing="10">PREMIUM DROP</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="240" y1="230" x2="960" y2="670" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C1228"/>
+      <stop offset="1" stop-color="#2B0C12"/>
+    </linearGradient>
+  </defs>
+</svg>

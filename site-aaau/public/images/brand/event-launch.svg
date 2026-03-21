@@ -1,0 +1,12 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="700" fill="#090909"/>
+  <rect x="64" y="64" width="1072" height="572" rx="48" fill="url(#paint0_linear)"/>
+  <text x="600" y="320" text-anchor="middle" fill="#FFFFFF" font-size="42" font-family="Arial, sans-serif" letter-spacing="12">DROP OFICIAL</text>
+  <text x="600" y="406" text-anchor="middle" fill="#F4EFE7" font-size="108" font-family="Arial, sans-serif" font-weight="700" letter-spacing="10">COLEÇÃO 2026</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="64" y1="64" x2="1136" y2="636" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B1730"/>
+      <stop offset="1" stop-color="#1A1A1A"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(167, 29, 58, 0.16), transparent 26%),
+    linear-gradient(180deg, #090909 0%, #090909 100%);
+  color: #f7f2ea;
+}
+
+* {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+*::selection {
+  background: rgba(167, 29, 58, 0.42);
+  color: #ffffff;
+}
+
+@layer base {
+  body {
+    @apply font-body antialiased;
+  }
+
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    @apply outline-none;
+  }
+}
+
+@layer components {
+  .liquid-rise {
+    animation: rise 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    height: 0%;
+  }
+}
+
+@keyframes rise {
+  from {
+    height: 0%;
+  }
+
+  to {
+    height: 100%;
+  }
+}
