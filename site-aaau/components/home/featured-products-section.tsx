@@ -32,10 +32,12 @@ export function FeaturedProductsSection({ products }: { products: Product[] }) {
         </Reveal>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-3">
+      <div className="mt-10 grid items-stretch gap-6 lg:grid-cols-3">
         {products.map((product, index) => (
           <Reveal key={product.id} delay={index * 0.06}>
-            <ProductCard product={product} />
+            <div className="h-full">
+              <ProductCard product={product} variant="featured" />
+            </div>
           </Reveal>
         ))}
       </div>
