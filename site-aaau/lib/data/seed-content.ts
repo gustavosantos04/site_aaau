@@ -12,30 +12,101 @@ export const featuredStats = [
   { label: "títulos recentes", value: "4" },
 ];
 
+export const aboutKeywords = [
+  "Raca",
+  "Tradicao",
+  "Comunidade",
+  "Torcida",
+  "Jogos",
+  "Campus",
+];
+
+export const aboutHighlights = [
+  {
+    label: "Presenca",
+    value: "Marca que entra em quadra",
+  },
+  {
+    label: "Ritual",
+    value: "Do grito no campus ao dia de jogo",
+  },
+  {
+    label: "Comunidade",
+    value: "Atletas, torcida e gestao em um so pulso",
+  },
+];
+
+export const aboutPillars = [
+  {
+    eyebrow: "Identidade",
+    title: "Camisa, voz e assinatura visual",
+    description:
+      "A AAAU transforma presenca em simbolo: cores, escudo, linguagem e atitude trabalhando como uma mesma equipe.",
+  },
+  {
+    eyebrow: "Comunidade",
+    title: "Gente que joga, organiza e lota a arquibancada",
+    description:
+      "A experiencia da atletica ganha forca quando alunos, atletas, calouros e gestao sentem que fazem parte do mesmo capitulo.",
+  },
+  {
+    eyebrow: "Jogo",
+    title: "Energia competitiva com leitura premium",
+    description:
+      "Treino, evento, recepcao e drop oficial compartilham a mesma direcao: impacto visual, clareza e memoria de marca.",
+  },
+];
+
 export const historyTimeline = [
   {
     year: "2014",
-    title: "Fundação competitiva",
+    chapter: "Origem",
+    title: "Nasce o grito da AAAU",
     description:
-      "A AAAU nasce para unificar esporte, identidade universitária e presença de marca dentro e fora das quadras.",
+      "A atletica nasce para unir campus, identidade e competitividade sob o mesmo escudo.",
+    image: "/images/hero/campus-crowd.svg",
+    imageAlt: "Torcida e campus representando o inicio da AAAU",
+    caption: "Campus, torcida e vontade de competir passam a falar a mesma lingua.",
   },
   {
-    year: "2018",
-    title: "Expansão de modalidades",
+    year: "2016",
+    chapter: "Primeiros jogos",
+    title: "As quadras passam a ter dono",
     description:
-      "A atlética consolida equipes de futsal, vôlei, handebol, basquete e Fut7 com calendário frequente.",
+      "Treinos e jogos recorrentes colocam a AAAU no ritmo esportivo da universidade.",
+    image: "/images/mascots/bull_futsal.png",
+    imageAlt: "Mascote de futsal representando a entrada da AAAU nas competicoes",
+    caption: "O uniforme ganha peso e a arquibancada comeca a reconhecer sua voz.",
+  },
+  {
+    year: "2019",
+    chapter: "Expansao",
+    title: "As modalidades ganham corpo",
+    description:
+      "As modalidades ampliam a presenca da atletica dentro e fora dos dias de competicao.",
+    image: "/images/mascots/bull_volei.png",
+    imageAlt: "Mascote da AAAU representando a expansao das modalidades",
+    caption: "A AAAU deixa de ser um nucleo isolado e vira ecossistema esportivo.",
   },
   {
     year: "2023",
-    title: "Marca em evolução",
+    chapter: "Marca viva",
+    title: "A marca vira ponto de encontro",
     description:
-      "A presença digital e os drops da atlética passam a ocupar papel estratégico na conexão com os alunos.",
+      "Eventos e comunicacao passam a reforcar a forma como a comunidade reconhece a AAAU.",
+    image: "/images/brand/event-integration.svg",
+    imageAlt: "Evento universitario representando a marca da AAAU como ponto de encontro",
+    caption: "A atletica passa a criar memoria de campus com linguagem propria.",
   },
   {
     year: "2026",
-    title: "Nova fase premium",
+    chapter: "Nova fase",
+    title: "Historia, produto e digital se alinham",
     description:
-      "O ecossistema digital evolui com foco em vendas, storytelling institucional e experiência mobile-first.",
+      "A nova casa digital conecta narrativa, experiencia mobile-first e vendas.",
+    image: "/images/hero/arena-lights.svg",
+    imageAlt: "Luzes de arena representando a nova fase premium da AAAU",
+    caption: "A trajetoria vira experiencia visual e prepara a entrada na proxima fase.",
   },
 ];
 
