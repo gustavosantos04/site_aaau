@@ -6,7 +6,14 @@ import { Reveal } from "@/components/shared/reveal";
 import { useHistoryTimelineMotion } from "@/components/home/history/use-history-timeline-motion";
 
 export function TimelineSection() {
-  const { sectionRef, containerRef, cardsRef, lastCardRef } = useHistoryTimelineMotion();
+  const {
+    sectionRef,
+    containerRef,
+    cardsRef,
+    lastCardRef,
+    historyStageRef,
+    transitionLayerRef,
+  } = useHistoryTimelineMotion();
 
   return (
     <section 
@@ -19,7 +26,15 @@ export function TimelineSection() {
         <div className="absolute inset-0 bg-hero-grid bg-[size:60px_60px] opacity-[0.03]" />
       </div>
 
-      <div className="relative z-10 flex h-full flex-col justify-center">
+      <div
+        ref={transitionLayerRef}
+        className="pointer-events-none absolute inset-0 z-30 opacity-0"
+      >
+        <div className="absolute inset-0 bg-[#f5f1ea]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(255,255,255,0.92),_rgba(245,241,234,0.98)_58%,_rgba(235,228,220,1)_100%)]" />
+      </div>
+
+      <div ref={historyStageRef} className="relative z-10 flex h-full flex-col justify-center">
         <div className="mb-16 px-4 sm:px-6 lg:px-24">
           <div className="max-w-3xl">
             <Reveal>
