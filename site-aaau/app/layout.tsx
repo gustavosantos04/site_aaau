@@ -3,6 +3,7 @@ import { Barlow_Condensed, Sora } from "next/font/google";
 
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { ScrollProgressIndicator } from "@/components/layout/scroll-progress-indicator";
 import { CartSheet } from "@/components/store/cart-sheet";
 import { Providers } from "@/app/providers";
 import { siteConfig } from "@/lib/site";
@@ -51,6 +52,7 @@ export default function RootLayout({
         <Providers>
           <div className="relative flex min-h-screen flex-col">
             <SiteHeader />
+            <ScrollProgressIndicator />
             <main className="flex-1">{children}</main>
             <SiteFooter />
             <CartSheet />
