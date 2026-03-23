@@ -6,10 +6,10 @@ import type {
 } from "@/types/store";
 
 export const featuredStats = [
-  { label: "anos de história", value: "12+" },
+  { label: "anos de histÃ³ria", value: "12+" },
   { label: "modalidades", value: "5" },
   { label: "campi ativos", value: "3" },
-  { label: "títulos recentes", value: "4" },
+  { label: "tÃ­tulos recentes", value: "4" },
 ];
 
 export const aboutKeywords = [
@@ -111,15 +111,22 @@ export const historyTimeline = [
 ];
 
 export const achievements = [
-  "Campeão Uni",
-  "Campeão Futsal Masculino IA",
-  "Campeão Vôlei Feminino IA",
-  "Campeão Geral IA 2025",
+  {
+    title: "Campeao Divisao de Acesso IA",
+    year: "2025",
+    image: "/images/conquistas/ia_2025.jpeg",
+    imageAlt: "Atletas da AAAU celebrando o titulo da Divisao de Acesso IA 2025",
+  },
+  {
+    title: "UNI Divisao de Acesso",
+    year: "2025",
+    image: "/images/conquistas/uni_2025.jpeg",
+    imageAlt: "Equipe da AAAU comemorando o titulo UNI Divisao de Acesso 2025",
+  },
 ];
-
 export const sports = [
   "Futsal",
-  "Vôlei",
+  "VÃ´lei",
   "Handebol",
   "Basquete",
   "Fut7",
@@ -129,22 +136,22 @@ export const managementGroups = [
   {
     name: "Esportivo",
     description:
-      "Coordena treinos, escalações, uniformes de jogo e a operação das equipes ao longo do semestre.",
+      "Coordena treinos, escalaÃ§Ãµes, uniformes de jogo e a operaÃ§Ã£o das equipes ao longo do semestre.",
   },
   {
     name: "Marketing",
     description:
-      "Cria campanhas, dirige a identidade visual e transforma cada lançamento em ativo de marca.",
+      "Cria campanhas, dirige a identidade visual e transforma cada lanÃ§amento em ativo de marca.",
   },
   {
-    name: "Jurídico",
+    name: "JurÃ­dico",
     description:
-      "Organiza contratos, autorizações e suporte documental para eventos, produtos e patrocínios.",
+      "Organiza contratos, autorizaÃ§Ãµes e suporte documental para eventos, produtos e patrocÃ­nios.",
   },
   {
     name: "Comercial",
     description:
-      "Desenvolve parcerias, ativa patrocinadores e amplia as receitas que sustentam o calendário da atlética.",
+      "Desenvolve parcerias, ativa patrocinadores e amplia as receitas que sustentam o calendÃ¡rio da atlÃ©tica.",
   },
 ];
 
@@ -154,10 +161,10 @@ export const campuses = ["Zona Sul", "FAPA", "Canoas"];
 export const eventsSeed: EventItem[] = [
   {
     id: "event-opener",
-    title: "Lançamento da Coleção AAAU 2026",
+    title: "LanÃ§amento da ColeÃ§Ã£o AAAU 2026",
     slug: "lancamento-colecao-aaau-2026",
     excerpt:
-      "Drop inaugural da nova fase da atlética com ativação de marca, fotos oficiais e abertura de pedidos.",
+      "Drop inaugural da nova fase da atlÃ©tica com ativaÃ§Ã£o de marca, fotos oficiais e abertura de pedidos.",
     startsAt: "2026-04-12T19:30:00.000Z",
     location: "Campus Zona Sul",
     coverImage: "/images/brand/event-launch.svg",
@@ -166,10 +173,10 @@ export const eventsSeed: EventItem[] = [
   },
   {
     id: "event-cup",
-    title: "Semana de Integração AAAU",
+    title: "Semana de IntegraÃ§Ã£o AAAU",
     slug: "semana-integracao-aaau",
     excerpt:
-      "Agenda de amistosos, seletivas e recepção de calouros conectando esporte e comunidade.",
+      "Agenda de amistosos, seletivas e recepÃ§Ã£o de calouros conectando esporte e comunidade.",
     startsAt: "2026-05-05T18:00:00.000Z",
     location: "FAPA",
     coverImage: "/images/brand/event-integration.svg",
@@ -185,7 +192,7 @@ export const productsSeed: Product[] = [
     slug: "camiseta-aaau-basic",
     price: 69.9,
     description:
-      "Modelagem universitária premium com base bordô, assinatura frontal minimalista e conforto para rotina e arquibancada.",
+      "Modelagem universitÃ¡ria premium com base bordÃ´, assinatura frontal minimalista e conforto para rotina e arquibancada.",
     category: "APPAREL",
     sizes: ["P", "M", "G", "GG"],
     featured: true,
@@ -195,7 +202,7 @@ export const productsSeed: Product[] = [
       {
         id: "basic-1",
         url: "/images/products/basic-front.svg",
-        alt: "Camiseta AAAU Basic em composição frontal",
+        alt: "Camiseta AAAU Basic em composiÃ§Ã£o frontal",
         isPrimary: true,
         sortOrder: 1,
       },
@@ -214,7 +221,7 @@ export const productsSeed: Product[] = [
     slug: "uniforme-de-jogo-aaau",
     price: 149.9,
     description:
-      "Kit pensado para quadra e dia de jogo, com estética agressiva, brasão bulldog e linguagem de performance.",
+      "Kit pensado para quadra e dia de jogo, com estÃ©tica agressiva, brasÃ£o bulldog e linguagem de performance.",
     category: "UNIFORM",
     sizes: ["P", "M", "G", "GG"],
     featured: true,
@@ -243,7 +250,7 @@ export const productsSeed: Product[] = [
     slug: "shorts-aaau",
     price: 79.9,
     description:
-      "Short técnico leve para treinos, eventos e uso casual, com caimento esportivo e identidade visual limpa.",
+      "Short tÃ©cnico leve para treinos, eventos e uso casual, com caimento esportivo e identidade visual limpa.",
     category: "APPAREL",
     sizes: ["P", "M", "G", "GG"],
     featured: false,
@@ -253,7 +260,7 @@ export const productsSeed: Product[] = [
       {
         id: "shorts-1",
         url: "/images/products/shorts-front.svg",
-        alt: "Shorts AAAU em composição frontal",
+        alt: "Shorts AAAU em composiÃ§Ã£o frontal",
         isPrimary: true,
         sortOrder: 1,
       },
@@ -272,9 +279,9 @@ export const productsSeed: Product[] = [
     slug: "caneca-aaau",
     price: 39.9,
     description:
-      "Peça utilitária de presença forte para rotina acadêmica, gestão e kits promocionais da atlética.",
+      "PeÃ§a utilitÃ¡ria de presenÃ§a forte para rotina acadÃªmica, gestÃ£o e kits promocionais da atlÃ©tica.",
     category: "ACCESSORY",
-    sizes: ["Único"],
+    sizes: ["Ãšnico"],
     featured: true,
     isNew: false,
     isActive: true,
@@ -282,7 +289,7 @@ export const productsSeed: Product[] = [
       {
         id: "mug-1",
         url: "/images/products/mug-front.svg",
-        alt: "Caneca AAAU em composição premium",
+        alt: "Caneca AAAU em composiÃ§Ã£o premium",
         isPrimary: true,
         sortOrder: 1,
       },
@@ -301,7 +308,7 @@ export const couponsSeed: Coupon[] = [
   {
     id: "coupon-gestao",
     code: "GESTAO",
-    description: "Cupom institucional de lançamento para a gestão atual.",
+    description: "Cupom institucional de lanÃ§amento para a gestÃ£o atual.",
     discountType: "PERCENTAGE",
     discountValue: 10,
     isActive: true,
@@ -349,7 +356,7 @@ export const ordersSeed: OrderData[] = [
 export const adminUsersSeed = [
   {
     id: "admin-main",
-    name: "Gestão AAAU",
+    name: "GestÃ£o AAAU",
     email: "admin@aaauuniritter.com.br",
     passwordHash: "dev_only_hash",
     role: "ADMIN",
