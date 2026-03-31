@@ -8,7 +8,6 @@ export const siteConfig = {
   nav: [
     { label: "Home", href: "/" },
     { label: "Produtos", href: "/produtos" },
-    { label: "Eventos", href: "/#eventos" },
     { label: "Gestão", href: "/#gestao" },
     { label: "Admin", href: "/admin/login" },
   ],
