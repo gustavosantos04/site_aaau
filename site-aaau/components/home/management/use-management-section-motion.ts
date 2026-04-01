@@ -14,13 +14,13 @@ export function useManagementSectionMotion({
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLDivElement>(null);
-  const summaryRef = useRef<HTMLDivElement>(null);
   const desktopStageRef = useRef<HTMLDivElement>(null);
   const mobileRailRef = useRef<HTMLDivElement>(null);
   const mobileDetailRef = useRef<HTMLDivElement>(null);
 
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
   const flipRefs = useRef(new Map<string, HTMLDivElement>());
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
 
   const registerCard = useCallback(
     (id: string) => (node: HTMLDivElement | null) => {
@@ -51,7 +51,7 @@ export function useManagementSectionMotion({
     const mm = gsap.matchMedia();
 
     mm.add("(min-width: 1024px)", () => {
-      if (!sectionRef.current || !headingRef.current || !summaryRef.current || !desktopStageRef.current) {
+      if (!sectionRef.current || !headingRef.current || !desktopStageRef.current) {
         return;
       }
 
@@ -63,22 +63,6 @@ export function useManagementSectionMotion({
             autoAlpha: 1,
             y: 0,
             duration: 0.95,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: "top 76%",
-            },
-          },
-        );
-
-        gsap.fromTo(
-          summaryRef.current,
-          { autoAlpha: 0, y: 64 },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: 1,
-            delay: 0.08,
             ease: "power3.out",
             scrollTrigger: {
               trigger: sectionRef.current,
@@ -109,13 +93,13 @@ export function useManagementSectionMotion({
     });
 
     mm.add("(max-width: 1023px)", () => {
-      if (!sectionRef.current || !headingRef.current || !summaryRef.current || !mobileRailRef.current) {
+      if (!sectionRef.current || !headingRef.current || !mobileRailRef.current) {
         return;
       }
 
       const ctx = gsap.context(() => {
         gsap.fromTo(
-          [headingRef.current, summaryRef.current, mobileRailRef.current],
+          [headingRef.current, mobileRailRef.current],
           { autoAlpha: 0, y: 48 },
           {
             autoAlpha: 1,
@@ -145,6 +129,13 @@ export function useManagementSectionMotion({
       const activeIndex = areas.findIndex((area) => area.id === activeId);
       const centerIndex = (areas.length - 1) / 2;
 
+      if (timelineRef.current) {
+        timelineRef.current.kill();
+      }
+
+      const tl = gsap.timeline({ overwrite: "auto" });
+      timelineRef.current = tl;
+
       areas.forEach((area, index) => {
         const card = cardRefs.current.get(area.id);
         const flip = flipRefs.current.get(area.id);
@@ -153,34 +144,71 @@ export function useManagementSectionMotion({
           return;
         }
 
+        const front = flip.querySelector<HTMLElement>('[data-face="front"]');
+        const back = flip.querySelector<HTMLElement>('[data-face="back"]');
+
+        if (!front || !back) {
+          return;
+        }
+
         const isSelected = area.id === activeId;
         const hasSelection = activeIndex >= 0;
+
         const x = hasSelection ? (isSelected ? -48 : 386) : (index - centerIndex) * 126;
-        const y = hasSelection ? (isSelected ? 8 : -188 + index * 92) : Math.abs(index - centerIndex) * 18;
+        const y = hasSelection
+          ? isSelected
+            ? 8
+            : -188 + index * 92
+          : Math.abs(index - centerIndex) * 18;
         const rotate = hasSelection ? (isSelected ? 0 : 9) : (index - centerIndex) * 5.2;
         const width = hasSelection ? (isSelected ? 760 : 138) : 284;
         const height = hasSelection ? (isSelected ? 520 : 192) : 410;
+        const brightness = hasSelection && !isSelected ? 0.75 : 1;
+        const saturate = hasSelection && !isSelected ? 0.75 : 1;
 
-        gsap.to(card, {
-          x,
-          y,
-          rotate,
-          width,
-          height,
-          opacity: hasSelection && !isSelected ? 0.82 : 1,
-          filter: hasSelection && !isSelected ? "saturate(0.72) brightness(0.7)" : "saturate(1) brightness(1)",
-          zIndex: hasSelection ? (isSelected ? 240 : 110 + index) : 120 + index,
-          duration: hasSelection ? 1.08 : 0.88,
-          ease: "expo.inOut",
-          overwrite: true,
-        });
+        tl.to(
+          card,
+          {
+            x,
+            y,
+            rotate,
+            width,
+            height,
+            filter: `saturate(${saturate}) brightness(${brightness})`,
+            zIndex: hasSelection ? (isSelected ? 240 : 110 + index) : 120 + index,
+            duration: 0.9,
+            ease: "expo.inOut",
+          },
+          0,
+        );
 
-        gsap.to(flip, {
-          rotateY: isSelected ? 180 : 0,
-          duration: isSelected ? 1.16 : 0.8,
-          ease: "expo.inOut",
-          overwrite: true,
-        });
+        tl.to(
+          front,
+          {
+            autoAlpha: isSelected ? 0.18 : 1,
+            x: isSelected ? -20 : 0,
+            y: isSelected ? -6 : 0,
+            scale: isSelected ? 0.985 : 1,
+            rotateY: isSelected ? -10 : 0,
+            duration: isSelected ? 0.44 : 0.32,
+            ease: "power2.out",
+          },
+          0,
+        );
+
+        tl.to(
+          back,
+          {
+            autoAlpha: isSelected ? 1 : 0,
+            x: isSelected ? 0 : 18,
+            y: isSelected ? 0 : 6,
+            scale: isSelected ? 1 : 0.985,
+            rotateY: isSelected ? 0 : 10,
+            duration: isSelected ? 0.62 : 0.28,
+            ease: isSelected ? "expo.out" : "power2.inOut",
+          },
+          isSelected ? 0.08 : 0,
+        );
       });
     });
 
@@ -211,7 +239,6 @@ export function useManagementSectionMotion({
   return {
     sectionRef,
     headingRef,
-    summaryRef,
     desktopStageRef,
     mobileRailRef,
     mobileDetailRef,
