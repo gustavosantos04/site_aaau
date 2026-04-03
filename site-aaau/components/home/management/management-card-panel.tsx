@@ -84,30 +84,36 @@ export function ManagementCardPanel({
 
         {/* Grid de membros - layout simplificado */}
         <div className={cn("flex-1 grid gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
-          {area.members.map((member, index) => (
-            <article
-              key={`${area.id}-${member.name}`}
-              className="group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 transition duration-500 hover:border-white/20 hover:bg-gradient-to-br hover:from-white/[0.12] hover:to-white/[0.04] hover:shadow-lg"
-              style={{
-                animationDelay: `${index * 0.08}s`,
-              }}
-            >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--card-glow),transparent_36%)] opacity-40 group-hover:opacity-60 transition duration-500" />
+          {area.members.length > 0 ? (
+            area.members.map((member, index) => (
+              <article
+                key={`${area.id}-${member.name}`}
+                className="group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 transition duration-500 hover:border-white/20 hover:bg-gradient-to-br hover:from-white/[0.12] hover:to-white/[0.04] hover:shadow-lg"
+                style={{
+                  animationDelay: `${index * 0.08}s`,
+                }}
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--card-glow),transparent_36%)] opacity-40 group-hover:opacity-60 transition duration-500" />
 
-              <div className="relative flex flex-col items-start gap-3">
-                <ManagementMemberAvatar member={member} />
+                <div className="relative flex flex-col items-start gap-3">
+                  <ManagementMemberAvatar member={member} />
 
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-white text-base leading-tight">
-                    {member.name}
-                  </p>
-                  <p className="mt-1 text-xs text-white/64 font-medium uppercase tracking-[0.1em]">
-                    {member.role ?? "Integrante"}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white text-base leading-tight">
+                      {member.name}
+                    </p>
+                    <p className="mt-1 text-xs text-white/64 font-medium uppercase tracking-[0.1em]">
+                      {member.role ?? "Integrante"}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </article>
+            ))
+          ) : (
+            <article className="sm:col-span-2 lg:col-span-3 rounded-[1.5rem] border border-dashed border-white/12 bg-black/20 p-5 text-sm leading-6 text-white/52">
+              Nenhum integrante cadastrado para esta area.
             </article>
-          ))}
+          )}
         </div>
       </div>
     </div>

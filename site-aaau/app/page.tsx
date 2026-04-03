@@ -1,6 +1,5 @@
 import { AboutSection } from "@/components/home/about-section";
 import { AchievementsSection } from "@/components/home/achievements-section";
-import { CampusesSection } from "@/components/home/campuses-section";
 import { FeaturedProductsSection } from "@/components/home/featured-products-section";
 import { FinalCtaSection } from "@/components/home/final-cta-section";
 import { HeroSection } from "@/components/home/hero-section";
@@ -25,7 +24,6 @@ export default async function HomePage() {
       <SportsSection />
       <ManagementSection />
       <SponsorsSection />
-      <CampusesSection />
       <FinalCtaSection />
     </>
   );

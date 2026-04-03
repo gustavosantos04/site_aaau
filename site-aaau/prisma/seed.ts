@@ -7,10 +7,16 @@ import {
   ordersSeed,
   productsSeed,
 } from "../lib/data/seed-content";
+import {
+  managementAreaBlueprints,
+  managementMembersFallbackByArea,
+} from "../lib/data/management";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.managementMemberRecord.deleteMany();
+  await prisma.managementAreaRecord.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.productImage.deleteMany();
@@ -70,6 +76,23 @@ async function main() {
         coverImage: event.coverImage,
         isFeatured: event.isFeatured,
         isActive: event.isActive,
+      },
+    });
+  }
+
+  for (const area of managementAreaBlueprints) {
+    await prisma.managementAreaRecord.create({
+      data: {
+        slug: area.id,
+        title: area.title,
+        members: {
+          create: (managementMembersFallbackByArea[area.id] ?? []).map((member, index) => ({
+            name: member.name,
+            role: member.role,
+            image: member.image,
+            sortOrder: index,
+          })),
+        },
       },
     });
   }
