@@ -22,11 +22,11 @@ export function CheckoutPageView() {
           Checkout
         </p>
         <h1 className="font-display text-4xl uppercase tracking-[0.08em] text-white sm:text-5xl">
-          Finalizacao preparada para expansao.
+          Finalização preparada para expansão.
         </h1>
         <p className="text-base leading-7 text-white/[0.68]">
-          Fluxo base pronto para futura integracao com Mercado Pago, enquanto a
-          confirmacao inicial seguira por WhatsApp.
+          Fluxo base pronto para futura integração com Mercado Pago, enquanto a
+          confirmação inicial seguirá por WhatsApp.
         </p>
       </div>
 
@@ -94,12 +94,12 @@ export function CheckoutPageView() {
 
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
-              Observacoes
+              Observações
             </span>
             <textarea
               rows={4}
               className="w-full rounded-[1rem] border border-white/[0.12] bg-black/20 px-4 py-3 text-sm text-white outline-none focus:border-aaau-ember"
-              placeholder="Preferencia de entrega, turma, atleta responsavel..."
+              placeholder="Preferência de entrega, turma, atleta responsável..."
             />
           </label>
 

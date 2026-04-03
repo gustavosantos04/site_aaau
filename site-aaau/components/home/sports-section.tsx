@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+
 import { SectionHeading } from "@/components/shared/section-heading";
 import { useSportsSectionMotion } from "@/components/home/sports/use-sports-section-motion";
 
@@ -16,25 +17,20 @@ export function SportsSection() {
   const { sectionRef, headingRef, cardsRef, veilRef, clawMarksRef } = useSportsSectionMotion();
 
   return (
-    <section 
-      ref={sectionRef} 
-      className="relative overflow-hidden bg-aaau-night py-24 lg:py-32"
-    >
-      {/* 1. Impact Veil (Initial Overlay) */}
-      <div 
-        ref={veilRef} 
-        className="absolute inset-0 z-50 bg-aaau-wine/20 backdrop-blur-sm pointer-events-none" 
+    <section ref={sectionRef} className="relative overflow-hidden bg-aaau-night py-24 lg:py-32">
+      <div
+        ref={veilRef}
+        className="pointer-events-none absolute inset-0 z-50 bg-aaau-wine/20 backdrop-blur-sm"
       />
 
-      {/* 2. Claw Marks (Impact Visual) */}
-      <div 
-        ref={clawMarksRef} 
-        className="absolute inset-0 z-40 flex flex-col justify-center gap-8 opacity-20 pointer-events-none"
+      <div
+        ref={clawMarksRef}
+        className="pointer-events-none absolute inset-0 z-40 flex flex-col justify-center gap-8 opacity-20"
       >
         {[1, 2, 3].map((i) => (
-          <div 
-            key={i} 
-            className="claw-mark h-1 w-full bg-gradient-to-r from-transparent via-aaau-sand to-transparent skew-y-[-15deg]" 
+          <div
+            key={i}
+            className="claw-mark h-1 w-full skew-y-[-15deg] bg-gradient-to-r from-transparent via-aaau-sand to-transparent"
           />
         ))}
       </div>
@@ -48,19 +44,14 @@ export function SportsSection() {
           />
         </div>
 
-        <div 
-          ref={cardsRef} 
-          className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
-        >
-          {sportsData.map((sport, index) => (
-            <article 
-              key={sport.name} 
+        <div ref={cardsRef} className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {sportsData.map((sport) => (
+            <article
+              key={sport.name}
               className="sport-card group relative flex flex-col items-center overflow-hidden rounded-[2.5rem] border border-white/5 bg-white/[0.02] p-8 transition-all duration-500 hover:border-aaau-wine/30 hover:bg-white/[0.04]"
             >
-              {/* Card Background Glow */}
               <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-aaau-wine/5 blur-[40px] transition-opacity group-hover:opacity-100" />
-              
-              {/* Mascot (Bull) */}
+
               <div className="sport-bull relative mb-8 h-48 w-48 transition-transform duration-500 group-hover:scale-110">
                 <Image
                   src={sport.image}
@@ -80,7 +71,6 @@ export function SportsSection() {
                 </h3>
               </div>
 
-              {/* Hover Indicator */}
               <div className="mt-6 h-1 w-0 bg-aaau-wine transition-all duration-500 group-hover:w-12" />
             </article>
           ))}

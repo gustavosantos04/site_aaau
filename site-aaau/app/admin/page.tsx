@@ -20,7 +20,7 @@ export default async function AdminDashboardPage() {
     <AdminShell
       activeHref="/admin"
       title="Painel"
-      description="Visao geral da operacao inicial da loja, pedidos e catalogo."
+      description="Visão geral da operação inicial da loja, pedidos e catálogo."
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Produtos" value={snapshot.totalProducts} helper="Itens ativos na base." />
@@ -61,7 +61,7 @@ export default async function AdminDashboardPage() {
 
         <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
-            Catalogo resumido
+            Catálogo resumido
           </p>
           <div className="mt-6 space-y-4">
             {products.map((product) => (

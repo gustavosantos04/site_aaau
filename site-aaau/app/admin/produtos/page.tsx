@@ -15,7 +15,7 @@ export default async function AdminProductsPage() {
     <AdminShell
       activeHref="/admin/produtos"
       title="Produtos"
-      description="Base inicial para gestao de catalogo, status, destaque e lancamentos."
+      description="Base inicial para gestão de catálogo, status, destaque e lançamentos."
     >
       <div className="space-y-4">
         {products.map((product) => (
@@ -32,12 +32,12 @@ export default async function AdminProductsPage() {
               {product.category}
             </p>
             <p className="text-sm text-white/70">
-              <span className="mr-2 text-white/[0.45] md:hidden">Preco:</span>
+              <span className="mr-2 text-white/[0.45] md:hidden">Preço:</span>
               {formatCurrency(product.price)}
             </p>
             <p className="text-sm text-white/70">
               <span className="mr-2 text-white/[0.45] md:hidden">Status:</span>
-              {product.featured ? "Destaque" : "Padrao"}
+              {product.featured ? "Destaque" : "Padrão"}
             </p>
           </article>
         ))}

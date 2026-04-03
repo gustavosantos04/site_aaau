@@ -4,8 +4,8 @@ import { ProductCard } from "@/components/store/product-card";
 import { getProducts } from "@/lib/data/store";
 
 export const metadata: Metadata = {
-  title: "Catalogo",
-  description: "Colecao inicial da AAAU com foco em produto, identidade e conversao.",
+  title: "Catálogo",
+  description: "Coleção inicial da AAAU com foco em produto, identidade e conversão.",
 };
 
 export default async function ProductsPage() {
@@ -15,13 +15,13 @@ export default async function ProductsPage() {
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
       <div className="max-w-3xl space-y-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
-          Catalogo
+          Catálogo
         </p>
         <h1 className="font-display text-5xl uppercase tracking-[0.08em] text-white sm:text-6xl">
           Produtos AAAU
         </h1>
         <p className="text-base leading-8 text-white/[0.68]">
-          Fundacao da loja pronta para novos drops, filtros e integracoes futuras.
+          Fundação da loja pronta para novos drops, filtros e integrações futuras.
         </p>
       </div>
 

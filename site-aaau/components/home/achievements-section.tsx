@@ -13,8 +13,8 @@ export function AchievementsSection() {
         <Reveal>
           <SectionHeading
             eyebrow="Conquistas"
-            title="Titulos que pesam na memoria."
-            description="A secao vira uma vitrine de titulos: menos grade institucional e mais presenca de campeao, com foto real, contraste forte e leitura emocional."
+            title="Títulos que pesam na memória."
+            description="A seção vira uma vitrine de títulos: menos grade institucional e mais presença de campeão, com foto real, contraste forte e leitura emocional."
             className="max-w-3xl"
           />
         </Reveal>

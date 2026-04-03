@@ -31,7 +31,7 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
     symbol: "K",
     icon: "trophy",
     accent: "Performance em dia de jogo",
-    motto: "Treino, leitura tatica e presenca competitiva.",
+    motto: "Treino, leitura tática e presença competitiva.",
     palette: {
       glow: "rgba(182, 42, 68, 0.44)",
       edge: "rgba(246, 228, 214, 0.22)",
@@ -40,12 +40,12 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
   },
   {
     id: "presidencia",
-    title: "Presidencia",
+    title: "Presidência",
     description:
       "Lidera a direção estratégica da atlética, conecta as frentes internas e define o ritmo institucional da gestão.",
     symbol: "A",
     icon: "crown",
-    accent: "Visao, alinhamento e direcao",
+    accent: "Visão, alinhamento e direção",
     motto: "A carta que segura o centro do baralho.",
     palette: {
       glow: "rgba(218, 192, 118, 0.24)",
@@ -61,7 +61,7 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
     symbol: "Q",
     icon: "megaphone",
     accent: "Narrativa, impacto e assinatura visual",
-    motto: "Cada lancamento precisa parecer acontecimento.",
+    motto: "Cada lançamento precisa parecer acontecimento.",
     palette: {
       glow: "rgba(147, 28, 86, 0.36)",
       edge: "rgba(255, 225, 241, 0.18)",
@@ -72,11 +72,11 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
     id: "eventos",
     title: "Eventos",
     description:
-      "Orquestra experiencias presenciais, integra calouros, ativa a torcida e cria os momentos que fazem a comunidade lembrar da AAAU.",
+      "Orquestra experiências presenciais, integra calouros, ativa a torcida e cria os momentos que fazem a comunidade lembrar da AAAU.",
     symbol: "J",
     icon: "calendar",
     accent: "Ritmo de campus e energia de encontro",
-    motto: "Quando a casa lota, a marca ganha memoria.",
+    motto: "Quando a casa lota, a marca ganha memória.",
     palette: {
       glow: "rgba(214, 88, 44, 0.3)",
       edge: "rgba(255, 223, 206, 0.2)",
@@ -87,11 +87,11 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
     id: "comercial",
     title: "Comercial",
     description:
-      "Abre parcerias, negocia contrapartidas, sustenta patrocinios e transforma relacionamento em receita para a atlética.",
+      "Abre parcerias, negocia contrapartidas, sustenta patrocínios e transforma relacionamento em receita para a atlética.",
     symbol: "10",
     icon: "handshake",
     accent: "Parceria com valor de marca",
-    motto: "Conexao certa financia calendario, produto e presenca.",
+    motto: "Conexão certa financia calendário, produto e presença.",
     palette: {
       glow: "rgba(80, 110, 186, 0.22)",
       edge: "rgba(228, 236, 255, 0.18)",
@@ -100,13 +100,13 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
   },
   {
     id: "juridico",
-    title: "Juridico",
+    title: "Jurídico",
     description:
-      "Cuida de contratos, autorizacoes, compliance e suporte documental para dar seguranca a cada movimento da gestão.",
+      "Cuida de contratos, autorizações, compliance e suporte documental para dar segurança a cada movimento da gestão.",
     symbol: "9",
     icon: "scale",
-    accent: "Seguranca institucional e clareza operacional",
-    motto: "Estrutura solida para a gestao correr sem ruido.",
+    accent: "Segurança institucional e clareza operacional",
+    motto: "Estrutura sólida para a gestão correr sem ruído.",
     palette: {
       glow: "rgba(165, 181, 212, 0.18)",
       edge: "rgba(237, 239, 244, 0.22)",
@@ -119,7 +119,7 @@ export const managementMembersFallbackByArea: Record<string, ManagementMember[]>
   esportivo: [
     { name: "Rafael Bueno", role: "Diretor esportivo" },
     { name: "Bianca Furtado", role: "Coordenadora de modalidades" },
-    { name: "Vitor Nunes", role: "Logistica de jogos" },
+    { name: "Vitor Nunes", role: "Logística de jogos" },
     { name: "Amanda Leite", role: "Relacionamento com atletas" },
   ],
   presidencia: [
@@ -130,23 +130,23 @@ export const managementMembersFallbackByArea: Record<string, ManagementMember[]>
   marketing: [
     { name: "Giovana Reis", role: "Diretora de marketing" },
     { name: "Pedro Araujo", role: "Social media" },
-    { name: "Laura Pacheco", role: "Direcao de arte" },
-    { name: "Matheus Teles", role: "Conteudo audiovisual" },
+    { name: "Laura Pacheco", role: "Direção de arte" },
+    { name: "Matheus Teles", role: "Conteúdo audiovisual" },
     { name: "Clara Mello", role: "Copy e planejamento" },
   ],
   eventos: [
     { name: "Fernanda Silveira", role: "Diretora de eventos" },
-    { name: "Caio Cardoso", role: "Operacao e fornecedores" },
-    { name: "Isadora Costa", role: "Experiencia de publico" },
-    { name: "Bruno Sampaio", role: "Apoio de producao" },
+    { name: "Caio Cardoso", role: "Operação e fornecedores" },
+    { name: "Isadora Costa", role: "Experiência de público" },
+    { name: "Bruno Sampaio", role: "Apoio de produção" },
   ],
   comercial: [
     { name: "Henrique Alves", role: "Diretor comercial" },
-    { name: "Sofia Ramos", role: "Parcerias e patrocinio" },
-    { name: "Davi Freitas", role: "Prospeccao" },
+    { name: "Sofia Ramos", role: "Parcerias e patrocínio" },
+    { name: "Davi Freitas", role: "Prospecção" },
   ],
   juridico: [
-    { name: "Natalia Medeiros", role: "Diretora juridica" },
+    { name: "Natalia Medeiros", role: "Diretora jurídica" },
     { name: "Thiago Barreto", role: "Contratos e compliance" },
   ],
 };

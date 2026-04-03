@@ -1,29 +1,17 @@
-import type {
-  Coupon,
-  EventItem,
-  OrderData,
-  Product,
-} from "@/types/store";
+import type { Coupon, EventItem, OrderData, Product } from "@/types/store";
 
 export const featuredStats = [
-  { label: "anos de histÃ³ria", value: "12+" },
+  { label: "anos de história", value: "12+" },
   { label: "modalidades", value: "5" },
   { label: "campi ativos", value: "3" },
-  { label: "tÃ­tulos recentes", value: "4" },
+  { label: "títulos recentes", value: "4" },
 ];
 
-export const aboutKeywords = [
-  "Raca",
-  "Tradicao",
-  "Comunidade",
-  "Torcida",
-  "Jogos",
-  "Campus",
-];
+export const aboutKeywords = ["Raça", "Tradição", "Comunidade", "Torcida", "Jogos", "Campus"];
 
 export const aboutHighlights = [
   {
-    label: "Presenca",
+    label: "Presença",
     value: "Marca que entra em quadra",
   },
   {
@@ -32,7 +20,7 @@ export const aboutHighlights = [
   },
   {
     label: "Comunidade",
-    value: "Atletas, torcida e gestao em um so pulso",
+    value: "Atletas, torcida e gestão em um só pulso",
   },
 ];
 
@@ -41,19 +29,19 @@ export const aboutPillars = [
     eyebrow: "Identidade",
     title: "Camisa, voz e assinatura visual",
     description:
-      "A AAAU transforma presenca em simbolo: cores, escudo, linguagem e atitude trabalhando como uma mesma equipe.",
+      "A AAAU transforma presença em símbolo: cores, escudo, linguagem e atitude trabalhando como uma mesma equipe.",
   },
   {
     eyebrow: "Comunidade",
     title: "Gente que joga, organiza e lota a arquibancada",
     description:
-      "A experiencia da atletica ganha forca quando alunos, atletas, calouros e gestao sentem que fazem parte do mesmo capitulo.",
+      "A experiência da atlética ganha força quando alunos, atletas, calouros e gestão sentem que fazem parte do mesmo capítulo.",
   },
   {
     eyebrow: "Jogo",
     title: "Energia competitiva com leitura premium",
     description:
-      "Treino, evento, recepcao e drop oficial compartilham a mesma direcao: impacto visual, clareza e memoria de marca.",
+      "Treino, evento, recepção e drop oficial compartilham a mesma direção: impacto visual, clareza e memória de marca.",
   },
 ];
 
@@ -63,10 +51,10 @@ export const historyTimeline = [
     chapter: "Origem",
     title: "Nasce o grito da AAAU",
     description:
-      "A atletica nasce para unir campus, identidade e competitividade sob o mesmo escudo.",
+      "A atlética nasce para unir campus, identidade e competitividade sob o mesmo escudo.",
     image: "/images/hero/campus-crowd.svg",
-    imageAlt: "Torcida e campus representando o inicio da AAAU",
-    caption: "Campus, torcida e vontade de competir passam a falar a mesma lingua.",
+    imageAlt: "Torcida e campus representando o início da AAAU",
+    caption: "Campus, torcida e vontade de competir passam a falar a mesma língua.",
   },
   {
     year: "2016",
@@ -75,83 +63,78 @@ export const historyTimeline = [
     description:
       "Treinos e jogos recorrentes colocam a AAAU no ritmo esportivo da universidade.",
     image: "/images/mascots/bull_futsal.png",
-    imageAlt: "Mascote de futsal representando a entrada da AAAU nas competicoes",
-    caption: "O uniforme ganha peso e a arquibancada comeca a reconhecer sua voz.",
+    imageAlt: "Mascote de futsal representando a entrada da AAAU nas competições",
+    caption: "O uniforme ganha peso e a arquibancada começa a reconhecer sua voz.",
   },
   {
     year: "2019",
-    chapter: "Expansao",
+    chapter: "Expansão",
     title: "As modalidades ganham corpo",
     description:
-      "As modalidades ampliam a presenca da atletica dentro e fora dos dias de competicao.",
+      "As modalidades ampliam a presença da atlética dentro e fora dos dias de competição.",
     image: "/images/mascots/bull_volei.png",
-    imageAlt: "Mascote da AAAU representando a expansao das modalidades",
-    caption: "A AAAU deixa de ser um nucleo isolado e vira ecossistema esportivo.",
+    imageAlt: "Mascote da AAAU representando a expansão das modalidades",
+    caption: "A AAAU deixa de ser um núcleo isolado e vira ecossistema esportivo.",
   },
   {
     year: "2023",
     chapter: "Marca viva",
     title: "A marca vira ponto de encontro",
     description:
-      "Eventos e comunicacao passam a reforcar a forma como a comunidade reconhece a AAAU.",
+      "Eventos e comunicação passam a reforçar a forma como a comunidade reconhece a AAAU.",
     image: "/images/brand/event-integration.svg",
-    imageAlt: "Evento universitario representando a marca da AAAU como ponto de encontro",
-    caption: "A atletica passa a criar memoria de campus com linguagem propria.",
+    imageAlt: "Evento universitário representando a marca da AAAU como ponto de encontro",
+    caption: "A atlética passa a criar memória de campus com linguagem própria.",
   },
   {
     year: "2026",
     chapter: "Nova fase",
-    title: "Historia, produto e digital se alinham",
+    title: "História, produto e digital se alinham",
     description:
-      "A nova casa digital conecta narrativa, experiencia mobile-first e vendas.",
+      "A nova casa digital conecta narrativa, experiência mobile-first e vendas.",
     image: "/images/hero/arena-lights.svg",
     imageAlt: "Luzes de arena representando a nova fase premium da AAAU",
-    caption: "A trajetoria vira experiencia visual e prepara a entrada na proxima fase.",
+    caption: "A trajetória vira experiência visual e prepara a entrada na próxima fase.",
   },
 ];
 
 export const achievements = [
   {
-    title: "Campeao Divisao de Acesso IA",
+    title: "Campeão Divisão de Acesso IA",
     year: "2025",
     image: "/images/conquistas/ia_2025.jpeg",
-    imageAlt: "Atletas da AAAU celebrando o titulo da Divisao de Acesso IA 2025",
+    imageAlt: "Atletas da AAAU celebrando o título da Divisão de Acesso IA 2025",
   },
   {
-    title: "UNI Divisao de Acesso",
+    title: "UNI Divisão de Acesso",
     year: "2025",
     image: "/images/conquistas/uni_2025.jpeg",
-    imageAlt: "Equipe da AAAU comemorando o titulo UNI Divisao de Acesso 2025",
+    imageAlt: "Equipe da AAAU comemorando o título UNI Divisão de Acesso 2025",
   },
 ];
-export const sports = [
-  "Futsal",
-  "VÃ´lei",
-  "Handebol",
-  "Basquete",
-  "Fut7",
-];
+
+export const sports = ["Futsal", "Vôlei", "Handebol", "Basquete", "Fut7"];
 
 export const managementGroups = [
   {
     name: "Esportivo",
     description:
-      "Coordena treinos, escalaÃ§Ãµes, uniformes de jogo e a operaÃ§Ã£o das equipes ao longo do semestre.",
+      "Coordena treinos, escalações, uniformes de jogo e a operação das equipes ao longo do semestre.",
   },
   {
     name: "Marketing",
     description:
-      "Cria campanhas, dirige a identidade visual e transforma cada lanÃ§amento em ativo de marca.",
+      "Cria campanhas, dirige a identidade visual e transforma cada lançamento em ativo de marca.",
   },
   {
-    name: "JurÃ­dico",
+    name: "Jurídico",
     description:
-      "Organiza contratos, autorizaÃ§Ãµes e suporte documental para eventos, produtos e patrocÃ­nios.",
+      "Organiza contratos, autorizações e suporte documental para eventos, produtos e patrocínios.",
   },
   {
     name: "Comercial",
     description:
-      "Desenvolve parcerias, ativa patrocinadores e amplia as receitas que sustentam o calendÃ¡rio da atlÃ©tica.",
+      "Desenvolve parcerias, ativa patrocinadores e amplia as receitas que sustentam o calendário da atlética.",
   },
 ];
 
@@ -161,10 +144,10 @@ export const campuses = ["Zona Sul", "FAPA", "Canoas"];
 export const eventsSeed: EventItem[] = [
   {
     id: "event-opener",
-    title: "LanÃ§amento da ColeÃ§Ã£o AAAU 2026",
+    title: "Lançamento da Coleção AAAU 2026",
     slug: "lancamento-colecao-aaau-2026",
     excerpt:
-      "Drop inaugural da nova fase da atlÃ©tica com ativaÃ§Ã£o de marca, fotos oficiais e abertura de pedidos.",
+      "Drop inaugural da nova fase da atlética com ativação de marca, fotos oficiais e abertura de pedidos.",
     startsAt: "2026-04-12T19:30:00.000Z",
     location: "Campus Zona Sul",
     coverImage: "/images/brand/event-launch.svg",
@@ -173,10 +156,10 @@ export const eventsSeed: EventItem[] = [
   },
   {
     id: "event-cup",
-    title: "Semana de IntegraÃ§Ã£o AAAU",
+    title: "Semana de Integração AAAU",
     slug: "semana-integracao-aaau",
     excerpt:
-      "Agenda de amistosos, seletivas e recepÃ§Ã£o de calouros conectando esporte e comunidade.",
+      "Agenda de amistosos, seletivas e recepção de calouros conectando esporte e comunidade.",
     startsAt: "2026-05-05T18:00:00.000Z",
     location: "FAPA",
     coverImage: "/images/brand/event-integration.svg",
@@ -192,7 +175,7 @@ export const productsSeed: Product[] = [
     slug: "camiseta-aaau-basic",
     price: 69.9,
     description:
-      "Modelagem universitÃ¡ria premium com base bordÃ´, assinatura frontal minimalista e conforto para rotina e arquibancada.",
+      "Modelagem universitária premium com base bordô, assinatura frontal minimalista e conforto para rotina e arquibancada.",
     category: "APPAREL",
     sizes: ["P", "M", "G", "GG"],
     featured: true,
@@ -202,7 +185,7 @@ export const productsSeed: Product[] = [
       {
         id: "basic-1",
         url: "/images/products/basic-front.svg",
-        alt: "Camiseta AAAU Basic em composiÃ§Ã£o frontal",
+        alt: "Camiseta AAAU Basic em composição frontal",
         isPrimary: true,
         sortOrder: 1,
       },
@@ -221,7 +204,7 @@ export const productsSeed: Product[] = [
     slug: "uniforme-de-jogo-aaau",
     price: 149.9,
     description:
-      "Kit pensado para quadra e dia de jogo, com estÃ©tica agressiva, brasÃ£o bulldog e linguagem de performance.",
+      "Kit pensado para quadra e dia de jogo, com estética agressiva, brasão bulldog e linguagem de performance.",
     category: "UNIFORM",
     sizes: ["P", "M", "G", "GG"],
     featured: true,
@@ -250,7 +233,7 @@ export const productsSeed: Product[] = [
     slug: "shorts-aaau",
     price: 79.9,
     description:
-      "Short tÃ©cnico leve para treinos, eventos e uso casual, com caimento esportivo e identidade visual limpa.",
+      "Short técnico leve para treinos, eventos e uso casual, com caimento esportivo e identidade visual limpa.",
     category: "APPAREL",
     sizes: ["P", "M", "G", "GG"],
     featured: false,
@@ -260,7 +243,7 @@ export const productsSeed: Product[] = [
       {
         id: "shorts-1",
         url: "/images/products/shorts-front.svg",
-        alt: "Shorts AAAU em composiÃ§Ã£o frontal",
+        alt: "Shorts AAAU em composição frontal",
         isPrimary: true,
         sortOrder: 1,
       },
@@ -279,9 +262,9 @@ export const productsSeed: Product[] = [
     slug: "caneca-aaau",
     price: 39.9,
     description:
-      "PeÃ§a utilitÃ¡ria de presenÃ§a forte para rotina acadÃªmica, gestÃ£o e kits promocionais da atlÃ©tica.",
+      "Peça utilitária de presença forte para rotina acadêmica, gestão e kits promocionais da atlética.",
     category: "ACCESSORY",
-    sizes: ["Ãšnico"],
+    sizes: ["Único"],
     featured: true,
     isNew: false,
     isActive: true,
@@ -289,7 +272,7 @@ export const productsSeed: Product[] = [
       {
         id: "mug-1",
         url: "/images/products/mug-front.svg",
-        alt: "Caneca AAAU em composiÃ§Ã£o premium",
+        alt: "Caneca AAAU em composição premium",
         isPrimary: true,
         sortOrder: 1,
       },
@@ -308,7 +291,7 @@ export const couponsSeed: Coupon[] = [
   {
     id: "coupon-gestao",
     code: "GESTAO",
-    description: "Cupom institucional de lanÃ§amento para a gestÃ£o atual.",
+    description: "Cupom institucional de lançamento para a gestão atual.",
     discountType: "PERCENTAGE",
     discountValue: 10,
     isActive: true,
@@ -356,7 +339,7 @@ export const ordersSeed: OrderData[] = [
 export const adminUsersSeed = [
   {
     id: "admin-main",
-    name: "GestÃ£o AAAU",
+    name: "Gestão AAAU",
     email: "admin@aaauuniritter.com.br",
     passwordHash: "dev_only_hash",
     role: "ADMIN",

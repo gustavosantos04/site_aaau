@@ -74,7 +74,7 @@ export function MobileNav() {
 
           <div className="mt-auto space-y-4 pt-8">
             <p className="text-xs leading-6 text-white/[0.58]">
-              Navegacao pensada para celular, com acesso rapido ao catalogo e ao
+              Navegação pensada para celular, com acesso rápido ao catálogo e ao
               carrinho.
             </p>
             <Link

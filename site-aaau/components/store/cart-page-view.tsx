@@ -46,7 +46,7 @@ export function CartPageView() {
             <div className="rounded-[2rem] border border-dashed border-white/[0.15] bg-white/[0.03] p-8 text-white/[0.68]">
               <p className="text-lg font-semibold text-white">Nenhum item no carrinho.</p>
               <p className="mt-2 text-sm leading-7">
-                Va para o catalogo e monte o primeiro pedido da colecao AAAU.
+                Vá para o catálogo e monte o primeiro pedido da coleção AAAU.
               </p>
               <Link
                 href="/produtos"
@@ -157,7 +157,7 @@ export function CartPageView() {
               <input
                 value={couponInput}
                 onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
-                placeholder="GESTAO"
+                placeholder="GESTÃO"
                 className="h-12 flex-1 rounded-full border border-white/[0.12] bg-black/20 px-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-aaau-ember"
               />
               <Button
@@ -166,7 +166,7 @@ export function CartPageView() {
                 onClick={() => {
                   const valid = applyCoupon(couponInput);
                   setCouponMessage(
-                    valid ? "Cupom aplicado com sucesso." : "Cupom invalido.",
+                    valid ? "Cupom aplicado com sucesso." : "Cupom inválido.",
                   );
                 }}
               >

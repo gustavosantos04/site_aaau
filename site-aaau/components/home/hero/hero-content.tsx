@@ -17,7 +17,7 @@ export function HeroContent({
         data-hero-copy
         className="max-w-full rounded-full border border-white/[0.12] bg-black/[0.28] px-3 py-2 text-[0.58rem] font-semibold uppercase tracking-[0.24em] text-white/70 backdrop-blur-md sm:px-4 sm:text-[0.68rem] sm:tracking-[0.34em]"
       >
-        Associacao Atletica Academica Uniritter
+        Associação Atlética Acadêmica Uniritter
       </p>
 
       <h1
@@ -31,10 +31,13 @@ export function HeroContent({
         data-hero-copy
         className="mt-4 max-w-[33rem] text-sm leading-6 text-white/[0.76] sm:mt-5 sm:text-base sm:leading-7 md:text-lg"
       >
-        Presenca de campus, quadra e arquibancada em uma identidade so.
+        Presença de campus, quadra e arquibancada em uma identidade só.
       </p>
 
-      <div data-hero-copy className="mt-7 flex w-full max-w-xl flex-col gap-3 sm:mt-8 sm:flex-row sm:justify-center">
+      <div
+        data-hero-copy
+        className="mt-7 flex w-full max-w-xl flex-col gap-3 sm:mt-8 sm:flex-row sm:justify-center"
+      >
         <Link
           href="/#sobre"
           className={buttonVariants({
@@ -43,7 +46,7 @@ export function HeroContent({
             className: "w-full sm:min-w-[220px] sm:w-auto",
           })}
         >
-          Conheca a Atletica
+          Conheça a Atlética
         </Link>
         <Link
           href="/produtos"

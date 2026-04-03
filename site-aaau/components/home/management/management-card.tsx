@@ -196,7 +196,7 @@ export function ManagementCard({
                 <div className="relative space-y-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.34em] text-white/44">
-                      Gestao Institucional
+                      Gestão Institucional
                     </p>
                     <h3 className="mt-3 max-w-[10ch] font-display text-[2.3rem] uppercase leading-[0.92] tracking-[0.08em] text-white">
                       {area.title}

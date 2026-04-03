@@ -23,16 +23,16 @@ export function AboutSection() {
 
               <SectionHeading
                 eyebrow="Sobre a AAAU"
-                title="Nao e so atletica. E presenca de campus em modo jogo."
-                description="A AAAU existe para transformar raca, torcida, tradicao e convivencia universitaria em algo que se ve, se veste e se sente dentro e fora da quadra."
+                title="Não é só atlética. É presença de campus em modo jogo."
+                description="A AAAU existe para transformar raça, torcida, tradição e convivência universitária em algo que se vê, se veste e se sente dentro e fora da quadra."
                 className="relative z-10 max-w-3xl"
               />
 
               <p className="relative z-10 mt-8 max-w-2xl text-sm leading-8 text-white/[0.72] sm:text-base md:text-lg">
-                Da recepcao dos calouros ao dia de competicao, a marca precisa
-                carregar o peso do grito, da comunidade e da memoria que fica
-                depois do apito. O objetivo aqui e dar a essa energia uma forma
-                premium, limpa e inesquecivel.
+                Da recepção dos calouros ao dia de competição, a marca precisa
+                carregar o peso do grito, da comunidade e da memória que fica
+                depois do apito. O objetivo aqui é dar a essa energia uma forma
+                premium, limpa e inesquecível.
               </p>
             </div>
           </Reveal>
@@ -65,7 +65,7 @@ export function AboutSection() {
 
                 <div>
                   <p className="text-[0.62rem] font-semibold uppercase tracking-[0.28em] text-white/50">
-                    Selo de presenca
+                    Selo de presença
                   </p>
                   <p className="mt-2 font-display text-2xl uppercase tracking-[0.08em] text-white sm:text-[2rem]">
                     1,2,3... AAAU!
@@ -75,13 +75,13 @@ export function AboutSection() {
 
               <p className="relative z-10 mt-10 max-w-[24rem] text-base leading-8 text-white/[0.8] sm:text-lg">
                 A marca da AAAU entra para ocupar a quadra, puxar a arquibancada e
-                virar simbolo de pertencimento.
+                virar símbolo de pertencimento.
               </p>
 
               <div className="relative z-10 mt-10 flex flex-wrap gap-3 text-[0.62rem] font-semibold uppercase tracking-[0.26em] text-white/48">
-                <span>Raca</span>
+                <span>Raça</span>
                 <span className="text-white/24">/</span>
-                <span>Tradicao</span>
+                <span>Tradição</span>
                 <span className="text-white/24">/</span>
                 <span>Comunidade</span>
               </div>
