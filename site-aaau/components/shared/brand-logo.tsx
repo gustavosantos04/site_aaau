@@ -6,24 +6,30 @@ import { cn } from "@/lib/utils";
 export function BrandLogo({
   className,
   priority = false,
+  imageClassName,
+  sizes = "(max-width: 768px) 48px, 56px",
+  quality = 100,
 }: {
   className?: string;
   priority?: boolean;
+  imageClassName?: string;
+  sizes?: string;
+  quality?: number;
 }) {
   return (
-    <div
-      className={cn(
-        "relative shrink-0 overflow-hidden rounded-full border border-white/[0.12] bg-white/[0.06] shadow-[0_10px_30px_rgba(0,0,0,0.28)]",
-        className,
-      )}
-    >
+    <div className={cn("relative isolate shrink-0 overflow-visible", className)}>
+      <div className="absolute inset-[12%] rounded-full bg-aaau-ember/18 blur-xl" />
       <Image
         src={officialLogo}
         alt="Logo oficial da AAAU"
         fill
         priority={priority}
-        sizes="(max-width: 768px) 48px, 56px"
-        className="object-contain p-1.5"
+        sizes={sizes}
+        quality={quality}
+        className={cn(
+          "relative object-contain [mix-blend-mode:screen] drop-shadow-[0_12px_30px_rgba(0,0,0,0.36)]",
+          imageClassName,
+        )}
       />
     </div>
   );

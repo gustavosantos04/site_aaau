@@ -53,6 +53,11 @@ export async function getProducts() {
         include: { images: { orderBy: { sortOrder: "asc" } } },
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
       });
+
+      if (products.length === 0) {
+        return productsSeed;
+      }
+
       return products.map((product) =>
         normalizeProduct({
           ...product,

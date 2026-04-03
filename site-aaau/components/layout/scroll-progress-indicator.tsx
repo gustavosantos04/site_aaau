@@ -96,8 +96,8 @@ export function ScrollProgressIndicator() {
                 <Image
                   src="/images/brand/bulldog-scroll.png"
                   alt="Indicador de rolagem bulldog da AAAU"
-                  width={42}
-                  height={42}
+                  width={48}
+                  height={48}
                   className="relative h-10 w-10 object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.42)]"
                   priority
                 />
@@ -107,7 +107,7 @@ export function ScrollProgressIndicator() {
         </div>
 
         <span className="text-[0.52rem] font-semibold uppercase tracking-[0.36em] text-white/26">
-          Scroll
+          bull
         </span>
       </div>
     </div>

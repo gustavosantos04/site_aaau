@@ -16,14 +16,18 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/[0.08] bg-aaau-night/[0.78] backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex min-w-0 items-center gap-3">
-          <BrandLogo className="h-11 w-11 sm:h-12 sm:w-12" priority />
-          <div>
-            <p className="font-display text-xl uppercase tracking-[0.12em] text-white sm:text-2xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
+        <Link href="/" className="flex min-w-0 items-center gap-3.5">
+          <BrandLogo
+            className="h-12 w-12 sm:h-[3.35rem] sm:w-[3.35rem]"
+            imageClassName="scale-[1.08]"
+            priority
+          />
+          <div className="leading-none">
+            <p className="font-display text-[1.35rem] uppercase tracking-[0.12em] text-white sm:text-[1.55rem]">
               AAAU
             </p>
-            <p className="text-[0.6rem] uppercase tracking-[0.24em] text-white/50 sm:text-xs sm:tracking-[0.26em]">
+            <p className="mt-1 text-[0.58rem] uppercase tracking-[0.28em] text-white/48 sm:text-[0.66rem]">
               Uniritter
             </p>
           </div>

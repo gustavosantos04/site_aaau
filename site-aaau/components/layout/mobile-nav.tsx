@@ -37,13 +37,13 @@ export function MobileNav() {
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <BrandLogo className="h-12 w-12" />
-              <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <BrandLogo className="h-12 w-12" imageClassName="scale-[1.08]" />
+              <div className="min-w-0 leading-none">
                 <p className="font-display text-2xl uppercase tracking-[0.12em] text-white">
                   AAAU
                 </p>
-                <p className="text-[0.62rem] uppercase tracking-[0.22em] text-white/50 sm:text-xs">
+                <p className="mt-1 text-[0.62rem] uppercase tracking-[0.24em] text-white/48 sm:text-xs">
                   Uniritter
                 </p>
               </div>

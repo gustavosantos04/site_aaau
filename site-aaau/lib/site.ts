@@ -9,7 +9,6 @@ export const siteConfig = {
     { label: "Home", href: "/" },
     { label: "Produtos", href: "/produtos" },
     { label: "Gestao", href: "/#gestao" },
-    { label: "Admin", href: "/admin/login" },
   ],
   adminLinks: [
     { label: "Visao Geral", href: "/admin" },

@@ -8,7 +8,6 @@ import { HeroContent } from "@/components/home/hero/hero-content";
 import { HeroMascots } from "@/components/home/hero/hero-mascots";
 import { useHeroMotion } from "@/components/home/hero/use-hero-motion";
 import { featuredStats } from "@/lib/data/seed-content";
-import { heroMediaSlides } from "@/lib/data/hero-media";
 
 export function HeroSection() {
   const rootRef = useRef<HTMLElement>(null);
@@ -30,9 +29,9 @@ export function HeroSection() {
   return (
     <section
       ref={rootRef}
-      className="relative isolate min-h-[calc(100svh-73px)] overflow-hidden border-b border-white/10 sm:min-h-[calc(100svh-81px)]"
+      className="relative isolate min-h-[calc(100svh-73px)] overflow-hidden border-b border-white/10 bg-[linear-gradient(180deg,#090909_0%,#080808_100%)] sm:min-h-[calc(100svh-81px)]"
     >
-      <HeroBackgroundMedia items={heroMediaSlides} backgroundRef={backgroundRef} />
+      <HeroBackgroundMedia backgroundRef={backgroundRef} />
       <HeroAtmosphere atmosphereRef={atmosphereRef} />
       <HeroMascots leftRef={leftRef} rightRef={rightRef} />
 

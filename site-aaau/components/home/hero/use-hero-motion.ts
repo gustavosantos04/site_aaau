@@ -123,6 +123,20 @@ export function useHeroMotion({
       duration: 0.9,
       ease: "power3.out",
     });
+    const pawLayers = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-hero-paw-layer]"),
+    ).map((layer) => ({
+      layer,
+      depth: Number(layer.dataset.depth ?? 12),
+      moveX: gsap.quickTo(layer, "x", {
+        duration: 0.85,
+        ease: "power3.out",
+      }),
+      moveY: gsap.quickTo(layer, "y", {
+        duration: 0.85,
+        ease: "power3.out",
+      }),
+    }));
 
     const handleMove = (event: PointerEvent) => {
       const bounds = root.getBoundingClientRect();
@@ -137,6 +151,10 @@ export function useHeroMotion({
       moveLeftY(relativeY * -18);
       moveRightX(relativeX * 24);
       moveRightY(relativeY * 18);
+      pawLayers.forEach(({ depth, moveX, moveY }) => {
+        moveX(relativeX * depth * 1.2);
+        moveY(relativeY * depth);
+      });
     };
 
     const handleLeave = () => {
@@ -148,6 +166,10 @@ export function useHeroMotion({
       moveLeftY(0);
       moveRightX(0);
       moveRightY(0);
+      pawLayers.forEach(({ moveX, moveY }) => {
+        moveX(0);
+        moveY(0);
+      });
     };
 
     root.addEventListener("pointermove", handleMove);

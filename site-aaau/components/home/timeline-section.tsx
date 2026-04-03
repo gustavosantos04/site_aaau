@@ -109,7 +109,7 @@ export function TimelineSection() {
       {/* Progress Indicator */}
       <div className="absolute bottom-12 left-1/2 z-20 -translate-x-1/2">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-aaau-smoke/40">Scroll para navegar</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-aaau-smoke/40">Siga a linha</span>
           <div className="h-[1px] w-12 bg-white/10" />
         </div>
       </div>
