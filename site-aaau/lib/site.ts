@@ -1,8 +1,10 @@
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://aaau-uniritter.vercel.app";
+
 export const siteConfig = {
   name: "AAAU Uniritter",
   description:
     "Plataforma oficial da Associação Atlética Acadêmica Uniritter com foco em marca, comunidade e venda de produtos.",
-  url: "https://aaau-uniritter.vercel.app",
+  url: siteUrl,
   policyNote:
     "Após a compra, a gestão entra em contato pelo WhatsApp em até 2 dias para confirmar entrega ou retirada.",
   nav: [

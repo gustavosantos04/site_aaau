@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdminSession } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { getCoupons } from "@/lib/data/store";
 
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminCouponsPage() {
+  await requireAdminSession();
+
   const coupons = await getCoupons();
 
   return (

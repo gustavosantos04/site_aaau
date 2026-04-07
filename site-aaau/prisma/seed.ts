@@ -1,7 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
 import {
-  adminUsersSeed,
   couponsSeed,
   eventsSeed,
   ordersSeed,
@@ -23,7 +22,6 @@ async function main() {
   await prisma.product.deleteMany();
   await prisma.coupon.deleteMany();
   await prisma.event.deleteMany();
-  await prisma.adminUser.deleteMany();
 
   for (const product of productsSeed) {
     await prisma.product.create({
@@ -94,12 +92,6 @@ async function main() {
           })),
         },
       },
-    });
-  }
-
-  for (const adminUser of adminUsersSeed) {
-    await prisma.adminUser.create({
-      data: adminUser,
     });
   }
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { requireAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { managementAreaBlueprints, type ManagementMember } from "@/lib/data/management";
 import { ensureManagementAreaRecords } from "@/lib/data/management-store";
@@ -44,6 +45,8 @@ export async function saveManagementAreaMembersAction(
   _prevState: ManagementFormState,
   formData: FormData,
 ): Promise<ManagementFormState> {
+  await requireAdminSession();
+
   const parsed = formSchema.safeParse({
     areaId: formData.get("areaId"),
     membersText: formData.get("membersText"),

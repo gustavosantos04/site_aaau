@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { ManagementAreaForm } from "@/components/admin/management-area-form";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdminSession } from "@/lib/auth";
 import { serializeManagementMembers } from "@/lib/data/management";
 import { getManagementAreas } from "@/lib/data/management-store";
 
@@ -10,6 +11,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminManagementPage() {
+  await requireAdminSession();
+
   const areas = await getManagementAreas();
 
   return (

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SummaryCard } from "@/components/admin/summary-card";
+import { requireAdminSession } from "@/lib/auth";
 import { getDashboardSnapshot, getOrders, getProducts } from "@/lib/data/store";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -10,6 +11,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminDashboardPage() {
+  await requireAdminSession();
+
   const [snapshot, orders, products] = await Promise.all([
     getDashboardSnapshot(),
     getOrders(),

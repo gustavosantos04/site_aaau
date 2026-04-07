@@ -340,8 +340,8 @@ export const adminUsersSeed = [
   {
     id: "admin-main",
     name: "Gestão AAAU",
-    email: "admin@aaauuniritter.com.br",
-    passwordHash: "dev_only_hash",
+    email: "configure-admin-via-env@example.com",
+    passwordHash: "env_managed_auth",
     role: "ADMIN",
     isActive: true,
   },

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdminSession } from "@/lib/auth";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getOrders } from "@/lib/data/store";
 
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminOrdersPage() {
+  await requireAdminSession();
+
   const orders = await getOrders();
 
   return (

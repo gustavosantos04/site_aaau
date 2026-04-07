@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import type { ReactNode } from "react";
 
+import { logoutAdminAction } from "@/app/admin/actions";
 import { siteConfig } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,14 @@ export function AdminShell({
                 {item.label}
               </Link>
             ))}
+            <form action={logoutAdminAction}>
+              <button
+                type="submit"
+                className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/70 transition hover:border-white/25 hover:text-white"
+              >
+                Sair
+              </button>
+            </form>
           </div>
         </div>
       </div>
