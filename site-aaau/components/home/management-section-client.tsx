@@ -87,12 +87,12 @@ export function ManagementSectionClient({ areas }: { areas: ManagementArea[] }) 
         </div>
 
         <div ref={mobileRailRef} className="mt-12 lg:hidden">
-          <div className="-mx-4 overflow-x-auto px-4 pb-3">
+          <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-3 [scroll-snap-type:x_mandatory]">
             <div className="flex min-w-max gap-4 pr-4">
               {areas.map((area, index) => (
                 <div
                   key={area.id}
-                  className="relative flex w-[17rem] shrink-0 justify-center"
+                  className="relative flex w-[min(17rem,78vw)] shrink-0 justify-center [scroll-snap-align:center]"
                   style={{
                     transform: `rotate(${index % 2 === 0 ? -3.5 : 3.5}deg)`,
                   }}

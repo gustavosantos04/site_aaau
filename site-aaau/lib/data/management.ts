@@ -2,6 +2,7 @@ export type ManagementMember = {
   name: string;
   role?: string;
   image?: string;
+  instagram?: string;
 };
 
 export type ManagementArea = {

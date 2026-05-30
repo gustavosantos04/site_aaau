@@ -4,8 +4,17 @@ export type OrderStatus =
   | "PENDING"
   | "CONTACT_PENDING"
   | "CONFIRMED"
+  | "PAID"
   | "FULFILLED"
-  | "CANCELED";
+  | "CANCELED"
+  | "FAILED";
+export type PaymentStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELED"
+  | "REFUNDED"
+  | "UNKNOWN";
 
 export interface ProductImage {
   id: string;
@@ -23,6 +32,7 @@ export interface Product {
   description: string;
   category: ProductCategory;
   sizes: string[];
+  stock: number;
   featured: boolean;
   isNew: boolean;
   isActive: boolean;
@@ -72,9 +82,14 @@ export interface OrderData {
   id: string;
   orderNumber: string;
   customerName: string;
+  customerCpf?: string;
   customerEmail: string;
   customerPhone: string;
+  customerCampus?: string;
   status: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  mercadoPagoPreferenceId?: string;
+  mercadoPagoPaymentId?: string;
   subtotal: number;
   discount: number;
   total: number;

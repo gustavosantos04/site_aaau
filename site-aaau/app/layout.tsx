@@ -29,6 +29,10 @@ export const metadata: Metadata = {
     template: "%s | AAAU Uniritter",
   },
   description: siteConfig.description,
+  icons: {
+    icon: "/images/brand/icone-aaau.ico",
+    shortcut: "/images/brand/icone-aaau.ico",
+  },
   openGraph: {
     title: "AAAU Uniritter",
     description: siteConfig.description,

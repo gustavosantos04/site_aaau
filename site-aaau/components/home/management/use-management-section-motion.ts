@@ -47,6 +47,10 @@ export function useManagementSectionMotion({
   );
 
   useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
     const { gsap } = getGsap();
     const mm = gsap.matchMedia();
 
@@ -122,6 +126,10 @@ export function useManagementSectionMotion({
   }, []);
 
   useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
     const { gsap } = getGsap();
     const mm = gsap.matchMedia();
 
@@ -217,6 +225,10 @@ export function useManagementSectionMotion({
 
   useLayoutEffect(() => {
     if (!mobileDetailRef.current || !activeId) {
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       return;
     }
 

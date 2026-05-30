@@ -10,6 +10,7 @@ html {
   scroll-behavior: smooth;
   scrollbar-color: rgba(139, 23, 48, 0.95) rgba(255, 255, 255, 0.08);
   scrollbar-width: thin;
+  overflow-x: clip;
 }
 
 body {
@@ -19,6 +20,20 @@ body {
     radial-gradient(circle at top, rgba(167, 29, 58, 0.16), transparent 26%),
     linear-gradient(180deg, #090909 0%, #090909 100%);
   color: #f7f2ea;
+}
+
+main,
+section,
+article,
+aside {
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 * {
@@ -360,5 +375,20 @@ body {
   .hero-paw-trail,
   .hero-paw-print {
     animation: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
   }
 }

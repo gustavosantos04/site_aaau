@@ -25,6 +25,11 @@ export function useHeroMotion({
       return;
     }
 
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      return;
+    }
+
     const { gsap } = getGsap();
     const ctx = gsap.context(() => {
       gsap.fromTo(
@@ -84,10 +89,9 @@ export function useHeroMotion({
       }
     }, root);
 
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isDesktop = window.matchMedia("(min-width: 768px)").matches;
 
-    if (reduceMotion || !isDesktop) {
+    if (!isDesktop) {
       return () => ctx.revert();
     }
 

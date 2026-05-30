@@ -23,6 +23,7 @@ function normalizeProduct(product: {
   description: string;
   category: Product["category"];
   sizes: string[];
+  stock: number;
   featured: boolean;
   isNew: boolean;
   isActive: boolean;
@@ -57,6 +58,25 @@ export async function getProducts() {
       if (products.length === 0) {
         return productsSeed;
       }
+
+      return products.map((product) =>
+        normalizeProduct({
+          ...product,
+          images: product.images,
+        }),
+      );
+    },
+    productsSeed,
+  );
+}
+
+export async function getAdminProducts() {
+  return withFallback(
+    async () => {
+      const products = await prisma.product.findMany({
+        include: { images: { orderBy: { sortOrder: "asc" } } },
+        orderBy: [{ createdAt: "desc" }],
+      });
 
       return products.map((product) =>
         normalizeProduct({
@@ -146,9 +166,14 @@ export async function getOrders() {
         id: order.id,
         orderNumber: order.orderNumber,
         customerName: order.customerName,
+        customerCpf: order.customerCpf ?? undefined,
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
+        customerCampus: order.customerCampus ?? undefined,
         status: order.status,
+        paymentStatus: order.paymentStatus,
+        mercadoPagoPreferenceId: order.mercadoPagoPreferenceId ?? undefined,
+        mercadoPagoPaymentId: order.mercadoPagoPaymentId ?? undefined,
         subtotal: Number(order.subtotal),
         discount: Number(order.discount),
         total: Number(order.total),
