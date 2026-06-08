@@ -73,6 +73,8 @@ export interface OrderItemData {
   productName: string;
   productSlug: string;
   size?: string;
+  customName?: string;
+  customNumber?: string;
   quantity: number;
   unitPrice: number;
   lineTotal: number;

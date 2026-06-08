@@ -15,7 +15,7 @@ export function buttonVariants({
   className?: string;
 }) {
   return cn(
-    "inline-flex items-center justify-center rounded-full border text-sm font-semibold tracking-[0.18em] uppercase transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+    "inline-flex items-center justify-center rounded-full border text-sm font-semibold tracking-[0.18em] uppercase transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-45",
     variant === "primary" &&
       "border-aaau-ember bg-aaau-ember px-6 text-white shadow-glow hover:bg-[#a01d39]",
     variant === "secondary" &&

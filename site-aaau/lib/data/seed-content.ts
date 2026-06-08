@@ -2,9 +2,8 @@ import type { Coupon, EventItem, OrderData, Product } from "@/types/store";
 
 export const featuredStats = [
   { label: "anos de história", value: "12+" },
-  { label: "modalidades", value: "5" },
+  { label: "modalidades", value: "6" },
   { label: "campi ativos", value: "3" },
-  { label: "títulos recentes", value: "4" },
 ];
 
 export const aboutKeywords = ["Raça", "Tradição", "Comunidade", "Torcida", "Jogos", "Campus"];
@@ -113,7 +112,7 @@ export const achievements = [
   },
 ];
 
-export const sports = ["Futsal", "Vôlei", "Handebol", "Basquete", "Fut7"];
+export const sports = ["Futsal", "Vôlei", "Handebol", "Basquete", "Fut7", "Futvôlei"];
 
 export const managementGroups = [
   {
@@ -322,6 +321,8 @@ export const ordersSeed: OrderData[] = [
         productName: "Uniforme de Jogo",
         productSlug: "uniforme-de-jogo-aaau",
         size: "M",
+        customName: "MARINA",
+        customNumber: "10",
         quantity: 1,
         unitPrice: 149.9,
         lineTotal: 149.9,

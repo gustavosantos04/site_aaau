@@ -6,7 +6,7 @@ import { Minus, Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 
 import { Button, buttonVariants } from "@/components/shared/button";
-import { useCart } from "@/features/cart/cart-provider";
+import { getCartItemKey, useCart } from "@/features/cart/cart-provider";
 import { siteConfig } from "@/lib/site";
 import { formatCurrency } from "@/lib/utils";
 
@@ -62,7 +62,7 @@ export function CartPageView() {
           ) : (
             items.map((item) => (
               <article
-                key={`${item.productId}-${item.size}`}
+                key={getCartItemKey(item)}
                 className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-[120px,1fr]"
               >
                 <div className="relative aspect-square overflow-hidden rounded-[1.4rem] bg-white/5">
@@ -75,10 +75,17 @@ export function CartPageView() {
                       <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
                         Tamanho {item.size}
                       </p>
+                      {item.customName || item.customNumber ? (
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
+                          {item.customName ? `Nome ${item.customName}` : null}
+                          {item.customName && item.customNumber ? " - " : null}
+                          {item.customNumber ? `Numero ${item.customNumber}` : null}
+                        </p>
+                      ) : null}
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeItem(item.productId, item.size)}
+                      onClick={() => removeItem(getCartItemKey(item))}
                       className="text-xs uppercase tracking-[0.18em] text-white/[0.45]"
                     >
                       Remover
@@ -90,7 +97,7 @@ export function CartPageView() {
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuantity(item.productId, item.size, item.quantity - 1)
+                          updateQuantity(getCartItemKey(item), item.quantity - 1)
                         }
                         className="inline-flex h-10 w-10 items-center justify-center text-white"
                       >
@@ -102,7 +109,7 @@ export function CartPageView() {
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuantity(item.productId, item.size, item.quantity + 1)
+                          updateQuantity(getCartItemKey(item), item.quantity + 1)
                         }
                         className="inline-flex h-10 w-10 items-center justify-center text-white"
                       >

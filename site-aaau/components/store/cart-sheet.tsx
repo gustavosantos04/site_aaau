@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Minus, Plus, X } from "lucide-react";
 
 import { buttonVariants } from "@/components/shared/button";
-import { useCart } from "@/features/cart/cart-provider";
+import { getCartItemKey, useCart } from "@/features/cart/cart-provider";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export function CartSheet() {
@@ -23,7 +23,7 @@ export function CartSheet() {
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 transition",
+        "fixed inset-0 z-[90] transition",
         isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
       )}
       aria-hidden={!isOpen}
@@ -67,7 +67,7 @@ export function CartSheet() {
           ) : (
             items.map((item) => (
               <article
-                key={`${item.productId}-${item.size}`}
+                key={getCartItemKey(item)}
                 className="grid grid-cols-[88px,1fr] gap-4 rounded-[1.6rem] border border-white/10 bg-white/[0.03] p-3"
               >
                 <div className="relative aspect-square overflow-hidden rounded-[1rem] bg-white/5">
@@ -80,10 +80,17 @@ export function CartSheet() {
                       <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
                         Tamanho {item.size}
                       </p>
+                      {item.customName || item.customNumber ? (
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
+                          {item.customName ? `Nome ${item.customName}` : null}
+                          {item.customName && item.customNumber ? " - " : null}
+                          {item.customNumber ? `Numero ${item.customNumber}` : null}
+                        </p>
+                      ) : null}
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeItem(item.productId, item.size)}
+                      onClick={() => removeItem(getCartItemKey(item))}
                       className="text-xs uppercase tracking-[0.18em] text-white/[0.45]"
                     >
                       Remover
@@ -95,7 +102,7 @@ export function CartSheet() {
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuantity(item.productId, item.size, item.quantity - 1)
+                          updateQuantity(getCartItemKey(item), item.quantity - 1)
                         }
                         className="inline-flex h-9 w-9 items-center justify-center text-white"
                       >
@@ -107,7 +114,7 @@ export function CartSheet() {
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuantity(item.productId, item.size, item.quantity + 1)
+                          updateQuantity(getCartItemKey(item), item.quantity + 1)
                         }
                         className="inline-flex h-9 w-9 items-center justify-center text-white"
                       >

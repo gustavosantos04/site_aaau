@@ -120,6 +120,8 @@ model OrderItem {
   productName String
   productSlug String
   size        String?
+  customName  String?
+  customNumber String?
   quantity    Int
   unitPrice   Decimal  @db.Decimal(10, 2)
   lineTotal   Decimal  @db.Decimal(10, 2)

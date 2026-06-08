@@ -15,7 +15,7 @@ export function SiteHeader() {
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/[0.08] bg-aaau-night/[0.78] backdrop-blur-xl">
+    <header className="sticky top-0 z-[100] border-b border-white/[0.08] bg-aaau-night/[0.78] backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-w-0 items-center gap-3.5">
           <BrandLogo

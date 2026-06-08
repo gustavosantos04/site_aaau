@@ -185,6 +185,8 @@ export async function getOrders() {
           productName: item.productName,
           productSlug: item.productSlug,
           size: item.size ?? undefined,
+          customName: item.customName ?? undefined,
+          customNumber: item.customNumber ?? undefined,
           quantity: item.quantity,
           unitPrice: Number(item.unitPrice),
           lineTotal: Number(item.lineTotal),

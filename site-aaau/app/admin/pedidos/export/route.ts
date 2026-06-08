@@ -65,7 +65,15 @@ export async function GET(request: Request) {
       order.paymentStatus ?? "PENDING",
       order.total,
       order.items
-        .map((item) => `${item.productName} (${item.quantity}x ${item.size ?? ""})`)
+        .map((item) =>
+          [
+            `${item.productName} (${item.quantity}x ${item.size ?? ""})`,
+            item.customName ? `Nome ${item.customName}` : null,
+            item.customNumber ? `Numero ${item.customNumber}` : null,
+          ]
+            .filter(Boolean)
+            .join(" - "),
+        )
         .join("; "),
       order.createdAt,
     ]),

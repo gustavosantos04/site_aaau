@@ -7,7 +7,6 @@ import { ManagementSection } from "@/components/home/management-section";
 import { Preloader } from "@/components/home/preloader";
 import { SponsorsSection } from "@/components/home/sponsors-section";
 import { SportsSection } from "@/components/home/sports-section";
-import { TimelineSection } from "@/components/home/timeline-section";
 import { getFeaturedProducts } from "@/lib/data/store";
 
 export default async function HomePage() {
@@ -18,7 +17,7 @@ export default async function HomePage() {
       <Preloader />
       <HeroSection />
       <AboutSection />
-      <TimelineSection />
+      {/* <TimelineSection /> */}
       <FeaturedProductsSection products={products} />
       <AchievementsSection />
       <SportsSection />

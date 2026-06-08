@@ -50,7 +50,6 @@ export function SiteFooter() {
           <div className="mt-4 space-y-3 text-sm text-white/70">
             <p>{contactInfo.instagram}</p>
             <p>{contactInfo.whatsapp}</p>
-            <p>{contactInfo.email}</p>
           </div>
         </div>
       </div>

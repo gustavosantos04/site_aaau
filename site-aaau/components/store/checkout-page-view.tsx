@@ -73,6 +73,8 @@ export function CheckoutPageView() {
             productId: item.productId,
             slug: item.slug,
             size: item.size,
+            customName: item.customName,
+            customNumber: item.customNumber,
             quantity: item.quantity,
           })),
         }),
@@ -230,7 +232,7 @@ export function CheckoutPageView() {
           <div className="mt-8 space-y-4">
             {items.map((item) => (
               <div
-                key={`${item.productId}-${item.size}`}
+                key={`${item.productId}-${item.size}-${item.customName ?? ""}-${item.customNumber ?? ""}`}
                 className="flex items-start justify-between gap-4 border-b border-white/10 pb-4 text-sm text-white/70"
               >
                 <div>
@@ -238,6 +240,13 @@ export function CheckoutPageView() {
                   <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
                     {item.size} - {item.quantity}x
                   </p>
+                  {item.customName || item.customNumber ? (
+                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
+                      {item.customName ? `Nome ${item.customName}` : null}
+                      {item.customName && item.customNumber ? " - " : null}
+                      {item.customNumber ? `Numero ${item.customNumber}` : null}
+                    </p>
+                  ) : null}
                 </div>
                 <span>{formatCurrency(item.price * item.quantity)}</span>
               </div>

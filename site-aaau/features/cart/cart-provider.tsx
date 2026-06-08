@@ -19,7 +19,14 @@ export interface CartItem {
   image: string;
   price: number;
   size: string;
+  customName?: string;
+  customNumber?: string;
   quantity: number;
+}
+
+export interface CartItemCustomization {
+  customName?: string;
+  customNumber?: string;
 }
 
 interface CartContextValue {
@@ -29,9 +36,13 @@ interface CartContextValue {
   subtotal: number;
   discount: number;
   total: number;
-  addItem: (product: Product, size: string) => void;
-  updateQuantity: (productId: string, size: string, quantity: number) => void;
-  removeItem: (productId: string, size: string) => void;
+  addItem: (
+    product: Product,
+    size: string,
+    customization?: CartItemCustomization,
+  ) => void;
+  updateQuantity: (itemKey: string, quantity: number) => void;
+  removeItem: (itemKey: string) => void;
   clearCart: () => void;
   openCart: () => void;
   closeCart: () => void;
@@ -42,6 +53,15 @@ const STORAGE_KEY = "aaau-cart";
 const COUPON_STORAGE_KEY = "aaau-cart-coupon";
 
 const CartContext = createContext<CartContextValue | null>(null);
+
+export function getCartItemKey(item: Pick<CartItem, "productId" | "size" | "customName" | "customNumber">) {
+  return [
+    item.productId,
+    item.size,
+    item.customName?.trim().toUpperCase() ?? "",
+    item.customNumber?.trim() ?? "",
+  ].join("::");
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -96,20 +116,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const total = Math.max(subtotal - discount, 0);
 
-  function addItem(product: Product, size: string) {
+  function addItem(
+    product: Product,
+    size: string,
+    customization: CartItemCustomization = {},
+  ) {
     const image =
       product.images.find((entry) => entry.isPrimary)?.url ??
       product.images[0]?.url ??
       "";
+    const customName = customization.customName?.trim() || undefined;
+    const customNumber = customization.customNumber?.trim() || undefined;
 
     setItems((currentItems) => {
+      const nextItemKey = getCartItemKey({
+        productId: product.id,
+        size,
+        customName,
+        customNumber,
+      });
       const existing = currentItems.find(
-        (item) => item.productId === product.id && item.size === size,
+        (item) => getCartItemKey(item) === nextItemKey,
       );
 
       if (existing) {
         return currentItems.map((item) =>
-          item.productId === product.id && item.size === size
+          getCartItemKey(item) === nextItemKey
             ? { ...item, quantity: item.quantity + 1 }
             : item,
         );
@@ -124,6 +156,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           image,
           price: product.price,
           size,
+          customName,
+          customNumber,
           quantity: 1,
         },
       ];
@@ -132,26 +166,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setIsOpen(true);
   }
 
-  function updateQuantity(productId: string, size: string, quantity: number) {
+  function updateQuantity(itemKey: string, quantity: number) {
     if (quantity <= 0) {
-      removeItem(productId, size);
+      removeItem(itemKey);
       return;
     }
 
     setItems((currentItems) =>
       currentItems.map((item) =>
-        item.productId === productId && item.size === size
+        getCartItemKey(item) === itemKey
           ? { ...item, quantity }
           : item,
       ),
     );
   }
 
-  function removeItem(productId: string, size: string) {
+  function removeItem(itemKey: string) {
     setItems((currentItems) =>
-      currentItems.filter(
-        (item) => !(item.productId === productId && item.size === size),
-      ),
+      currentItems.filter((item) => getCartItemKey(item) !== itemKey),
     );
   }
 

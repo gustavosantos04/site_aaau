@@ -27,7 +27,6 @@ export const siteConfig = {
 };
 
 export const contactInfo = {
-  instagram: "@aaau.uniritter",
-  whatsapp: "(51) 99999-0000",
-  email: "contato@aaauuniritter.com.br",
+  instagram: "@atleticauniritter",
+  whatsapp: "51 997565330",
 };

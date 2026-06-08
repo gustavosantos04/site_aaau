@@ -11,6 +11,7 @@ const sportsData = [
   { name: "Handebol", image: "/images/mascots/bull_hand.png" },
   { name: "Basquete", image: "/images/mascots/bull_basquete.png" },
   { name: "Fut7", image: "/images/mascots/bull_fut7.png" },
+  { name: "Futvôlei", image: "/images/mascots/bull_volei.png" },
 ];
 
 export function SportsSection() {
@@ -44,7 +45,7 @@ export function SportsSection() {
           />
         </div>
 
-        <div ref={cardsRef} className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div ref={cardsRef} className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {sportsData.map((sport) => (
             <article
               key={sport.name}

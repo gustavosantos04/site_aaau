@@ -9,9 +9,15 @@ import type { Product } from "@/types/store";
 export function AddToCartButton({
   product,
   defaultSize,
+  customName,
+  customNumber,
+  disabled,
 }: {
   product: Product;
   defaultSize: string;
+  customName?: string;
+  customNumber?: string;
+  disabled?: boolean;
 }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
@@ -20,8 +26,9 @@ export function AddToCartButton({
     <Button
       size="lg"
       className="w-full"
+      disabled={disabled}
       onClick={() => {
-        addItem(product, defaultSize);
+        addItem(product, defaultSize, { customName, customNumber });
         setAdded(true);
         window.setTimeout(() => setAdded(false), 1200);
       }}

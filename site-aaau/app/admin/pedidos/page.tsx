@@ -166,6 +166,13 @@ export default async function AdminOrdersPage({
                     <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/[0.45]">
                       {item.size ?? "Sem variacao"} - {item.quantity}x
                     </p>
+                    {item.customName || item.customNumber ? (
+                      <p className="mt-2 text-xs uppercase tracking-[0.16em] text-white/[0.45]">
+                        {item.customName ? `Nome ${item.customName}` : null}
+                        {item.customName && item.customNumber ? " - " : null}
+                        {item.customNumber ? `Numero ${item.customNumber}` : null}
+                      </p>
+                    ) : null}
                     <p className="mt-3">{formatCurrency(item.lineTotal)}</p>
                   </div>
                 ))}

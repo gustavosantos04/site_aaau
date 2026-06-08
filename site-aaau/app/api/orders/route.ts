@@ -17,6 +17,8 @@ const checkoutSchema = z.object({
         productId: z.string().min(1),
         slug: z.string().min(1),
         size: z.string().min(1),
+        customName: z.string().trim().max(18).optional(),
+        customNumber: z.string().trim().regex(/^\d{1,2}$/).optional(),
         quantity: z.coerce.number().int().positive(),
       }),
     )
@@ -179,15 +181,36 @@ export async function POST(request: Request) {
     );
   }
 
+  for (const item of data.items) {
+    const product = productsById.get(item.productId);
+
+    if (!product) {
+      return NextResponse.json({ message: "Produto indisponivel." }, { status: 400 });
+    }
+
+    if (item.quantity > product.stock) {
+      return NextResponse.json(
+        { message: `Estoque insuficiente para ${product.name}.` },
+        { status: 400 },
+      );
+    }
+
+    if (
+      product.category === "UNIFORM" &&
+      (!item.customName?.trim() || !item.customNumber?.trim())
+    ) {
+      return NextResponse.json(
+        { message: `Informe nome e numero para ${product.name}.` },
+        { status: 400 },
+      );
+    }
+  }
+
   const orderItems = data.items.map((item) => {
     const product = productsById.get(item.productId);
 
     if (!product) {
       throw new Error("Produto indisponivel.");
-    }
-
-    if (item.quantity > product.stock) {
-      throw new Error(`Estoque insuficiente para ${product.name}.`);
     }
 
     const unitPrice = Number(product.price);
@@ -196,6 +219,8 @@ export async function POST(request: Request) {
     return {
       product,
       size: item.size,
+      customName: item.customName || null,
+      customNumber: item.customNumber || null,
       quantity: item.quantity,
       unitPrice,
       totalPrice,
@@ -221,10 +246,12 @@ export async function POST(request: Request) {
         total: subtotal,
         items: {
           create: orderItems.map((item) => ({
-            productId: item.product.id,
+            product: { connect: { id: item.product.id } },
             productName: item.product.name,
             productSlug: item.product.slug,
             size: item.size,
+            customName: item.customName,
+            customNumber: item.customNumber,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             lineTotal: item.totalPrice,
@@ -244,7 +271,14 @@ export async function POST(request: Request) {
         orderNumber: order.orderNumber,
         buyerEmail: order.customerEmail,
         items: order.items.map((item) => ({
-          title: item.productName,
+          title: [
+            item.productName,
+            item.size ? `Tam ${item.size}` : null,
+            item.customName ? `Nome ${item.customName}` : null,
+            item.customNumber ? `Numero ${item.customNumber}` : null,
+          ]
+            .filter(Boolean)
+            .join(" - "),
           quantity: item.quantity,
           unit_price: Number(item.unitPrice),
         })),
