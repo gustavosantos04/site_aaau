@@ -1,0 +1,161 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { buttonVariants } from "@/components/shared/button";
+import { formatCurrency, formatDate } from "@/lib/utils";
+
+type PublicOrder = {
+  orderId: string;
+  orderNumber: string;
+  status: "pending" | "approved" | "rejected" | "cancelled" | "refunded" | "expired";
+  items: Array<{
+    id: string;
+    productName: string;
+    size: string | null;
+    quantity: number;
+    totalPrice: number;
+  }>;
+  total: number;
+  buyer: {
+    name: string;
+  };
+  createdAt: string;
+};
+
+const content = {
+  success: {
+    eyebrow: "Pagamento",
+    title: "Pedido recebido.",
+    copy:
+      "A AAAU recebeu seu pedido. Se o Mercado Pago ainda estiver confirmando o pagamento, o status pode atualizar em alguns instantes.",
+  },
+  pending: {
+    eyebrow: "Pagamento pendente",
+    title: "Estamos aguardando a confirmacao.",
+    copy:
+      "Pix, boleto e algumas analises de cartao podem levar alguns instantes. O pedido permanece registrado enquanto o Mercado Pago confirma o status.",
+  },
+  error: {
+    eyebrow: "Pagamento nao concluido",
+    title: "Nao recebemos a confirmacao.",
+    copy:
+      "O pedido continua salvo como pendente ou recusado. Voce pode voltar ao catalogo e iniciar uma nova tentativa de pagamento.",
+  },
+};
+
+export function PaymentReturnPage({
+  orderId,
+  variant,
+}: {
+  orderId?: string;
+  variant: keyof typeof content;
+}) {
+  const [order, setOrder] = useState<PublicOrder | null>(null);
+  const [loading, setLoading] = useState(Boolean(orderId));
+  const [message, setMessage] = useState<string | null>(null);
+  const page = content[variant];
+
+  useEffect(() => {
+    if (!orderId) {
+      setMessage("Pedido nao informado.");
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    fetch(`/api/orders/${orderId}`)
+      .then(async (response) => {
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message ?? "Pedido nao encontrado.");
+        }
+
+        if (active) {
+          setOrder(result as PublicOrder);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setMessage(error instanceof Error ? error.message : "Nao foi possivel buscar o pedido.");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [orderId]);
+
+  return (
+    <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+      <div className="max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
+          {page.eyebrow}
+        </p>
+        <h1 className="mt-4 font-display text-4xl uppercase tracking-[0.08em] text-white sm:text-6xl">
+          {page.title}
+        </h1>
+        <p className="mt-5 text-base leading-8 text-white/[0.68]">{page.copy}</p>
+      </div>
+
+      <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+        {loading ? <p className="text-sm text-white/60">Buscando pedido...</p> : null}
+        {message ? <p className="text-sm text-[#ffb4b4]">{message}</p> : null}
+
+        {order ? (
+          <div className="grid gap-6 lg:grid-cols-[1fr,280px]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
+                {order.orderNumber} - {formatDate(order.createdAt)}
+              </p>
+              <p className="mt-3 text-sm text-white/65">
+                Comprador: {order.buyer.name} - Status: {order.status}
+              </p>
+              <div className="mt-5 space-y-3">
+                {order.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 text-sm text-white/70"
+                  >
+                    <div>
+                      <p className="font-semibold text-white">{item.productName}</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/[0.45]">
+                        {item.size ?? "Sem tamanho"} - {item.quantity}x
+                      </p>
+                    </div>
+                    <span>{formatCurrency(item.totalPrice)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[1.2rem] border border-white/10 bg-black/20 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
+                Total
+              </p>
+              <p className="mt-3 font-display text-4xl uppercase tracking-[0.08em] text-white">
+                {formatCurrency(order.total)}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <Link href="/produtos" className={buttonVariants({ variant: "primary", size: "lg" })}>
+          Voltar ao catalogo
+        </Link>
+        <Link href="/" className={buttonVariants({ variant: "secondary", size: "lg" })}>
+          Ir para home
+        </Link>
+      </div>
+    </section>
+  );
+}

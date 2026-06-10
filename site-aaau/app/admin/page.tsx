@@ -10,6 +10,16 @@ export const metadata: Metadata = {
   title: "Admin",
 };
 
+const orderStatusLabels = {
+  PENDING: "Pendente",
+  CONTACT_PENDING: "Aguardando contato",
+  CONFIRMED: "Confirmado",
+  PAID: "Pago",
+  FULFILLED: "Entregue",
+  CANCELED: "Cancelado",
+  FAILED: "Falhou",
+};
+
 export default async function AdminDashboardPage() {
   await requireAdminSession();
 
@@ -33,7 +43,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr,0.9fr]">
-        <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+        <article className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.2)] sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
             Pedidos recentes
           </p>
@@ -41,7 +51,7 @@ export default async function AdminDashboardPage() {
             {orders.map((order) => (
               <div
                 key={order.id}
-                className="flex flex-col gap-3 rounded-[1.2rem] border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-[1.1rem] border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-semibold text-white">{order.orderNumber}</p>
@@ -51,7 +61,7 @@ export default async function AdminDashboardPage() {
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
-                    {order.status}
+                    {orderStatusLabels[order.status]}
                   </p>
                   <p className="mt-1 font-semibold text-aaau-sand">
                     {formatCurrency(order.total)}
@@ -62,7 +72,7 @@ export default async function AdminDashboardPage() {
           </div>
         </article>
 
-        <article className="rounded-[1.8rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+        <article className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.2)] sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
             Catálogo resumido
           </p>
@@ -70,7 +80,7 @@ export default async function AdminDashboardPage() {
             {products.map((product) => (
               <div
                 key={product.id}
-                className="flex flex-col gap-3 rounded-[1.2rem] border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-[1.1rem] border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-semibold text-white">{product.name}</p>

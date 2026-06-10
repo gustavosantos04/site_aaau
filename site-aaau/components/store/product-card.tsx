@@ -3,6 +3,7 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { Badge } from "@/components/shared/badge";
+import { buttonVariants } from "@/components/shared/button";
 import { AddToCartButton } from "@/components/store/add-to-cart-button";
 import { siteConfig } from "@/lib/site";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -17,6 +18,11 @@ export function ProductCard({
 }) {
   const image = product.images.find((entry) => entry.isPrimary)?.url ?? product.images[0]?.url;
   const isFeaturedCard = variant === "featured";
+  const priceLabel = product.variants?.length
+    ? `A partir de ${formatCurrency(Math.min(...product.variants.map((entry) => entry.price)))}`
+    : formatCurrency(product.price);
+  const needsProductPage =
+    product.requiresCustomization || product.variants?.length || product.options?.length;
 
   return (
     <article
@@ -68,7 +74,7 @@ export function ProductCard({
               {product.name}
             </h3>
             <span className="shrink-0 pt-1 text-sm font-semibold uppercase tracking-[0.18em] text-aaau-sand">
-              {formatCurrency(product.price)}
+              {priceLabel}
             </span>
           </div>
         ) : (
@@ -86,7 +92,7 @@ export function ProductCard({
                 </p>
               </div>
               <span className="text-sm font-semibold uppercase tracking-[0.18em] text-aaau-sand sm:pt-1">
-                {formatCurrency(product.price)}
+                {priceLabel}
               </span>
             </div>
           </div>
@@ -106,7 +112,16 @@ export function ProductCard({
         )}
 
         <div className="mt-auto">
-          <AddToCartButton product={product} defaultSize={product.sizes[0] ?? "Unico"} />
+          {needsProductPage ? (
+            <Link
+              href={`/produtos/${product.slug}` as Route}
+              className={buttonVariants({ size: "lg", className: "w-full" })}
+            >
+              Escolher opcoes
+            </Link>
+          ) : (
+            <AddToCartButton product={product} defaultSize={product.sizes[0] ?? "Unico"} />
+          )}
         </div>
       </div>
     </article>

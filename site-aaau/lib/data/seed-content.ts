@@ -167,126 +167,521 @@ export const eventsSeed: EventItem[] = [
   },
 ];
 
+const apparelSizeColumns = ["PP", "P", "M", "G", "GG", "EG", "G1", "G2", "G3", "G4"];
+const uniformSizeColumns = ["P", "M", "G", "GG", "EG", "EGG2", "EGG3"];
+const basicSizeColumns = ["P", "M", "G", "GG", "XG"];
+
+const tiranteColorOption = {
+  id: "tirante-color",
+  label: "Cor do tirante",
+  required: true,
+  values: [
+    { id: "preto", label: "Preto", swatch: "#111111" },
+    { id: "bordo", label: "Bordo", swatch: "#7b1023" },
+  ],
+};
+
+const croppedColorOption = {
+  id: "cropped-color",
+  label: "Cor do cropped",
+  required: true,
+  values: [
+    { id: "bordo", label: "Bordo", swatch: "#7b1023" },
+    { id: "preto", label: "Preto", swatch: "#111111" },
+    { id: "branco", label: "Branco", swatch: "#f2f0eb" },
+  ],
+};
+
+const measurementNote =
+  "Medidas em centimetros, com a peca colocada em mesa plana, sem esticar. Use uma peca que vista bem como referencia. Margem aproximada de tolerancia: +/- 1 cm.";
+
+const apparelMetrics = [
+  { label: "A", description: "Altura da peca" },
+  { label: "B", description: "Largura do peito" },
+  { label: "C", description: "Comprimento da manga" },
+];
+
+const uniformMetrics = [
+  { label: "Altura", description: "Comprimento da gola ate a barra" },
+  { label: "Largura", description: "Medida frontal de um lado ao outro" },
+  { label: "Tora", description: "Circunferencia aproximada" },
+  { label: "Ombro", description: "Largura de ombro" },
+  { label: "M. curta", description: "Comprimento da manga curta" },
+];
+
+const fallbackMeasurementGuide = {
+  title: "Guia de medidas aproximado",
+  note:
+    "Tabela aproximada baseada nos fornecedores da colecao. Compare com uma peca sua antes de escolher o tamanho.",
+  metrics: [
+    { label: "Altura", description: "Comprimento da gola ate a barra" },
+    { label: "Largura", description: "Medida frontal de um lado ao outro" },
+  ],
+  tables: [
+    {
+      id: "aproximado-unissex",
+      title: "Unissex",
+      columns: basicSizeColumns,
+      rows: [
+        { label: "Altura", values: [67, 69, 71, 73, 75] },
+        { label: "Largura", values: [48, 51, 54, 58, 62] },
+      ],
+    },
+  ],
+};
+
+const cortaVentoMeasurementGuide = {
+  title: "Guia de medidas do corta vento",
+  note: measurementNote,
+  metrics: apparelMetrics,
+  tables: [
+    {
+      id: "corta-vento-masculino",
+      title: "Masculino",
+      columns: apparelSizeColumns,
+      rows: [
+        { label: "A", values: [72, 73, 75, 76, 78, 80, 82, 84, 86, 87] },
+        { label: "B", values: [52, 54, 57, 59, 62, 65, 67, 69, 71, 73] },
+        { label: "C", values: [67, 68, 69, 71, 72, 74, 76, 78, 78, 80] },
+      ],
+    },
+    {
+      id: "corta-vento-feminino",
+      title: "Feminino",
+      columns: apparelSizeColumns,
+      rows: [
+        { label: "A", values: [66, 67, 68, 70, 72, 74, 76, 78, 78, 80] },
+        { label: "B", values: [48, 50, 52, 54, 56, 58, 60, 62, 64, 66] },
+        { label: "C", values: [63, 64, 65, 67, 69, 70, 72, 74, 74, 76] },
+      ],
+    },
+  ],
+};
+
+const moletomMeasurementGuide = {
+  title: "Guia de medidas do moletom",
+  note: measurementNote,
+  metrics: apparelMetrics,
+  tables: [
+    {
+      id: "moletom-masculino",
+      title: "Masculino",
+      columns: apparelSizeColumns,
+      rows: [
+        { label: "A", values: [74, 76, 78, 80, 82, 84, 86, 88, 90, 92] },
+        { label: "B", values: [54, 57, 60, 63, 66, 69, 72, 75, 78, 80] },
+        { label: "C", values: [66, 67, 68, 69, 70, 71, 71, 72, 72, 72] },
+      ],
+    },
+    {
+      id: "moletom-feminino",
+      title: "Feminino",
+      columns: apparelSizeColumns,
+      rows: [
+        { label: "A", values: [67, 69, 71, 73, 75, 77, 79, 81, 83, 85] },
+        { label: "B", values: [48, 51, 54, 57, 60, 63, 66, 69, 72, 75] },
+        { label: "C", values: [60, 61, 62, 63, 64, 65, 65, 66, 66, 67] },
+      ],
+    },
+  ],
+};
+
+const jaquetaMeasurementGuide = {
+  title: "Guia de medidas da jaqueta",
+  note: measurementNote,
+  metrics: apparelMetrics,
+  tables: [
+    {
+      id: "jaqueta-masculino",
+      title: "Masculino",
+      columns: apparelSizeColumns,
+      rows: [
+        { label: "A", values: [67, 69, 71, 73, 75, 77, 79, 81, 83, 85] },
+        { label: "B", values: [54, 57, 60, 63, 66, 69, 72, 75, 78, 81] },
+        { label: "C", values: [65, 66, 67, 68, 69, 70, 71, 72, 72, 73] },
+      ],
+    },
+    {
+      id: "jaqueta-feminino",
+      title: "Feminino",
+      columns: apparelSizeColumns,
+      rows: [
+        { label: "A", values: [62, 64, 66, 68, 70, 72, 74, 76, 78, 80] },
+        { label: "B", values: [47, 50, 53, 56, 59, 62, 65, 68, 71, 74] },
+        { label: "C", values: [59, 60, 61, 62, 63, 64, 65, 65, 66, 66] },
+      ],
+    },
+  ],
+};
+
+const uniformBordoMeasurementGuide = {
+  title: "Guia de medidas do uniforme bordo",
+  note: "Medidas em centimetros para camiseta tradicional e baby long. Compare com uma camiseta sua antes de escolher.",
+  metrics: [
+    { label: "Altura", description: "Comprimento da gola ate a barra" },
+    { label: "Largura", description: "Medida frontal de um lado ao outro" },
+    { label: "Busto", description: "Medida frontal do busto no modelo baby long" },
+    { label: "Cintura", description: "Medida frontal da cintura no modelo baby long" },
+  ],
+  tables: [
+    {
+      id: "uniforme-bordo-tradicional",
+      title: "Tradicional",
+      columns: ["PP", "P", "M", "G", "GG", "XG"],
+      rows: [
+        { label: "Altura", values: [55, 59, 65, 69, 73, 77] },
+        { label: "Largura", values: [48, 51, 54, 58, 62, 67] },
+      ],
+    },
+    {
+      id: "uniforme-bordo-baby-long",
+      title: "Baby long",
+      columns: ["P", "M", "G", "GG"],
+      rows: [
+        { label: "Altura", values: [56, 60, 64, 68] },
+        { label: "Busto", values: [40, 44, 48, 52] },
+        { label: "Cintura", values: [43, 47, 51, 55] },
+      ],
+    },
+  ],
+};
+
+const uniformBrancoMeasurementGuide = {
+  title: "Guia de medidas do uniforme branco",
+  note: "Medidas em centimetros da camiseta drysoft sublimada.",
+  metrics: uniformMetrics,
+  tables: [
+    {
+      id: "uniforme-branco-camiseta",
+      title: "Camiseta drysoft sublimada",
+      columns: uniformSizeColumns,
+      rows: [
+        { label: "Altura", values: [67, 70, 73, 76, 79, 82, 85] },
+        { label: "Tora", values: [104, 108, 112, 116, 122, 126, 130] },
+        { label: "Largura", values: [52, 54, 56, 58, 61, 63, 65] },
+        { label: "Ombro", values: [13, 14, 15, 16, 17, 17, 18] },
+        { label: "M. curta", values: [20, 20, 21, 23, 25, 26, 27] },
+      ],
+    },
+  ],
+};
+
 export const productsSeed: Product[] = [
   {
-    id: "product-basic",
-    name: "Camiseta AAAU Basic",
-    slug: "camiseta-aaau-basic",
-    price: 69.9,
+    id: "product-corta-vento",
+    name: "Corta Vento",
+    slug: "corta-vento",
+    price: 165,
     description:
-      "Modelagem universitária premium com base bordô, assinatura frontal minimalista e conforto para rotina e arquibancada.",
+      "Corta vento oficial AAAU para dias de jogo, campus e rotina, com identidade da atletica em destaque.",
+    category: "APPAREL",
+    sizes: apparelSizeColumns,
+    stock: 40,
+    requiresCustomization: false,
+    featured: true,
+    isNew: true,
+    isActive: true,
+    images: [
+      {
+        id: "corta-vento-1",
+        url: "/images/products/CORTA VENTO.jpg",
+        alt: "Corta Vento AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+    ],
+    measurementGuide: cortaVentoMeasurementGuide,
+  },
+  {
+    id: "product-caneca",
+    name: "Caneca",
+    slug: "caneca",
+    price: 35,
+    description:
+      "Caneca oficial AAAU para acompanhar a rotina de aula, treino e eventos da atletica.",
+    category: "ACCESSORY",
+    sizes: ["Unico"],
+    stock: 50,
+    requiresCustomization: false,
+    featured: true,
+    isNew: true,
+    isActive: true,
+    images: [
+      {
+        id: "caneca-1",
+        url: "/images/products/Caneca AAAU - Mota.jpeg",
+        alt: "Caneca AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+    ],
+  },
+  {
+    id: "product-caneca-tirante",
+    name: "Caneca + Tirante",
+    slug: "caneca-tirante",
+    price: 35,
+    description: "Escolha so a caneca oficial ou o combo com tirante para montar o kit da torcida.",
+    category: "ACCESSORY",
+    sizes: ["Unico"],
+    stock: 50,
+    requiresCustomization: false,
+    featured: false,
+    isNew: true,
+    isActive: true,
+    variants: [
+      {
+        id: "caneca",
+        label: "So caneca",
+        price: 35,
+        description: "Caneca oficial AAAU.",
+      },
+      {
+        id: "combo",
+        label: "Caneca + tirante",
+        price: 40,
+        description: "Caneca oficial com tirante na cor escolhida.",
+        requiredOptionIds: ["tirante-color"],
+      },
+    ],
+    options: [tiranteColorOption],
+    images: [
+      {
+        id: "caneca-tirante-1",
+        url: "/images/products/Caneca AAAU - Mota.jpeg",
+        alt: "Caneca AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+      {
+        id: "caneca-tirante-2",
+        url: "/images/products/TIRANTE 1.1.png",
+        alt: "Tirante AAAU",
+        isPrimary: false,
+        sortOrder: 2,
+      },
+    ],
+  },
+  {
+    id: "product-tirante",
+    name: "Tirante",
+    slug: "tirante",
+    price: 10,
+    description: "Tirante oficial AAAU para credencial, chaveiro e eventos da atletica.",
+    category: "ACCESSORY",
+    sizes: ["Unico"],
+    stock: 80,
+    requiresCustomization: false,
+    featured: false,
+    isNew: true,
+    isActive: true,
+    options: [tiranteColorOption],
+    images: [
+      {
+        id: "tirante-1",
+        url: "/images/products/TIRANTE 1.1.png",
+        alt: "Tirante AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+    ],
+  },
+  {
+    id: "product-jaqueta-college",
+    name: "Jaqueta College",
+    slug: "jaqueta-college",
+    price: 200,
+    description: "Jaqueta college AAAU com escolha de numero para personalizar a peca.",
+    category: "APPAREL",
+    sizes: apparelSizeColumns,
+    stock: 30,
+    requiresCustomization: false,
+    featured: true,
+    isNew: true,
+    isActive: true,
+    images: [
+      {
+        id: "jaqueta-college-1",
+        url: "/images/products/BOMBER JACKET (2).png",
+        alt: "Jaqueta College AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+    ],
+    measurementGuide: jaquetaMeasurementGuide,
+  },
+  {
+    id: "product-cropped",
+    name: "Cropped",
+    slug: "cropped",
+    price: 55,
+    description: "Cropped AAAU com caimento casual para usar no campus, nos jogos e nos eventos.",
     category: "APPAREL",
     sizes: ["P", "M", "G", "GG"],
     stock: 40,
-    featured: true,
+    requiresCustomization: false,
+    featured: false,
     isNew: true,
     isActive: true,
+    options: [croppedColorOption],
     images: [
       {
-        id: "basic-1",
-        url: "/images/products/basic-front.svg",
-        alt: "Camiseta AAAU Basic em composição frontal",
+        id: "cropped-1",
+        url: "/images/products/CROPPED.jpg",
+        alt: "Cropped AAAU",
         isPrimary: true,
         sortOrder: 1,
       },
-      {
-        id: "basic-2",
-        url: "/images/products/basic-detail.svg",
-        alt: "Detalhe premium da Camiseta AAAU Basic",
-        isPrimary: false,
-        sortOrder: 2,
-      },
     ],
+    measurementGuide: fallbackMeasurementGuide,
   },
   {
-    id: "product-uniform",
-    name: "Uniforme de Jogo",
-    slug: "uniforme-de-jogo-aaau",
-    price: 149.9,
-    description:
-      "Kit pensado para quadra e dia de jogo, com estética agressiva, brasão bulldog e linguagem de performance.",
+    id: "product-jersey-nfl",
+    name: "Jersey NFL",
+    slug: "jersey-nfl",
+    price: 180,
+    description: "Jersey modelo NFL com nome e numero personalizados.",
     category: "UNIFORM",
-    sizes: ["P", "M", "G", "GG"],
+    sizes: ["P", "M", "G", "GG", "XG"],
     stock: 30,
+    requiresCustomization: true,
     featured: true,
     isNew: true,
     isActive: true,
     images: [
       {
-        id: "uniform-1",
-        url: "/images/products/uniform-front.svg",
-        alt: "Uniforme de Jogo AAAU em destaque",
+        id: "jersey-nfl-1",
+        url: "/images/products/JERSEY AAAU4.png",
+        alt: "Jersey NFL AAAU",
         isPrimary: true,
         sortOrder: 1,
       },
-      {
-        id: "uniform-2",
-        url: "/images/products/uniform-detail.svg",
-        alt: "Detalhe do uniforme de jogo com assinatura AAAU",
-        isPrimary: false,
-        sortOrder: 2,
-      },
     ],
+    measurementGuide: fallbackMeasurementGuide,
   },
   {
-    id: "product-shorts",
-    name: "Shorts AAAU",
-    slug: "shorts-aaau",
-    price: 79.9,
-    description:
-      "Short técnico leve para treinos, eventos e uso casual, com caimento esportivo e identidade visual limpa.",
-    category: "APPAREL",
-    sizes: ["P", "M", "G", "GG"],
-    stock: 35,
+    id: "product-jersey-tradicional",
+    name: "Jersey Tradicional",
+    slug: "jersey-tradicional",
+    price: 100,
+    description: "Jersey tradicional AAAU com nome e numero personalizados.",
+    category: "UNIFORM",
+    sizes: ["P", "M", "G", "GG", "XG"],
+    stock: 30,
+    requiresCustomization: true,
     featured: false,
     isNew: true,
     isActive: true,
     images: [
       {
-        id: "shorts-1",
-        url: "/images/products/shorts-front.svg",
-        alt: "Shorts AAAU em composição frontal",
+        id: "jersey-tradicional-1",
+        url: "/images/products/1.1 - BORDO E PRETO.png",
+        alt: "Jersey Tradicional AAAU",
         isPrimary: true,
         sortOrder: 1,
       },
-      {
-        id: "shorts-2",
-        url: "/images/products/shorts-detail.svg",
-        alt: "Detalhe do shorts AAAU",
-        isPrimary: false,
-        sortOrder: 2,
-      },
     ],
+    measurementGuide: fallbackMeasurementGuide,
   },
   {
-    id: "product-mug",
-    name: "Caneca AAAU",
-    slug: "caneca-aaau",
-    price: 39.9,
-    description:
-      "Peça utilitária de presença forte para rotina acadêmica, gestão e kits promocionais da atlética.",
-    category: "ACCESSORY",
-    sizes: ["Único"],
-    stock: 50,
+    id: "product-uniforme-bordo",
+    name: "Uniforme Bordo",
+    slug: "uniforme-bordo",
+    price: 75,
+    description: "Uniforme bordo com nome e numero personalizados. Escolha entre so camiseta ou conjunto completo.",
+    category: "UNIFORM",
+    sizes: ["PP", "P", "M", "G", "GG", "XG"],
+    stock: 30,
+    requiresCustomization: true,
+    featured: false,
+    isNew: true,
+    isActive: true,
+    variants: [
+      {
+        id: "camiseta",
+        label: "So camiseta",
+        price: 75,
+        description: "Camiseta bordo personalizada.",
+      },
+      {
+        id: "completo",
+        label: "Conjunto completo",
+        price: 140,
+        description: "Camiseta e short bordo personalizados.",
+      },
+    ],
+    images: [
+      {
+        id: "uniforme-bordo-1",
+        url: "/images/products/Uniforme Bordo 1.jpg",
+        alt: "Uniforme Bordo AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+    ],
+    measurementGuide: uniformBordoMeasurementGuide,
+  },
+  {
+    id: "product-uniforme-branco",
+    name: "Uniforme Branco",
+    slug: "uniforme-branco",
+    price: 85,
+    description: "Uniforme branco com nome e numero personalizados. Escolha entre so camiseta ou conjunto completo.",
+    category: "UNIFORM",
+    sizes: uniformSizeColumns,
+    stock: 30,
+    requiresCustomization: true,
+    featured: false,
+    isNew: true,
+    isActive: true,
+    variants: [
+      {
+        id: "camiseta",
+        label: "So camiseta",
+        price: 85,
+        description: "Camiseta branca personalizada.",
+      },
+      {
+        id: "completo",
+        label: "Conjunto completo",
+        price: 150,
+        description: "Camiseta e short branco personalizados.",
+      },
+    ],
+    images: [
+      {
+        id: "uniforme-branco-1",
+        url: "/images/products/Uniforme Branco 2.jpg",
+        alt: "Uniforme Branco AAAU",
+        isPrimary: true,
+        sortOrder: 1,
+      },
+    ],
+    measurementGuide: uniformBrancoMeasurementGuide,
+  },
+  {
+    id: "product-moletom",
+    name: "Moletom",
+    slug: "moletom",
+    price: 200,
+    description: "Moletom oficial AAAU para frio, arquibancada e rotina no campus.",
+    category: "APPAREL",
+    sizes: apparelSizeColumns,
+    stock: 35,
+    requiresCustomization: false,
     featured: true,
-    isNew: false,
+    isNew: true,
     isActive: true,
     images: [
       {
-        id: "mug-1",
-        url: "/images/products/mug-front.svg",
-        alt: "Caneca AAAU em composição premium",
+        id: "moletom-1",
+        url: "/images/products/MOLETOM.png",
+        alt: "Moletom AAAU",
         isPrimary: true,
         sortOrder: 1,
       },
-      {
-        id: "mug-2",
-        url: "/images/products/mug-detail.svg",
-        alt: "Detalhe da caneca AAAU",
-        isPrimary: false,
-        sortOrder: 2,
-      },
     ],
+    measurementGuide: moletomMeasurementGuide,
   },
 ];
 
@@ -309,33 +704,33 @@ export const ordersSeed: OrderData[] = [
     customerEmail: "marina@example.com",
     customerPhone: "(51) 99888-7766",
     status: "CONTACT_PENDING",
-    subtotal: 219.8,
-    discount: 21.98,
-    total: 197.82,
+    subtotal: 225,
+    discount: 22.5,
+    total: 202.5,
     notes: "Entrega no campus Zona Sul.",
     createdAt: "2026-03-18T19:30:00.000Z",
     items: [
       {
         id: "order-item-1",
-        productId: "product-uniform",
-        productName: "Uniforme de Jogo",
-        productSlug: "uniforme-de-jogo-aaau",
+        productId: "product-uniforme-branco",
+        productName: "Uniforme Branco - Conjunto completo",
+        productSlug: "uniforme-branco",
         size: "M",
         customName: "MARINA",
         customNumber: "10",
         quantity: 1,
-        unitPrice: 149.9,
-        lineTotal: 149.9,
+        unitPrice: 150,
+        lineTotal: 150,
       },
       {
         id: "order-item-2",
-        productId: "product-basic",
-        productName: "Camiseta AAAU Basic",
-        productSlug: "camiseta-aaau-basic",
+        productId: "product-uniforme-bordo",
+        productName: "Uniforme Bordo - So camiseta",
+        productSlug: "uniforme-bordo",
         size: "G",
         quantity: 1,
-        unitPrice: 69.9,
-        lineTotal: 69.9,
+        unitPrice: 75,
+        lineTotal: 75,
       },
     ],
   },

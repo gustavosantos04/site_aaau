@@ -34,6 +34,7 @@ async function main() {
         category: product.category,
         sizes: product.sizes,
         stock: product.stock,
+        requiresCustomization: product.requiresCustomization,
         featured: product.featured,
         isNew: product.isNew,
         isActive: product.isActive,

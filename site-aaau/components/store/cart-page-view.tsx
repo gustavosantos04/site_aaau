@@ -75,6 +75,11 @@ export function CartPageView() {
                       <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
                         Tamanho {item.size}
                       </p>
+                      {item.optionLabel && item.optionValueLabel ? (
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
+                          {item.optionLabel} {item.optionValueLabel}
+                        </p>
+                      ) : null}
                       {item.customName || item.customNumber ? (
                         <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
                           {item.customName ? `Nome ${item.customName}` : null}

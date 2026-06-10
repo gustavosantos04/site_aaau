@@ -6,7 +6,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { requireAdminSession } from "@/lib/auth";
 import { getOrders } from "@/lib/data/store";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { OrderData, OrderStatus } from "@/types/store";
+import type { OrderData, OrderStatus, PaymentStatus } from "@/types/store";
 
 export const metadata: Metadata = {
   title: "Admin Pedidos",
@@ -22,6 +22,54 @@ const statuses: Array<OrderStatus | "ALL"> = [
   "CANCELED",
   "FAILED",
 ];
+
+const orderStatusLabels: Record<OrderStatus | "ALL", string> = {
+  ALL: "Todos",
+  PENDING: "Pedido pendente",
+  CONTACT_PENDING: "Aguardando contato",
+  CONFIRMED: "Confirmado",
+  PAID: "Pago",
+  FULFILLED: "Entregue",
+  CANCELED: "Cancelado",
+  FAILED: "Falhou",
+};
+
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  PENDING: "Pagamento pendente",
+  APPROVED: "Pagamento aprovado",
+  REJECTED: "Pagamento recusado",
+  CANCELED: "Pagamento cancelado",
+  REFUNDED: "Reembolsado",
+  EXPIRED: "Expirado",
+  UNKNOWN: "Status desconhecido",
+};
+
+function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "good" | "warn" | "bad" }) {
+  const toneClass = {
+    neutral: "border-white/10 bg-white/[0.04] text-white/60",
+    good: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+    warn: "border-aaau-sand/30 bg-aaau-sand/10 text-aaau-sand",
+    bad: "border-red-400/30 bg-red-400/10 text-red-100",
+  }[tone];
+
+  return (
+    <span className={`inline-flex rounded-full border px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] ${toneClass}`}>
+      {label}
+    </span>
+  );
+}
+
+function orderTone(status: OrderStatus) {
+  if (status === "PAID" || status === "FULFILLED" || status === "CONFIRMED") return "good";
+  if (status === "CANCELED" || status === "FAILED") return "bad";
+  return "warn";
+}
+
+function paymentTone(status?: PaymentStatus) {
+  if (status === "APPROVED") return "good";
+  if (status === "REJECTED" || status === "CANCELED" || status === "EXPIRED") return "bad";
+  return "warn";
+}
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/\D/g, "");
@@ -94,7 +142,7 @@ export default async function AdminOrdersPage({
         >
           {statuses.map((status) => (
             <option key={status} value={status}>
-              {status === "ALL" ? "Todos os status" : status}
+              {orderStatusLabels[status]}
             </option>
           ))}
         </select>
@@ -117,30 +165,34 @@ export default async function AdminOrdersPage({
         {orders.map((order) => (
           <article
             key={order.id}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5"
+            className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
           >
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="min-w-0">
-                <p className="font-semibold text-white">{order.orderNumber}</p>
-                <p className="mt-1 text-sm text-white/60">
-                  {order.customerName} - {formatDate(order.createdAt)}
-                </p>
-                <p className="mt-2 text-sm text-white/50">
-                  {order.customerCpf ?? "CPF nao informado"} - {order.customerEmail} -{" "}
-                  {order.customerPhone}
-                </p>
-                <p className="mt-1 text-sm text-white/50">
-                  Campus: {order.customerCampus ?? "Nao informado"}
-                </p>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 space-y-4">
+                <div>
+                  <p className="font-semibold text-white">{order.orderNumber}</p>
+                  <p className="mt-1 text-sm text-white/60">
+                    {order.customerName} - {formatDate(order.createdAt)}
+                  </p>
+                </div>
+                <div className="grid gap-2 text-sm text-white/52 sm:grid-cols-2">
+                  <p>{order.customerCpf ?? "CPF nao informado"}</p>
+                  <p>{order.customerEmail}</p>
+                  <p>{order.customerPhone}</p>
+                  <p>Campus: {order.customerCampus ?? "Nao informado"}</p>
+                </div>
               </div>
-              <div className="text-left md:text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
-                  Pedido: {order.status}
+              <div className="shrink-0 space-y-3 text-left lg:text-right">
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <StatusBadge label={orderStatusLabels[order.status]} tone={orderTone(order.status)} />
+                  <StatusBadge
+                    label={paymentStatusLabels[order.paymentStatus ?? "PENDING"]}
+                    tone={paymentTone(order.paymentStatus)}
+                  />
+                </div>
+                <p className="text-2xl font-semibold text-aaau-sand">
+                  {formatCurrency(order.total)}
                 </p>
-                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/[0.45]">
-                  Pagamento: {order.paymentStatus ?? "PENDING"}
-                </p>
-                <p className="mt-2 font-semibold text-aaau-sand">{formatCurrency(order.total)}</p>
                 <a
                   href={whatsappLink(order)}
                   target="_blank"

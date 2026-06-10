@@ -24,15 +24,32 @@ function normalizeProduct(product: {
   category: Product["category"];
   sizes: string[];
   stock: number;
+  requiresCustomization?: boolean;
   featured: boolean;
   isNew: boolean;
   isActive: boolean;
   images: Product["images"];
 }): Product {
+  const seedMetadata = productsSeed.find(
+    (seedProduct) => seedProduct.id === product.id || seedProduct.slug === product.slug,
+  );
+
   return {
     ...product,
     price: Number(product.price),
+    requiresCustomization:
+      product.requiresCustomization ?? seedMetadata?.requiresCustomization ?? false,
+    variants: seedMetadata?.variants,
+    options: seedMetadata?.options,
+    measurementGuide: seedMetadata?.measurementGuide,
   };
+}
+
+function maskCpf(last4?: string | null, legacyCpf?: string | null) {
+  const digits = (last4 || legacyCpf || "").replace(/\D/g, "");
+  const suffix = digits.slice(-4);
+
+  return suffix ? `***.***.***-${suffix}` : undefined;
 }
 
 async function withFallback<T>(query: () => Promise<T>, fallback: T): Promise<T> {
@@ -166,7 +183,7 @@ export async function getOrders() {
         id: order.id,
         orderNumber: order.orderNumber,
         customerName: order.customerName,
-        customerCpf: order.customerCpf ?? undefined,
+        customerCpf: maskCpf(order.customerCpfLast4, order.customerCpf),
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
         customerCampus: order.customerCampus ?? undefined,

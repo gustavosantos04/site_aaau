@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import Image from "next/image";
+import { ImagePlus } from "lucide-react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -27,6 +29,7 @@ const emptyProduct = {
   category: "APPAREL",
   sizes: ["P", "M", "G", "GG"],
   stock: 0,
+  requiresCustomization: false,
   featured: false,
   isNew: false,
   isActive: true,
@@ -77,7 +80,83 @@ function FormField({
 const inputClass =
   "h-12 w-full rounded-[1rem] border border-white/[0.12] bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-aaau-ember";
 
-export function ProductAdminForm({ products }: { products: Product[] }) {
+function ProductImagePicker({
+  productId,
+  currentImage,
+  imageOptions,
+}: {
+  productId: string;
+  currentImage: string;
+  imageOptions: string[];
+}) {
+  const [selectedImage, setSelectedImage] = useState(currentImage);
+  const previewImage = selectedImage || currentImage;
+
+  useEffect(() => {
+    setSelectedImage(currentImage);
+  }, [currentImage, productId]);
+
+  return (
+    <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-3">
+      <input type="hidden" name="imageUrl" value={selectedImage} />
+      <div className="grid gap-4 sm:grid-cols-[132px,1fr]">
+        <div className="relative aspect-square overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.04]">
+          {previewImage ? (
+            <Image src={previewImage} alt="Preview do produto" fill className="object-cover" />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-white/35">
+              <ImagePlus className="h-6 w-6" />
+              <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em]">
+                Sem foto
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="space-y-3">
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
+              Selecionar foto existente
+            </span>
+            <select
+              value={selectedImage}
+              onChange={(event) => setSelectedImage(event.target.value)}
+              className={inputClass}
+            >
+              <option value="">Escolha uma imagem salva</option>
+              {imageOptions.map((image) => (
+                <option key={image} value={image}>
+                  {image.replace("/images/products/", "")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
+              Ou enviar nova foto
+            </span>
+            <input
+              name="imageFile"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="block w-full rounded-[1rem] border border-dashed border-white/[0.16] bg-white/[0.03] px-4 py-3 text-sm text-white/70 file:mr-4 file:rounded-full file:border-0 file:bg-aaau-ember file:px-4 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-[0.14em] file:text-white"
+            />
+          </label>
+          <p className="text-xs leading-5 text-white/40">
+            Ao enviar uma nova foto, ela sera salva em produtos e usada automaticamente.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ProductAdminForm({
+  products,
+  imageOptions,
+}: {
+  products: Product[];
+  imageOptions: string[];
+}) {
   const [state, formAction] = useActionState(saveProductAction, initialState);
   const [selectedId, setSelectedId] = useState("");
 
@@ -92,9 +171,9 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
   const editing = Boolean(selectedId);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr),minmax(0,1.05fr)]">
-      <section className="space-y-4 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,0.88fr),minmax(0,1.12fr)]">
+      <section className="h-fit space-y-5 rounded-[1.5rem] border border-white/10 bg-[#141010] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)] sm:p-6">
+        <div className="flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
               Cadastro
@@ -114,7 +193,7 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
           <input type="hidden" name="productId" value={selectedProduct.id} />
 
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Nome">
+            <FormField label="Nome do produto">
               <input
                 key={`name-${selectedProduct.id}`}
                 name="name"
@@ -124,18 +203,18 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
                 placeholder="Camiseta AAAU"
               />
             </FormField>
-            <FormField label="Slug">
+            <FormField label="Link do produto (opcional)">
               <input
                 key={`slug-${selectedProduct.id}`}
                 name="slug"
                 defaultValue={selectedProduct.slug}
                 className={inputClass}
-                placeholder="camiseta-aaau"
+                placeholder="preenchido automaticamente"
               />
             </FormField>
           </div>
 
-          <FormField label="Descricao">
+          <FormField label="Descricao para o site">
             <textarea
               key={`description-${selectedProduct.id}`}
               name="description"
@@ -148,7 +227,7 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
           </FormField>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <FormField label="Preco">
+            <FormField label="Preco de venda">
               <input
                 key={`price-${selectedProduct.id}`}
                 name="price"
@@ -170,7 +249,7 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
                 className={inputClass}
               />
             </FormField>
-            <FormField label="Categoria">
+            <FormField label="Tipo de produto">
               <select
                 key={`category-${selectedProduct.id}`}
                 name="category"
@@ -186,7 +265,7 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
             </FormField>
           </div>
 
-          <FormField label="Tamanhos / variacoes">
+          <FormField label="Tamanhos disponiveis">
             <input
               key={`sizes-${selectedProduct.id}`}
               name="sizes"
@@ -197,19 +276,17 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
             />
           </FormField>
 
-          <FormField label="Imagem principal">
-            <input
-              key={`image-${selectedProduct.id}`}
-              name="imageUrl"
-              required
-              defaultValue={primaryImage}
-              className={inputClass}
-              placeholder="/images/products/produto.svg"
+          <FormField label="Foto principal do produto">
+            <ProductImagePicker
+              productId={selectedProduct.id}
+              currentImage={primaryImage}
+              imageOptions={imageOptions}
             />
           </FormField>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {[
+              ["requiresCustomization", "Permitir personalizacao", selectedProduct.requiresCustomization],
               ["featured", "Destaque", selectedProduct.featured],
               ["isNew", "Lancamento", selectedProduct.isNew],
               ["isActive", "Ativo", selectedProduct.isActive],
@@ -248,6 +325,17 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
       </section>
 
       <section className="space-y-4">
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
+            Catalogo
+          </p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="text-2xl font-semibold text-white">{products.length} produtos</h2>
+            <p className="text-sm text-white/50">
+              Clique em editar para carregar o cadastro no formulario.
+            </p>
+          </div>
+        </div>
         {products.map((product) => {
           const image =
             product.images.find((entry) => entry.isPrimary)?.url ?? product.images[0]?.url;
@@ -255,10 +343,21 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
           return (
             <article
               key={product.id}
-              className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 sm:p-5"
+              className={`rounded-[1.5rem] border p-4 transition sm:p-5 ${
+                selectedId === product.id
+                  ? "border-aaau-ember/70 bg-aaau-ember/[0.08]"
+                  : "border-white/10 bg-white/[0.03]"
+              }`}
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="grid gap-4 sm:grid-cols-[96px,1fr]">
+                <div className="relative aspect-square overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.04]">
+                  {image ? (
+                    <Image src={image} alt={product.name} fill className="object-cover" />
+                  ) : null}
+                </div>
                 <div className="min-w-0">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-white">{product.name}</p>
                     <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/50">
@@ -267,6 +366,11 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
                     {product.featured ? (
                       <span className="rounded-full border border-aaau-ember/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/70">
                         Destaque
+                      </span>
+                    ) : null}
+                    {product.requiresCustomization ? (
+                      <span className="rounded-full border border-aaau-sand/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-aaau-sand">
+                        Personalizacao
                       </span>
                     ) : null}
                   </div>
@@ -278,7 +382,6 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
                     <span>{siteConfig.categoryLabels[product.category]}</span>
                     <span>{formatCurrency(product.price)}</span>
                     <span>{product.stock} em estoque</span>
-                    {image ? <span className="normal-case tracking-normal">{image}</span> : null}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -290,6 +393,11 @@ export function ProductAdminForm({ products }: { products: Product[] }) {
                     <input type="hidden" name="isActive" value={String(!product.isActive)} />
                     <ProductStatusButton product={product} />
                   </form>
+                </div>
+              </div>
+              {image ? (
+                <p className="mt-3 truncate text-xs text-white/35">{image}</p>
+              ) : null}
                 </div>
               </div>
             </article>

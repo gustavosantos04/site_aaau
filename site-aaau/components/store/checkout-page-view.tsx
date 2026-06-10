@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
@@ -54,25 +55,44 @@ export function CheckoutPageView() {
       return;
     }
 
+    if (onlyDigits(buyerCpf).length !== 11) {
+      setMessage("Informe um CPF valido.");
+      return;
+    }
+
+    if (onlyDigits(buyerWhatsapp).length < 10) {
+      setMessage("Informe um WhatsApp valido.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch("/api/orders", {
+      const idempotencyKey =
+        window.sessionStorage.getItem("aaau-checkout-key") ?? crypto.randomUUID();
+      window.sessionStorage.setItem("aaau-checkout-key", idempotencyKey);
+
+      const response = await fetch("/api/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          buyerName,
-          buyerCpf,
-          buyerEmail,
-          buyerWhatsapp,
-          buyerCampus,
+          idempotencyKey,
           notes,
+          buyer: {
+            fullName: buyerName,
+            cpf: buyerCpf,
+            email: buyerEmail,
+            whatsapp: buyerWhatsapp,
+            campus: buyerCampus,
+          },
           items: items.map((item) => ({
             productId: item.productId,
-            slug: item.slug,
-            size: item.size,
+            size: item.size || undefined,
+            variantId: item.variantId,
+            optionId: item.optionId,
+            optionValueId: item.optionValueId,
             customName: item.customName,
             customNumber: item.customNumber,
             quantity: item.quantity,
@@ -81,8 +101,8 @@ export function CheckoutPageView() {
       });
       const result = (await response.json()) as {
         message?: string;
-        orderNumber?: string;
-        checkoutUrl?: string | null;
+        orderId?: string;
+        initPoint?: string | null;
       };
 
       if (!response.ok) {
@@ -90,14 +110,16 @@ export function CheckoutPageView() {
       }
 
       clearCart();
+      window.sessionStorage.removeItem("aaau-checkout-key");
 
-      if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
+      if (result.initPoint) {
+        window.location.href = result.initPoint;
         return;
       }
 
-      router.push(`/pedido/confirmado?pedido=${result.orderNumber ?? ""}`);
+      router.push(`/pagamento/pendente?orderId=${result.orderId ?? ""}` as Route);
     } catch (error) {
+      window.sessionStorage.removeItem("aaau-checkout-key");
       setMessage(error instanceof Error ? error.message : "Erro ao iniciar pagamento.");
     } finally {
       setLoading(false);
@@ -232,7 +254,7 @@ export function CheckoutPageView() {
           <div className="mt-8 space-y-4">
             {items.map((item) => (
               <div
-                key={`${item.productId}-${item.size}-${item.customName ?? ""}-${item.customNumber ?? ""}`}
+                key={`${item.productId}-${item.size}-${item.variantId ?? ""}-${item.optionValueId ?? ""}-${item.customName ?? ""}-${item.customNumber ?? ""}`}
                 className="flex items-start justify-between gap-4 border-b border-white/10 pb-4 text-sm text-white/70"
               >
                 <div>
@@ -240,6 +262,11 @@ export function CheckoutPageView() {
                   <p className="text-xs uppercase tracking-[0.18em] text-white/[0.45]">
                     {item.size} - {item.quantity}x
                   </p>
+                  {item.optionLabel && item.optionValueLabel ? (
+                    <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
+                      {item.optionLabel} {item.optionValueLabel}
+                    </p>
+                  ) : null}
                   {item.customName || item.customNumber ? (
                     <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/[0.45]">
                       {item.customName ? `Nome ${item.customName}` : null}

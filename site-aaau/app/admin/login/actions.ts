@@ -1,8 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
-import { authenticateAdmin, createAdminSession, getAdminAuthMissingMessage } from "@/lib/auth";
+import {
+  authenticateAdmin,
+  checkAdminLoginRateLimit,
+  createAdminSession,
+  getAdminAuthMissingMessage,
+} from "@/lib/auth";
 
 export type AdminLoginFormState = {
   status: "idle" | "error";
@@ -16,11 +22,23 @@ export async function loginAdminAction(
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
   const missingMessage = getAdminAuthMissingMessage();
+  const headerStore = await headers();
+  const loginIp =
+    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headerStore.get("x-real-ip") ||
+    "unknown";
 
   if (missingMessage) {
     return {
       status: "error",
       message: missingMessage,
+    };
+  }
+
+  if (!checkAdminLoginRateLimit(loginIp)) {
+    return {
+      status: "error",
+      message: "Muitas tentativas de login. Aguarde alguns minutos.",
     };
   }
 

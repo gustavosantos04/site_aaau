@@ -83,8 +83,8 @@ function MemberEditForm({
   const [state, formAction] = useActionState(saveManagementMemberAction, initialState);
 
   return (
-    <details className="rounded-[1.2rem] border border-white/10 bg-black/20 p-4">
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
+    <details className="rounded-[1rem] border border-white/10 bg-black/25 px-4 py-3">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-white/45 transition hover:text-white/75">
         Editar cadastro
       </summary>
       <form action={formAction} className="mt-4 space-y-4">
@@ -175,16 +175,19 @@ export function ManagementMemberManager({ areas }: { areas: ManagementAdminArea[
   const nextSortOrder = (selectedArea?.members.length ?? 0) + 1;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)]">
-      <section className="h-fit rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
-        <div className="space-y-2">
+    <div className="grid gap-6 xl:grid-cols-[minmax(340px,0.78fr),minmax(0,1.22fr)]">
+      <section className="h-fit rounded-[1.5rem] border border-white/10 bg-[#141010] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)] sm:p-6">
+        <div className="border-b border-white/10 pb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
-            Novo integrante
+            Acao principal
           </p>
-          <h2 className="text-xl font-semibold text-white">Cadastro rapido</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Cadastrar integrante</h2>
+          <p className="mt-2 text-sm leading-6 text-white/50">
+            Escolha a diretoria, preencha os dados e controle se a pessoa aparece no site.
+          </p>
         </div>
 
-        <div className="mt-5 rounded-[1.2rem] border border-white/10 bg-black/20 p-4">
+        <div className="mt-5 rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
           <div className="flex items-center gap-4">
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5">
               {image ? (
@@ -301,21 +304,38 @@ export function ManagementMemberManager({ areas }: { areas: ManagementAdminArea[
       </section>
 
       <section className="space-y-5">
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
+            Diretorias
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {areas.map((area) => (
+              <a
+                key={area.recordId}
+                href={`#area-${area.recordId}`}
+                className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/60 transition hover:border-white/25 hover:text-white"
+              >
+                {area.title} · {area.members.length}
+              </a>
+            ))}
+          </div>
+        </div>
         {areas.map((area) => (
           <article
             key={area.recordId}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5"
+            id={`area-${area.recordId}`}
+            className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.22)]"
           >
-            <div className="flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/[0.45]">
                   {area.title}
                 </p>
-                <h2 className="mt-1 text-xl font-semibold text-white">
+                <h2 className="mt-1 text-2xl font-semibold text-white">
                   {area.members.length} integrantes
                 </h2>
               </div>
-              <p className="text-sm text-white/50">
+              <p className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/55">
                 {area.members.filter((member) => member.isActive).length} ativos no site
               </p>
             </div>
@@ -327,8 +347,8 @@ export function ManagementMemberManager({ areas }: { areas: ManagementAdminArea[
                 </p>
               ) : (
                 area.members.map((member) => (
-                  <div key={member.id} className="space-y-3">
-                    <div className="flex flex-col gap-4 rounded-[1.2rem] border border-white/10 bg-black/20 p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div key={member.id} className="space-y-2">
+                    <div className="flex flex-col gap-4 rounded-[1.2rem] border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex min-w-0 items-center gap-4">
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5">
                           {member.image ? (
@@ -351,7 +371,7 @@ export function ManagementMemberManager({ areas }: { areas: ManagementAdminArea[
                               {member.isActive ? "Ativo" : "Inativo"}
                             </span>
                           </div>
-                          <p className="text-sm text-white/55">{member.role || "Sem cargo"}</p>
+                          <p className="text-sm text-white/58">{member.role || "Sem cargo"}</p>
                           <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/35">
                             Ordem {member.sortOrder}
                             {member.instagram ? ` - @${member.instagram}` : ""}

@@ -9,12 +9,26 @@ import type { Product } from "@/types/store";
 export function AddToCartButton({
   product,
   defaultSize,
+  variantId,
+  variantLabel,
+  variantPrice,
+  optionId,
+  optionLabel,
+  optionValueId,
+  optionValueLabel,
   customName,
   customNumber,
   disabled,
 }: {
   product: Product;
   defaultSize: string;
+  variantId?: string;
+  variantLabel?: string;
+  variantPrice?: number;
+  optionId?: string;
+  optionLabel?: string;
+  optionValueId?: string;
+  optionValueLabel?: string;
   customName?: string;
   customNumber?: string;
   disabled?: boolean;
@@ -28,7 +42,17 @@ export function AddToCartButton({
       className="w-full"
       disabled={disabled}
       onClick={() => {
-        addItem(product, defaultSize, { customName, customNumber });
+        addItem(product, defaultSize, {
+          variantId,
+          variantLabel,
+          variantPrice,
+          optionId,
+          optionLabel,
+          optionValueId,
+          optionValueLabel,
+          customName,
+          customNumber,
+        });
         setAdded(true);
         window.setTimeout(() => setAdded(false), 1200);
       }}

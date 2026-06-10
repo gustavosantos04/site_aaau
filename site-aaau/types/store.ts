@@ -14,6 +14,7 @@ export type PaymentStatus =
   | "REJECTED"
   | "CANCELED"
   | "REFUNDED"
+  | "EXPIRED"
   | "UNKNOWN";
 
 export interface ProductImage {
@@ -22,6 +23,45 @@ export interface ProductImage {
   alt: string;
   isPrimary: boolean;
   sortOrder: number;
+}
+
+export interface ProductVariant {
+  id: string;
+  label: string;
+  price: number;
+  description?: string;
+  requiredOptionIds?: string[];
+}
+
+export interface ProductOption {
+  id: string;
+  label: string;
+  required: boolean;
+  values: Array<{
+    id: string;
+    label: string;
+    swatch?: string;
+  }>;
+}
+
+export interface ProductMeasurementTable {
+  id: string;
+  title: string;
+  columns: string[];
+  rows: Array<{
+    label: string;
+    values: Array<string | number>;
+  }>;
+}
+
+export interface ProductMeasurementGuide {
+  title: string;
+  note: string;
+  metrics: Array<{
+    label: string;
+    description: string;
+  }>;
+  tables: ProductMeasurementTable[];
 }
 
 export interface Product {
@@ -33,10 +73,14 @@ export interface Product {
   category: ProductCategory;
   sizes: string[];
   stock: number;
+  requiresCustomization: boolean;
   featured: boolean;
   isNew: boolean;
   isActive: boolean;
   images: ProductImage[];
+  variants?: ProductVariant[];
+  options?: ProductOption[];
+  measurementGuide?: ProductMeasurementGuide;
 }
 
 export interface Coupon {

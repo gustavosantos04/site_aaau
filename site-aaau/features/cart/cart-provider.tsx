@@ -19,12 +19,25 @@ export interface CartItem {
   image: string;
   price: number;
   size: string;
+  variantId?: string;
+  variantLabel?: string;
+  optionId?: string;
+  optionLabel?: string;
+  optionValueId?: string;
+  optionValueLabel?: string;
   customName?: string;
   customNumber?: string;
   quantity: number;
 }
 
 export interface CartItemCustomization {
+  variantId?: string;
+  variantLabel?: string;
+  variantPrice?: number;
+  optionId?: string;
+  optionLabel?: string;
+  optionValueId?: string;
+  optionValueLabel?: string;
   customName?: string;
   customNumber?: string;
 }
@@ -54,10 +67,17 @@ const COUPON_STORAGE_KEY = "aaau-cart-coupon";
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-export function getCartItemKey(item: Pick<CartItem, "productId" | "size" | "customName" | "customNumber">) {
+export function getCartItemKey(
+  item: Pick<
+    CartItem,
+    "productId" | "size" | "variantId" | "optionValueId" | "customName" | "customNumber"
+  >,
+) {
   return [
     item.productId,
     item.size,
+    item.variantId ?? "",
+    item.optionValueId ?? "",
     item.customName?.trim().toUpperCase() ?? "",
     item.customNumber?.trim() ?? "",
   ].join("::");
@@ -127,11 +147,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
       "";
     const customName = customization.customName?.trim() || undefined;
     const customNumber = customization.customNumber?.trim() || undefined;
+    const variantId = customization.variantId?.trim() || undefined;
+    const variantLabel = customization.variantLabel?.trim() || undefined;
+    const optionId = customization.optionId?.trim() || undefined;
+    const optionLabel = customization.optionLabel?.trim() || undefined;
+    const optionValueId = customization.optionValueId?.trim() || undefined;
+    const optionValueLabel = customization.optionValueLabel?.trim() || undefined;
+    const price = customization.variantPrice ?? product.price;
+    const optionSuffix = optionValueLabel ? ` - ${optionValueLabel}` : "";
+    const name = variantLabel
+      ? `${product.name} - ${variantLabel}${optionSuffix}`
+      : `${product.name}${optionSuffix}`;
 
     setItems((currentItems) => {
       const nextItemKey = getCartItemKey({
         productId: product.id,
         size,
+        variantId,
+        optionValueId,
         customName,
         customNumber,
       });
@@ -152,10 +185,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         {
           productId: product.id,
           slug: product.slug,
-          name: product.name,
+          name,
           image,
-          price: product.price,
+          price,
           size,
+          variantId,
+          variantLabel,
+          optionId,
+          optionLabel,
+          optionValueId,
+          optionValueLabel,
           customName,
           customNumber,
           quantity: 1,

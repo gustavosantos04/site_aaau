@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 
 const ADMIN_SESSION_COOKIE = "aaau_admin_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 8;
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 type AdminSessionPayload = {
   email: string;
@@ -103,6 +106,23 @@ export async function authenticateAdmin(email: string, password: string) {
   );
 }
 
+export function checkAdminLoginRateLimit(key: string) {
+  const now = Date.now();
+  const bucket = loginAttempts.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return true;
+  }
+
+  if (bucket.count >= LOGIN_MAX_ATTEMPTS) {
+    return false;
+  }
+
+  bucket.count += 1;
+  return true;
+}
+
 export async function createAdminSession(email: string) {
   const adminEnv = getAdminEnv();
 
@@ -121,7 +141,7 @@ export async function createAdminSession(email: string) {
 
   cookieStore.set(ADMIN_SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,

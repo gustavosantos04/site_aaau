@@ -1,5 +1,7 @@
 "use server";
 
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { ProductCategory } from "@prisma/client";
 import { z } from "zod";
@@ -18,14 +20,22 @@ const productSchema = z.object({
   slug: z.string().trim().optional(),
   description: z.string().trim().min(10, "Descreva o produto com pelo menos 10 caracteres."),
   price: z.coerce.number().positive("Informe um preco maior que zero."),
-  imageUrl: z.string().trim().min(1, "Informe a imagem principal do produto."),
+  imageUrl: z.string().trim().optional(),
   category: z.nativeEnum(ProductCategory),
   sizes: z.string().trim().min(1, "Informe ao menos um tamanho ou variacao."),
   stock: z.coerce.number().int().min(0, "O estoque nao pode ser negativo."),
+  requiresCustomization: z.coerce.boolean().default(false),
   featured: z.coerce.boolean().default(false),
   isNew: z.coerce.boolean().default(false),
   isActive: z.coerce.boolean().default(false),
 });
+
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const imageExtensionByType = new Map([
+  ["image/jpeg", ".jpg"],
+  ["image/png", ".png"],
+  ["image/webp", ".webp"],
+]);
 
 function buildSlug(value: string) {
   return value
@@ -47,10 +57,35 @@ function parseProductForm(formData: FormData) {
     category: formData.get("category"),
     sizes: formData.get("sizes"),
     stock: formData.get("stock"),
+    requiresCustomization: formData.get("requiresCustomization") === "on",
     featured: formData.get("featured") === "on",
     isNew: formData.get("isNew") === "on",
     isActive: formData.get("isActive") === "on",
   });
+}
+
+async function saveUploadedProductImage(file: File, slug: string) {
+  if (file.size === 0) {
+    return null;
+  }
+
+  if (!allowedImageTypes.has(file.type)) {
+    throw new Error("Envie uma imagem JPG, PNG ou WEBP.");
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("A imagem precisa ter no maximo 5MB.");
+  }
+
+  const extension = imageExtensionByType.get(file.type) ?? path.extname(file.name).toLowerCase();
+  const fileName = `${slug || "produto"}-${Date.now()}${extension}`;
+  const targetDir = path.join(process.cwd(), "public", "images", "products");
+  const targetPath = path.join(targetDir, fileName);
+
+  await mkdir(targetDir, { recursive: true });
+  await writeFile(targetPath, Buffer.from(await file.arrayBuffer()));
+
+  return `/images/products/${fileName}`;
 }
 
 export async function saveProductAction(
@@ -109,6 +144,18 @@ export async function saveProductAction(
       };
     }
 
+    const uploadedFile = formData.get("imageFile");
+    const uploadedImageUrl =
+      uploadedFile instanceof File ? await saveUploadedProductImage(uploadedFile, slug) : null;
+    const imageUrl = uploadedImageUrl ?? data.imageUrl;
+
+    if (!imageUrl) {
+      return {
+        status: "error",
+        message: "Selecione uma imagem existente ou envie uma nova foto.",
+      };
+    }
+
     if (data.productId) {
       await prisma.product.update({
         where: { id: data.productId },
@@ -120,13 +167,14 @@ export async function saveProductAction(
           category: data.category,
           sizes,
           stock: data.stock,
+          requiresCustomization: data.requiresCustomization,
           featured: data.featured,
           isNew: data.isNew,
           isActive: data.isActive,
           images: {
             deleteMany: {},
             create: {
-              url: data.imageUrl,
+              url: imageUrl,
               alt: data.name,
               isPrimary: true,
               sortOrder: 0,
@@ -144,12 +192,13 @@ export async function saveProductAction(
           category: data.category,
           sizes,
           stock: data.stock,
+          requiresCustomization: data.requiresCustomization,
           featured: data.featured,
           isNew: data.isNew,
           isActive: data.isActive,
           images: {
             create: {
-              url: data.imageUrl,
+              url: imageUrl,
               alt: data.name,
               isPrimary: true,
               sortOrder: 0,
@@ -167,10 +216,11 @@ export async function saveProductAction(
       status: "success",
       message: data.productId ? "Produto atualizado." : "Produto cadastrado.",
     };
-  } catch {
+  } catch (error) {
     return {
       status: "error",
-      message: "Nao foi possivel salvar o produto agora.",
+      message:
+        error instanceof Error ? error.message : "Nao foi possivel salvar o produto agora.",
     };
   }
 }

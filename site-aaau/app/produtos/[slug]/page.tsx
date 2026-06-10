@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ProductGallery } from "@/components/store/product-gallery";
+import { ProductMeasurementGuideView } from "@/components/store/product-measurement-guide";
 import { ProductPurchasePanel } from "@/components/store/product-purchase-panel";
 import { getProductBySlug, getProducts } from "@/lib/data/store";
 
@@ -48,6 +49,7 @@ export default async function ProductDetailPage({
         <ProductGallery images={product.images} />
         <ProductPurchasePanel product={product} />
       </div>
+      <ProductMeasurementGuideView guide={product.measurementGuide} />
     </section>
   );
 }
