@@ -124,13 +124,17 @@ export async function POST(request: Request) {
   }
 
   const url = new URL(request.url);
-  const dataId = url.searchParams.get("data.id") ?? url.searchParams.get("id");
+  const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const dataId =
+    url.searchParams.get("data.id") ||
+    url.searchParams.get("id") ||
+    extractPaymentId(url, payload) ||
+    null;
 
   if (!isValidSignature(request, dataId)) {
     return NextResponse.json({ message: "Webhook nao autorizado." }, { status: 401 });
   }
 
-  const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const webhookRequestId = request.headers.get("x-request-id");
 
   if (webhookRequestId) {
