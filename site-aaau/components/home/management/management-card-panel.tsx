@@ -59,7 +59,7 @@ export function ManagementCardPanel({
       <div className="deck-grid absolute inset-[1px] rounded-[inherit] opacity-30" />
       <div className="deck-noise absolute inset-0 rounded-[inherit] opacity-35" />
 
-      <div className="relative flex h-full flex-col">
+      <div className="relative flex h-full min-h-0 flex-col">
         {/* Header com título e botão fechar */}
         <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-5 mb-6">
           <div className="space-y-1">
@@ -83,7 +83,12 @@ export function ManagementCardPanel({
         </div>
 
         {/* Grid de membros - layout simplificado */}
-        <div className={cn("flex-1 grid gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
+        <div
+          className={cn(
+            "grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(255,255,255,0.24)_transparent] [scrollbar-width:thin]",
+            compact ? "max-h-[68svh] sm:grid-cols-2" : "max-h-[min(58svh,34rem)] sm:grid-cols-2 lg:grid-cols-3",
+          )}
+        >
           {area.members.length > 0 ? (
             area.members.map((member, index) => (
               <article

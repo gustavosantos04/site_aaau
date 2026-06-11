@@ -29,25 +29,25 @@ const content = {
     eyebrow: "Pagamento",
     title: "Pedido recebido.",
     copy:
-      "A AAAU recebeu seu pedido. Assim que o pagamento for confirmado, voce recebera um email de confirmacao.",
+      "A AAAU recebeu seu pedido. Assim que o pagamento for confirmado, você receberá um email de confirmação.",
   },
   pending: {
     eyebrow: "Pagamento pendente",
     title: "Pagamento em processamento.",
     copy:
-      "Estamos aguardando a confirmacao do Mercado Pago. Esta pagina atualiza sozinha e voce recebera um email quando o pagamento for aprovado.",
+      "Estamos aguardando a confirmação do Mercado Pago. Esta página atualiza sozinha e você receberá um email quando o pagamento for aprovado.",
   },
   error: {
     eyebrow: "Pagamento nao concluido",
-    title: "Nao recebemos a confirmacao.",
+    title: "Não recebemos a confirmação.",
     copy:
-      "O pedido continua salvo como pendente ou recusado. Voce pode voltar ao catalogo e iniciar uma nova tentativa de pagamento.",
+      "O pedido continua salvo como pendente ou recusado. Você pode voltar ao catálogo e iniciar uma nova tentativa de pagamento.",
   },
 };
 
 const statusLabels: Record<PublicOrder["status"], string> = {
   approved: "Pagamento aprovado",
-  pending: "Aguardando confirmacao",
+  pending: "Aguardando confirmação",
   rejected: "Pagamento recusado",
   cancelled: "Pagamento cancelado",
   refunded: "Pagamento estornado",
@@ -96,7 +96,7 @@ export function PaymentReturnPage({
         })
         .catch((error) => {
           if (active) {
-            setMessage(error instanceof Error ? error.message : "Nao foi possivel buscar o pedido.");
+            setMessage(error instanceof Error ? error.message : "Não foi possível buscar o pedido.");
           }
         })
         .finally(() => {
@@ -177,7 +177,7 @@ export function PaymentReturnPage({
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Link href="/produtos" className={buttonVariants({ variant: "primary", size: "lg" })}>
-          Voltar ao catalogo
+          Voltar ao catálogo
         </Link>
         <Link href="/" className={buttonVariants({ variant: "secondary", size: "lg" })}>
           Ir para home

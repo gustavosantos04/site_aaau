@@ -94,7 +94,7 @@ export function MobileNav() {
 
         <div className="mt-auto space-y-4 pb-[env(safe-area-inset-bottom)] pt-8">
           <p className="text-xs leading-6 text-white/[0.58]">
-            Navegacao rapida para catalogo, carrinho e secoes principais da AAAU.
+            Navegação rápida para catálogo, carrinho e seções principais da AAAU.
           </p>
           <Link
             href="/produtos"
@@ -105,7 +105,7 @@ export function MobileNav() {
               className: "w-full",
             })}
           >
-            Ver catalogo
+            Ver catálogo
           </Link>
         </div>
       </aside>

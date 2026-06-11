@@ -20,7 +20,7 @@ const productSchema = z.object({
   name: z.string().trim().min(3, "Informe um nome com pelo menos 3 caracteres."),
   slug: z.string().trim().optional(),
   description: z.string().trim().min(10, "Descreva o produto com pelo menos 10 caracteres."),
-  price: z.coerce.number().positive("Informe um preco maior que zero."),
+  price: z.coerce.number().positive("Informe um preço maior que zero."),
   imageUrl: z.string().trim().optional(),
   category: z.nativeEnum(ProductCategory),
   sizes: z.string().trim().min(1, "Informe ao menos um tamanho ou variacao."),
@@ -165,7 +165,7 @@ export async function saveProductAction(
   if (!parsed.success) {
     return {
       status: "error",
-      message: parsed.error.issues[0]?.message ?? "Revise os campos obrigatorios.",
+      message: parsed.error.issues[0]?.message ?? "Revise os campos obrigatórios.",
     };
   }
 
@@ -282,7 +282,7 @@ export async function saveProductAction(
     return {
       status: "error",
       message:
-        error instanceof Error ? error.message : "Nao foi possivel salvar o produto agora.",
+        error instanceof Error ? error.message : "Não foi possível salvar o produto agora.",
     };
   }
 }

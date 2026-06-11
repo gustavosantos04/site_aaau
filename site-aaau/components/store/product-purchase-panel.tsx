@@ -38,13 +38,13 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
     optionsAreComplete &&
     customizationIsComplete;
   const missingMessage = !variantIsComplete
-    ? "Escolha uma opcao do produto."
+    ? "Escolha uma opção do produto."
     : !sizeIsComplete
       ? "Escolha um tamanho antes de adicionar ao carrinho."
       : !optionsAreComplete
-        ? "Escolha todas as opcoes obrigatorias."
+        ? "Escolha todas as opções obrigatórias."
         : !customizationIsComplete
-          ? "Preencha a personalizacao obrigatoria."
+          ? "Preencha a personalização obrigatória."
           : null;
 
   return (
@@ -71,7 +71,7 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
       {product.variants?.length ? (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
-            Opcao
+            Opção
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {product.variants.map((variant) => (
@@ -155,7 +155,7 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
 
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
-          Tamanho obrigatorio
+          Tamanho obrigatório
         </p>
         <div className="flex flex-wrap gap-3">
           {product.sizes.map((size) => (
@@ -179,12 +179,12 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
       {requiresCustomization ? (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
-            Personalizacao obrigatoria
+            Personalização obrigatória
           </p>
           <div className="grid gap-3 sm:grid-cols-[1fr,140px]">
             <label className="space-y-2">
               <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
-                Nome na peca *
+                Nome na peça *
               </span>
               <input
                 value={customName}
@@ -195,7 +195,7 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
             </label>
             <label className="space-y-2">
               <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
-                Numero *
+                Número *
               </span>
               <input
                 inputMode="numeric"
@@ -209,14 +209,14 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
             </label>
           </div>
           <p className="text-xs leading-6 text-white/[0.45]">
-            Preencha nome e numero para adicionar este produto ao carrinho.
+            Preencha nome e número para adicionar este produto ao carrinho.
           </p>
         </div>
       ) : null}
 
       <div className="rounded-[1.5rem] border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/[0.65]">
         <p className="font-semibold uppercase tracking-[0.18em] text-white/60">
-          Politica inicial
+          Política inicial
         </p>
         <p className="mt-2">{siteConfig.policyNote}</p>
       </div>

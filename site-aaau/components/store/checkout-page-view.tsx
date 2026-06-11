@@ -106,7 +106,7 @@ export function CheckoutPageView() {
       };
 
       if (!response.ok) {
-        throw new Error(result.message ?? "Nao foi possivel criar o pedido.");
+        throw new Error(result.message ?? "Não foi possível criar o pedido.");
       }
 
       clearCart();
@@ -136,7 +136,7 @@ export function CheckoutPageView() {
           Dados para pagamento.
         </h1>
         <p className="text-base leading-7 text-white/[0.68]">
-          Preencha os dados obrigatorios para criar o pedido pendente e iniciar o checkout Mercado
+          Preencha os dados obrigatórios para criar o pedido pendente e iniciar o checkout Mercado
           Pago.
         </p>
       </div>

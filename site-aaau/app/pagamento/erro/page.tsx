@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { PaymentReturnPage } from "@/components/store/payment-return-page";
 
 export const metadata: Metadata = {
-  title: "Pagamento Nao Concluido",
+  title: "Pagamento Não Concluído",
 };
 
 export default async function PaymentErrorPage({

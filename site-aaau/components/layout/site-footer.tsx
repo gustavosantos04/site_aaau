@@ -24,6 +24,17 @@ export function SiteFooter() {
             Marca, comunidade e performance em uma base digital pronta para evoluir
             com catálogo, pedidos, campanhas e experiências imersivas.
           </p>
+          <p className="text-xs leading-6 text-white/45">
+            Desenvolvido por{" "}
+            <a
+              href="https://www.instagram.com/titaniumagencylegacy/"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-white/70 underline-offset-4 transition hover:text-white hover:underline"
+            >
+              Titanium Agency Legacy
+            </a>
+          </p>
         </div>
 
         <div>

@@ -193,10 +193,10 @@ const croppedColorOption = {
 };
 
 const measurementNote =
-  "Medidas em centimetros, com a peca colocada em mesa plana, sem esticar. Use uma peca que vista bem como referencia. Margem aproximada de tolerancia: +/- 1 cm.";
+  "Medidas em centímetros, com a peça colocada em mesa plana, sem esticar. Use uma peça que vista bem como referência. Margem aproximada de tolerância: +/- 1 cm.";
 
 const apparelMetrics = [
-  { label: "A", description: "Altura da peca" },
+  { label: "A", description: "Altura da peça" },
   { label: "B", description: "Largura do peito" },
   { label: "C", description: "Comprimento da manga" },
 ];
@@ -212,7 +212,7 @@ const uniformMetrics = [
 const fallbackMeasurementGuide = {
   title: "Guia de medidas aproximado",
   note:
-    "Tabela aproximada baseada nos fornecedores da colecao. Compare com uma peca sua antes de escolher o tamanho.",
+    "Tabela aproximada baseada nos fornecedores da coleção. Compare com uma peça sua antes de escolher o tamanho.",
   metrics: [
     { label: "Altura", description: "Comprimento da gola ate a barra" },
     { label: "Largura", description: "Medida frontal de um lado ao outro" },
@@ -316,7 +316,7 @@ const jaquetaMeasurementGuide = {
 
 const uniformBordoMeasurementGuide = {
   title: "Guia de medidas do uniforme bordo",
-  note: "Medidas em centimetros para camiseta tradicional e baby long. Compare com uma camiseta sua antes de escolher.",
+  note: "Medidas em centímetros para camiseta tradicional e baby long. Compare com uma camiseta sua antes de escolher.",
   metrics: [
     { label: "Altura", description: "Comprimento da gola ate a barra" },
     { label: "Largura", description: "Medida frontal de um lado ao outro" },
@@ -348,7 +348,7 @@ const uniformBordoMeasurementGuide = {
 
 const uniformBrancoMeasurementGuide = {
   title: "Guia de medidas do uniforme branco",
-  note: "Medidas em centimetros da camiseta drysoft sublimada.",
+  note: "Medidas em centímetros da camiseta drysoft sublimada.",
   metrics: uniformMetrics,
   tables: [
     {
@@ -373,7 +373,7 @@ export const productsSeed: Product[] = [
     slug: "corta-vento",
     price: 165,
     description:
-      "Corta vento oficial AAAU para dias de jogo, campus e rotina, com identidade da atletica em destaque.",
+      "Corta vento oficial AAAU para dias de jogo, campus e rotina, com identidade da atlética em destaque.",
     category: "APPAREL",
     sizes: apparelSizeColumns,
     stock: 40,
@@ -398,9 +398,9 @@ export const productsSeed: Product[] = [
     slug: "caneca",
     price: 35,
     description:
-      "Caneca oficial AAAU para acompanhar a rotina de aula, treino e eventos da atletica.",
+      "Caneca oficial AAAU para acompanhar a rotina de aula, treino e eventos da atlética.",
     category: "ACCESSORY",
-    sizes: ["Unico"],
+    sizes: ["Único"],
     stock: 50,
     requiresCustomization: false,
     featured: true,
@@ -423,7 +423,7 @@ export const productsSeed: Product[] = [
     price: 35,
     description: "Escolha so a caneca oficial ou o combo com tirante para montar o kit da torcida.",
     category: "ACCESSORY",
-    sizes: ["Unico"],
+    sizes: ["Único"],
     stock: 50,
     requiresCustomization: false,
     featured: false,
@@ -467,9 +467,9 @@ export const productsSeed: Product[] = [
     name: "Tirante",
     slug: "tirante",
     price: 10,
-    description: "Tirante oficial AAAU para credencial, chaveiro e eventos da atletica.",
+    description: "Tirante oficial AAAU para credencial, chaveiro e eventos da atlética.",
     category: "ACCESSORY",
-    sizes: ["Unico"],
+    sizes: ["Único"],
     stock: 80,
     requiresCustomization: false,
     featured: false,
@@ -491,7 +491,7 @@ export const productsSeed: Product[] = [
     name: "Jaqueta College",
     slug: "jaqueta-college",
     price: 200,
-    description: "Jaqueta college AAAU com escolha de numero para personalizar a peca.",
+    description: "Jaqueta college AAAU com escolha de número para personalizar a peça.",
     category: "APPAREL",
     sizes: apparelSizeColumns,
     stock: 30,
@@ -540,7 +540,7 @@ export const productsSeed: Product[] = [
     name: "Jersey NFL",
     slug: "jersey-nfl",
     price: 180,
-    description: "Jersey modelo NFL com nome e numero personalizados.",
+    description: "Jersey modelo NFL com nome e número personalizados.",
     category: "UNIFORM",
     sizes: ["P", "M", "G", "GG", "XG"],
     stock: 30,
@@ -564,7 +564,7 @@ export const productsSeed: Product[] = [
     name: "Jersey Tradicional",
     slug: "jersey-tradicional",
     price: 100,
-    description: "Jersey tradicional AAAU com nome e numero personalizados.",
+    description: "Jersey tradicional AAAU com nome e número personalizados.",
     category: "UNIFORM",
     sizes: ["P", "M", "G", "GG", "XG"],
     stock: 30,
@@ -588,7 +588,7 @@ export const productsSeed: Product[] = [
     name: "Uniforme Bordo",
     slug: "uniforme-bordo",
     price: 75,
-    description: "Uniforme bordo com nome e numero personalizados. Escolha entre so camiseta ou conjunto completo.",
+    description: "Uniforme bordo com nome e número personalizados. Escolha entre só camiseta ou conjunto completo.",
     category: "UNIFORM",
     sizes: ["PP", "P", "M", "G", "GG", "XG"],
     stock: 30,
@@ -599,7 +599,7 @@ export const productsSeed: Product[] = [
     variants: [
       {
         id: "camiseta",
-        label: "So camiseta",
+        label: "Só camiseta",
         price: 75,
         description: "Camiseta bordo personalizada.",
       },
@@ -626,7 +626,7 @@ export const productsSeed: Product[] = [
     name: "Uniforme Branco",
     slug: "uniforme-branco",
     price: 85,
-    description: "Uniforme branco com nome e numero personalizados. Escolha entre so camiseta ou conjunto completo.",
+    description: "Uniforme branco com nome e número personalizados. Escolha entre só camiseta ou conjunto completo.",
     category: "UNIFORM",
     sizes: uniformSizeColumns,
     stock: 30,
@@ -637,7 +637,7 @@ export const productsSeed: Product[] = [
     variants: [
       {
         id: "camiseta",
-        label: "So camiseta",
+        label: "Só camiseta",
         price: 85,
         description: "Camiseta branca personalizada.",
       },
@@ -725,7 +725,7 @@ export const ordersSeed: OrderData[] = [
       {
         id: "order-item-2",
         productId: "product-uniforme-bordo",
-        productName: "Uniforme Bordo - So camiseta",
+        productName: "Uniforme Bordo - Só camiseta",
         productSlug: "uniforme-bordo",
         size: "G",
         quantity: 1,

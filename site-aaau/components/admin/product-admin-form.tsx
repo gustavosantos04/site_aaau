@@ -272,7 +272,7 @@ export function ProductAdminForm({
               required
               defaultValue={selectedProduct.sizes.join(", ")}
               className={inputClass}
-              placeholder="P, M, G, GG ou Unico"
+              placeholder="P, M, G, GG ou Único"
             />
           </FormField>
 
