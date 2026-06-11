@@ -3,11 +3,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
-import { ProductCategory } from "@prisma/client";
+import { Prisma, ProductCategory } from "@prisma/client";
 import { z } from "zod";
 
 import { requireAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { productsSeed } from "@/lib/data/seed-content";
 
 export type ProductFormState = {
   status: "idle" | "success" | "error";
@@ -64,6 +65,64 @@ function parseProductForm(formData: FormData) {
   });
 }
 
+function parsePriceValue(value: FormDataEntryValue | null) {
+  const normalized = value?.toString().replace(",", ".").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const price = Number(normalized);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+function buildProductMetadata(
+  formData: FormData,
+  productId: string | undefined,
+  slug: string,
+  basePrice: number,
+): Prisma.InputJsonObject | undefined {
+  const seedProduct = productsSeed.find(
+    (product) => product.id === productId || product.slug === slug,
+  );
+
+  if (!seedProduct?.variants?.length && !seedProduct?.options && !seedProduct?.measurementGuide) {
+    return undefined;
+  }
+
+  const metadata: Record<string, Prisma.InputJsonValue> = {};
+
+  if (seedProduct.variants?.length) {
+    metadata.variants = seedProduct.variants.map((variant, index) => {
+      const submittedPrice = parsePriceValue(formData.get(`variantPrice:${variant.id}`));
+      const savedVariant: Record<string, Prisma.InputJsonValue> = {
+        id: variant.id,
+        label: variant.label,
+        price: submittedPrice ?? (index === 0 ? basePrice : variant.price),
+      };
+
+      if (variant.description) {
+        savedVariant.description = variant.description;
+      }
+
+      if (variant.requiredOptionIds?.length) {
+        savedVariant.requiredOptionIds = variant.requiredOptionIds;
+      }
+
+      return savedVariant;
+    });
+  }
+
+  if (seedProduct.options) {
+    metadata.options = seedProduct.options as unknown as Prisma.InputJsonValue;
+  }
+
+  if (seedProduct.measurementGuide) {
+    metadata.measurementGuide = seedProduct.measurementGuide as unknown as Prisma.InputJsonValue;
+  }
+
+  return metadata;
+}
+
 async function saveUploadedProductImage(file: File, slug: string) {
   if (file.size === 0) {
     return null;
@@ -112,6 +171,7 @@ export async function saveProductAction(
 
   const data = parsed.data;
   const slug = buildSlug(data.slug || data.name);
+  const metadata = buildProductMetadata(formData, data.productId, slug, data.price);
   const sizes = data.sizes
     .split(",")
     .map((size) => size.trim())
@@ -164,6 +224,7 @@ export async function saveProductAction(
           slug,
           description: data.description,
           price: data.price,
+          metadata,
           category: data.category,
           sizes,
           stock: data.stock,
@@ -189,6 +250,7 @@ export async function saveProductAction(
           slug,
           description: data.description,
           price: data.price,
+          metadata,
           category: data.category,
           sizes,
           stock: data.stock,

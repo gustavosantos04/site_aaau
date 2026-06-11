@@ -20,7 +20,7 @@ const initialState: ProductFormState = {
   status: "idle",
 };
 
-const emptyProduct = {
+const emptyProduct: Product = {
   id: "",
   name: "",
   slug: "",
@@ -34,14 +34,14 @@ const emptyProduct = {
   isNew: false,
   isActive: true,
   images: [],
-} satisfies Product;
+};
 
 function SubmitButton({ editing }: { editing: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={pending}>
-      {pending ? "Salvando..." : editing ? "Salvar alteracoes" : "Cadastrar produto"}
+      {pending ? "Salvando..." : editing ? "Salvar alterações" : "Cadastrar produto"}
     </Button>
   );
 }
@@ -142,7 +142,7 @@ function ProductImagePicker({
             />
           </label>
           <p className="text-xs leading-5 text-white/40">
-            Ao enviar uma nova foto, ela sera salva em produtos e usada automaticamente.
+            Ao enviar uma nova foto, ela será salva em produtos e usada automaticamente.
           </p>
         </div>
       </div>
@@ -214,7 +214,7 @@ export function ProductAdminForm({
             </FormField>
           </div>
 
-          <FormField label="Descricao para o site">
+          <FormField label="Descrição para o site">
             <textarea
               key={`description-${selectedProduct.id}`}
               name="description"
@@ -227,7 +227,7 @@ export function ProductAdminForm({
           </FormField>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <FormField label="Preco de venda">
+            <FormField label="Preço de venda">
               <input
                 key={`price-${selectedProduct.id}`}
                 name="price"
@@ -265,7 +265,7 @@ export function ProductAdminForm({
             </FormField>
           </div>
 
-          <FormField label="Tamanhos disponiveis">
+          <FormField label="Tamanhos disponíveis">
             <input
               key={`sizes-${selectedProduct.id}`}
               name="sizes"
@@ -275,6 +275,33 @@ export function ProductAdminForm({
               placeholder="P, M, G, GG ou Unico"
             />
           </FormField>
+
+          {selectedProduct.variants?.length ? (
+            <div className="space-y-3 rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
+                  Preços das opções
+                </p>
+                <p className="mt-1 text-xs leading-5 text-white/40">
+                  Estes valores aparecem na página do produto, carrinho e checkout.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {selectedProduct.variants.map((variant) => (
+                  <FormField key={`${selectedProduct.id}-${variant.id}`} label={variant.label}>
+                    <input
+                      name={`variantPrice:${variant.id}`}
+                      required
+                      inputMode="decimal"
+                      defaultValue={variant.price || ""}
+                      className={inputClass}
+                      placeholder="79,90"
+                    />
+                  </FormField>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <FormField label="Foto principal do produto">
             <ProductImagePicker
@@ -286,9 +313,9 @@ export function ProductAdminForm({
 
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              ["requiresCustomization", "Permitir personalizacao", selectedProduct.requiresCustomization],
+              ["requiresCustomization", "Permitir personalização", selectedProduct.requiresCustomization],
               ["featured", "Destaque", selectedProduct.featured],
-              ["isNew", "Lancamento", selectedProduct.isNew],
+              ["isNew", "Lançamento", selectedProduct.isNew],
               ["isActive", "Ativo", selectedProduct.isActive],
             ].map(([name, label, checked]) => (
               <label
@@ -332,7 +359,7 @@ export function ProductAdminForm({
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <h2 className="text-2xl font-semibold text-white">{products.length} produtos</h2>
             <p className="text-sm text-white/50">
-              Clique em editar para carregar o cadastro no formulario.
+              Clique em editar para carregar o cadastro no formulário.
             </p>
           </div>
         </div>
@@ -370,7 +397,7 @@ export function ProductAdminForm({
                     ) : null}
                     {product.requiresCustomization ? (
                       <span className="rounded-full border border-aaau-sand/30 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-aaau-sand">
-                        Personalizacao
+                        Personalização
                       </span>
                     ) : null}
                   </div>
@@ -381,6 +408,11 @@ export function ProductAdminForm({
                   <div className="mt-3 flex flex-wrap gap-3 text-xs uppercase tracking-[0.16em] text-white/45">
                     <span>{siteConfig.categoryLabels[product.category]}</span>
                     <span>{formatCurrency(product.price)}</span>
+                    {product.variants?.map((variant) => (
+                      <span key={variant.id}>
+                        {variant.label}: {formatCurrency(variant.price)}
+                      </span>
+                    ))}
                     <span>{product.stock} em estoque</span>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 import {
   couponsSeed,
@@ -12,6 +12,16 @@ import {
 } from "../lib/data/management";
 
 const prisma = new PrismaClient();
+
+function productMetadata(product: (typeof productsSeed)[number]): Prisma.InputJsonValue {
+  return JSON.parse(
+    JSON.stringify({
+      variants: product.variants,
+      options: product.options,
+      measurementGuide: product.measurementGuide,
+    }),
+  ) as Prisma.InputJsonValue;
+}
 
 async function main() {
   await prisma.managementMemberRecord.deleteMany();
@@ -31,6 +41,7 @@ async function main() {
         slug: product.slug,
         price: product.price,
         description: product.description,
+        metadata: productMetadata(product),
         category: product.category,
         sizes: product.sizes,
         stock: product.stock,

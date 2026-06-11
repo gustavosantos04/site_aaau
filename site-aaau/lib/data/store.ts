@@ -13,7 +13,23 @@ import type {
   EventItem,
   OrderData,
   Product,
+  ProductMetadata,
 } from "@/types/store";
+
+function parseProductMetadata(value: Prisma.JsonValue | null | undefined): ProductMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as unknown as ProductMetadata;
+}
+
+function seedVariantsWithBasePrice(seedMetadata: Product | undefined, basePrice: number) {
+  return seedMetadata?.variants?.map((variant, index) => ({
+    ...variant,
+    price: index === 0 ? basePrice : variant.price,
+  }));
+}
 
 function normalizeProduct(product: {
   id: string;
@@ -29,19 +45,23 @@ function normalizeProduct(product: {
   isNew: boolean;
   isActive: boolean;
   images: Product["images"];
+  metadata?: Prisma.JsonValue | null;
 }): Product {
   const seedMetadata = productsSeed.find(
     (seedProduct) => seedProduct.id === product.id || seedProduct.slug === product.slug,
   );
+  const savedMetadata = parseProductMetadata(product.metadata);
+  const basePrice = Number(product.price);
+  const variants = savedMetadata?.variants ?? seedVariantsWithBasePrice(seedMetadata, basePrice);
 
   return {
     ...product,
-    price: Number(product.price),
+    price: basePrice,
     requiresCustomization:
       product.requiresCustomization ?? seedMetadata?.requiresCustomization ?? false,
-    variants: seedMetadata?.variants,
-    options: seedMetadata?.options,
-    measurementGuide: seedMetadata?.measurementGuide,
+    variants,
+    options: savedMetadata?.options ?? seedMetadata?.options,
+    measurementGuide: savedMetadata?.measurementGuide ?? seedMetadata?.measurementGuide,
   };
 }
 

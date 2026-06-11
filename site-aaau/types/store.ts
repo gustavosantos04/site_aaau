@@ -83,6 +83,12 @@ export interface Product {
   measurementGuide?: ProductMeasurementGuide;
 }
 
+export interface ProductMetadata {
+  variants?: ProductVariant[];
+  options?: ProductOption[];
+  measurementGuide?: ProductMeasurementGuide;
+}
+
 export interface Coupon {
   id: string;
   code: string;

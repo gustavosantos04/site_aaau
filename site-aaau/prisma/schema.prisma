@@ -44,6 +44,7 @@ model Product {
   slug        String          @unique
   price       Decimal         @db.Decimal(10, 2)
   description String          @db.Text
+  metadata    Json?
   category    ProductCategory
   sizes       String[]
   stock       Int             @default(0)

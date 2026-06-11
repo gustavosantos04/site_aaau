@@ -101,9 +101,9 @@ export const managementAreaBlueprints: ManagementAreaBlueprint[] = [
   },
   {
     id: "juridico",
-    title: "Jurídico",
+    title: "Jurídico/Financeiro",
     description:
-      "Cuida de contratos, autorizações, compliance e suporte documental para dar segurança a cada movimento da gestão.",
+      "Cuida de contratos, autorizações, financeiro, compliance e suporte documental para dar segurança a cada movimento da gestão.",
     symbol: "9",
     icon: "scale",
     accent: "Segurança institucional e clareza operacional",

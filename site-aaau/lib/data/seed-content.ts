@@ -126,9 +126,9 @@ export const managementGroups = [
       "Cria campanhas, dirige a identidade visual e transforma cada lançamento em ativo de marca.",
   },
   {
-    name: "Jurídico",
+    name: "Jurídico/Financeiro",
     description:
-      "Organiza contratos, autorizações e suporte documental para eventos, produtos e patrocínios.",
+      "Organiza contratos, financeiro, autorizações e suporte documental para eventos, produtos e patrocínios.",
   },
   {
     name: "Comercial",

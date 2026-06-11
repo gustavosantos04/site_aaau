@@ -11,7 +11,7 @@ const sportsData = [
   { name: "Handebol", image: "/images/mascots/bull_hand.png" },
   { name: "Basquete", image: "/images/mascots/bull_basquete.png" },
   { name: "Fut7", image: "/images/mascots/bull_fut7.png" },
-  { name: "Futvôlei", image: "/images/mascots/bull_volei.png" },
+  { name: "Futvôlei", image: "/images/mascots/bull_futvolei.PNG" },
 ];
 
 export function SportsSection() {

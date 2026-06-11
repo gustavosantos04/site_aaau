@@ -5,12 +5,45 @@ import { z } from "zod";
 
 import { productsSeed } from "@/lib/data/seed-content";
 import { prisma } from "@/lib/db/prisma";
+import type { ProductMetadata } from "@/types/store";
 
 const MAX_ITEMS = 12;
 const MAX_QUANTITY = 20;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 8;
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function parseProductMetadata(value: Prisma.JsonValue | null | undefined): ProductMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as unknown as ProductMetadata;
+}
+
+function getProductMetadata(product: {
+  id: string;
+  slug: string;
+  price: Prisma.Decimal | number;
+  metadata?: Prisma.JsonValue | null;
+}) {
+  const savedMetadata = parseProductMetadata(product.metadata);
+  const seedMetadata = productsSeed.find(
+    (seedProduct) => seedProduct.id === product.id || seedProduct.slug === product.slug,
+  );
+  const basePrice = Number(product.price);
+
+  return {
+    variants:
+      savedMetadata?.variants ??
+      seedMetadata?.variants?.map((variant, index) => ({
+        ...variant,
+        price: index === 0 && basePrice > 0 ? basePrice : variant.price,
+      })),
+    options: savedMetadata?.options ?? seedMetadata?.options,
+    measurementGuide: savedMetadata?.measurementGuide ?? seedMetadata?.measurementGuide,
+  };
+}
 
 const checkoutItemSchema = z.object({
   productId: z.string().trim().min(1).max(120),
@@ -356,7 +389,6 @@ export async function createCheckout(request: Request) {
     },
   });
   const productsById = new Map(products.map((product) => [product.id, product]));
-  const productMetadataById = new Map(productsSeed.map((product) => [product.id, product]));
 
   if (products.length !== productIds.length) {
     return { error: "Um ou mais produtos nao estao disponiveis para compra.", status: 400 };
@@ -381,7 +413,7 @@ export async function createCheckout(request: Request) {
       return { error: `Tamanho invalido para ${product.name}.`, status: 400 };
     }
 
-    const metadata = productMetadataById.get(product.id);
+    const metadata = getProductMetadata(product);
     const selectedVariant = item.variantId
       ? metadata?.variants?.find((variant) => variant.id === item.variantId)
       : undefined;
@@ -424,7 +456,7 @@ export async function createCheckout(request: Request) {
       throw new Error("Produto indisponivel.");
     }
 
-    const metadata = productMetadataById.get(product.id);
+    const metadata = getProductMetadata(product);
     const variant = item.variantId
       ? metadata?.variants?.find((entry) => entry.id === item.variantId)
       : undefined;
