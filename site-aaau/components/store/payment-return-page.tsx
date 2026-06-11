@@ -29,13 +29,13 @@ const content = {
     eyebrow: "Pagamento",
     title: "Pedido recebido.",
     copy:
-      "A AAAU recebeu seu pedido. Se o Mercado Pago ainda estiver confirmando o pagamento, o status pode atualizar em alguns instantes.",
+      "A AAAU recebeu seu pedido. Assim que o pagamento for confirmado, voce recebera um email de confirmacao.",
   },
   pending: {
     eyebrow: "Pagamento pendente",
-    title: "Estamos aguardando a confirmacao.",
+    title: "Pagamento em processamento.",
     copy:
-      "Pix, boleto e algumas analises de cartao podem levar alguns instantes. O pedido permanece registrado enquanto o Mercado Pago confirma o status.",
+      "Estamos aguardando a confirmacao do Mercado Pago. Esta pagina atualiza sozinha e voce recebera um email quando o pagamento for aprovado.",
   },
   error: {
     eyebrow: "Pagamento nao concluido",
@@ -43,6 +43,15 @@ const content = {
     copy:
       "O pedido continua salvo como pendente ou recusado. Voce pode voltar ao catalogo e iniciar uma nova tentativa de pagamento.",
   },
+};
+
+const statusLabels: Record<PublicOrder["status"], string> = {
+  approved: "Pagamento aprovado",
+  pending: "Aguardando confirmacao",
+  rejected: "Pagamento recusado",
+  cancelled: "Pagamento cancelado",
+  refunded: "Pagamento estornado",
+  expired: "Pagamento expirado",
 };
 
 export function PaymentReturnPage({
@@ -54,6 +63,7 @@ export function PaymentReturnPage({
 }) {
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [loading, setLoading] = useState(Boolean(orderId));
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const page = content[variant];
 
@@ -66,31 +76,43 @@ export function PaymentReturnPage({
 
     let active = true;
 
-    fetch(`/api/orders/${orderId}`)
-      .then(async (response) => {
-        const result = await response.json();
+    async function fetchOrder(isRefresh = false) {
+      if (isRefresh) {
+        setRefreshing(true);
+      }
 
-        if (!response.ok) {
-          throw new Error(result.message ?? "Pedido nao encontrado.");
-        }
+      fetch(`/api/orders/${orderId}`)
+        .then(async (response) => {
+          const result = await response.json();
 
-        if (active) {
-          setOrder(result as PublicOrder);
-        }
-      })
-      .catch((error) => {
-        if (active) {
-          setMessage(error instanceof Error ? error.message : "Nao foi possivel buscar o pedido.");
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
+          if (!response.ok) {
+            throw new Error(result.message ?? "Pedido nao encontrado.");
+          }
+
+          if (active) {
+            setOrder(result as PublicOrder);
+            setMessage(null);
+          }
+        })
+        .catch((error) => {
+          if (active) {
+            setMessage(error instanceof Error ? error.message : "Nao foi possivel buscar o pedido.");
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        });
+    }
+
+    fetchOrder();
+    const intervalId = window.setInterval(() => fetchOrder(true), 5000);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
     };
   }, [orderId]);
 
@@ -117,8 +139,13 @@ export function PaymentReturnPage({
                 {order.orderNumber} - {formatDate(order.createdAt)}
               </p>
               <p className="mt-3 text-sm text-white/65">
-                Comprador: {order.buyer.name} - Status: {order.status}
+                Comprador: {order.buyer.name} - Status: {statusLabels[order.status]}
               </p>
+              {order.status === "pending" ? (
+                <p className="mt-2 text-sm text-white/55">
+                  Aguardando retorno do Mercado Pago. {refreshing ? "Atualizando..." : null}
+                </p>
+              ) : null}
               <div className="mt-5 space-y-3">
                 {order.items.map((item) => (
                   <div

@@ -9,6 +9,7 @@ import {
   type MercadoPagoPayment,
 } from "@/lib/checkout/mercado-pago";
 import { prisma } from "@/lib/db/prisma";
+import { sendOrderPaidEmails } from "@/lib/email/order-confirmation";
 
 export const runtime = "nodejs";
 
@@ -220,6 +221,9 @@ export async function POST(request: Request) {
   }
 
   if (order && amountMatches) {
+    const shouldSendPaidEmail =
+      mappedStatus.paymentStatus === "APPROVED" && order.paymentStatus !== "APPROVED";
+
     await prisma.order.update({
       where: { id: order.id },
       data: {
@@ -233,6 +237,14 @@ export async function POST(request: Request) {
         paidAt: payment.date_approved ? new Date(payment.date_approved) : undefined,
       },
     });
+
+    if (shouldSendPaidEmail) {
+      try {
+        await sendOrderPaidEmails(order.id);
+      } catch (error) {
+        console.error("Nao foi possivel enviar email de confirmacao do pedido.", error);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

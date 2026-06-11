@@ -28,9 +28,18 @@ NEXT_PUBLIC_SITE_URL="https://seu-dominio.com.br"
 MERCADO_PAGO_ACCESS_TOKEN=""
 MERCADO_PAGO_WEBHOOK_SECRET=""
 NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY=""
+
+SMTP_HOST=""
+SMTP_PORT="587"
+SMTP_SECURE="false"
+SMTP_USER=""
+SMTP_PASS=""
+SMTP_FROM=""
+ORDER_NOTIFICATION_EMAIL=""
 ```
 
 O `MERCADO_PAGO_ACCESS_TOKEN` deve ficar somente no backend e nunca deve receber prefixo `NEXT_PUBLIC_`. A public key e opcional neste fluxo porque o Checkout Pro abre no ambiente seguro do Mercado Pago.
+As variaveis `SMTP_*` habilitam o email de confirmacao quando o webhook recebe pagamento aprovado. Se elas nao estiverem configuradas, o pagamento continua funcionando sem envio de email.
 
 ## Credenciais Mercado Pago
 
