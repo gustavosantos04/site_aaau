@@ -85,15 +85,17 @@ export function ManagementCardPanel({
         {/* Grid de membros - layout simplificado */}
         <div
           className={cn(
-            "grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(255,255,255,0.24)_transparent] [scrollbar-width:thin]",
-            compact ? "max-h-[68svh] sm:grid-cols-2" : "max-h-[min(58svh,34rem)] sm:grid-cols-2 lg:grid-cols-3",
+            "grid min-h-0 flex-1 content-start gap-3 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(255,255,255,0.24)_transparent] [scrollbar-width:thin]",
+            compact
+              ? "max-h-[68svh] auto-rows-[minmax(8.75rem,max-content)] sm:grid-cols-2"
+              : "max-h-[min(58svh,34rem)] auto-rows-[minmax(9.75rem,max-content)] sm:grid-cols-2 lg:grid-cols-3",
           )}
         >
           {area.members.length > 0 ? (
             area.members.map((member, index) => (
               <article
                 key={`${area.id}-${member.name}`}
-                className="group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 transition duration-500 hover:border-white/20 hover:bg-gradient-to-br hover:from-white/[0.12] hover:to-white/[0.04] hover:shadow-lg"
+                className="group relative min-h-[9.75rem] overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-4 transition duration-500 hover:border-white/20 hover:bg-gradient-to-br hover:from-white/[0.12] hover:to-white/[0.04] hover:shadow-lg"
                 style={{
                   animationDelay: `${index * 0.08}s`,
                 }}
