@@ -40,6 +40,7 @@ ORDER_NOTIFICATION_EMAIL=""
 
 O `MERCADO_PAGO_ACCESS_TOKEN` deve ficar somente no backend e nunca deve receber prefixo `NEXT_PUBLIC_`. A public key e opcional neste fluxo porque o Checkout Pro abre no ambiente seguro do Mercado Pago.
 As variaveis `SMTP_*` habilitam o email de confirmacao quando o webhook recebe pagamento aprovado. Se elas nao estiverem configuradas, o pagamento continua funcionando sem envio de email.
+Para Gmail, use `SMTP_PORT=587` com `SMTP_SECURE=false` ou `SMTP_PORT=465` com `SMTP_SECURE=true`.
 
 ## Credenciais Mercado Pago
 
