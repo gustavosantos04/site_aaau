@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, Sora } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
+import { ClarityScript } from "@/components/analytics/clarity-script";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ScrollProgressIndicator } from "@/components/layout/scroll-progress-indicator";
@@ -62,6 +65,9 @@ export default function RootLayout({
             <CartSheet />
           </div>
         </Providers>
+        <Analytics />
+        <SpeedInsights />
+        <ClarityScript />
       </body>
     </html>
   );

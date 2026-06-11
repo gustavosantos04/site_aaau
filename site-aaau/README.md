@@ -36,11 +36,19 @@ SMTP_USER=""
 SMTP_PASS=""
 SMTP_FROM=""
 ORDER_NOTIFICATION_EMAIL=""
+
+NEXT_PUBLIC_CLARITY_PROJECT_ID=""
 ```
 
 O `MERCADO_PAGO_ACCESS_TOKEN` deve ficar somente no backend e nunca deve receber prefixo `NEXT_PUBLIC_`. A public key e opcional neste fluxo porque o Checkout Pro abre no ambiente seguro do Mercado Pago.
 As variaveis `SMTP_*` habilitam o email de confirmacao quando o webhook recebe pagamento aprovado. Se elas nao estiverem configuradas, o pagamento continua funcionando sem envio de email.
 Para Gmail, use `SMTP_PORT=587` com `SMTP_SECURE=false` ou `SMTP_PORT=465` com `SMTP_SECURE=true`.
+
+## Analytics e performance
+
+- Vercel Analytics: no dashboard da Vercel, abra o projeto e ative Analytics. O componente `Analytics` ja esta carregado no layout.
+- Vercel Speed Insights: no dashboard da Vercel, abra Speed Insights/Observability e ative para o projeto. O componente `SpeedInsights` ja esta carregado no layout.
+- Microsoft Clarity: crie um projeto em `https://clarity.microsoft.com`, copie o Project ID e configure `NEXT_PUBLIC_CLARITY_PROJECT_ID` nas variaveis de ambiente da Vercel. Se a variavel ficar vazia, o Clarity nao carrega.
 
 ## Credenciais Mercado Pago
 
