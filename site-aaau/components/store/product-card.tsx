@@ -4,7 +4,6 @@ import Link from "next/link";
 
 import { Badge } from "@/components/shared/badge";
 import { buttonVariants } from "@/components/shared/button";
-import { AddToCartButton } from "@/components/store/add-to-cart-button";
 import { siteConfig } from "@/lib/site";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types/store";
@@ -21,8 +20,6 @@ export function ProductCard({
   const priceLabel = product.variants?.length
     ? `A partir de ${formatCurrency(Math.min(...product.variants.map((entry) => entry.price)))}`
     : formatCurrency(product.price);
-  const needsProductPage =
-    product.requiresCustomization || product.variants?.length || product.options?.length;
 
   return (
     <article
@@ -112,16 +109,12 @@ export function ProductCard({
         )}
 
         <div className="mt-auto">
-          {needsProductPage ? (
-            <Link
-              href={`/produtos/${product.slug}` as Route}
-              className={buttonVariants({ size: "lg", className: "w-full" })}
-            >
-              Escolher opcoes
-            </Link>
-          ) : (
-            <AddToCartButton product={product} defaultSize={product.sizes[0] ?? "Unico"} />
-          )}
+          <Link
+            href={`/produtos/${product.slug}` as Route}
+            className={buttonVariants({ size: "lg", className: "w-full" })}
+          >
+            Ver produto
+          </Link>
         </div>
       </div>
     </article>

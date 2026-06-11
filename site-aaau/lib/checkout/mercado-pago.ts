@@ -269,7 +269,7 @@ async function createMercadoPagoPreference({
       },
       back_urls: {
         success: `${baseUrl}/pagamento/sucesso?orderId=${orderId}`,
-        failure: `${baseUrl}/pagamento/erro?orderId=${orderId}`,
+        failure: baseUrl,
         pending: `${baseUrl}/pagamento/pendente?orderId=${orderId}`,
       },
       auto_return: "approved",
@@ -462,7 +462,7 @@ export async function createCheckout(request: Request) {
         orderNumber: buildOrderNumber(),
         checkoutSessionKey,
         customerName: sanitizeText(data.buyer.fullName),
-        customerCpf: null,
+        customerCpf: cpf,
         customerCpfHash: cpfHash(cpf),
         customerCpfLast4: cpf.slice(-4),
         customerEmail: data.buyer.email.toLowerCase(),

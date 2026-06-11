@@ -8,15 +8,14 @@ import { cn, formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types/store";
 
 export function ProductPurchasePanel({ product }: { product: Product }) {
-  const [selectedSize, setSelectedSize] = useState(product.sizes[0] ?? "Unico");
-  const [selectedVariantId, setSelectedVariantId] = useState(product.variants?.[0]?.id);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>();
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [customName, setCustomName] = useState("");
   const [customNumber, setCustomNumber] = useState("");
   const requiresCustomization = product.requiresCustomization;
   const selectedVariant =
-    product.variants?.find((variant) => variant.id === selectedVariantId) ??
-    product.variants?.[0];
+    product.variants?.find((variant) => variant.id === selectedVariantId);
   const displayPrice = selectedVariant?.price ?? product.price;
   const visibleOptions =
     product.options?.filter(
@@ -28,10 +27,25 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
   const selectedOptionValue = selectedOption?.values.find(
     (value) => value.id === selectedOptions[selectedOption.id],
   );
+  const variantIsComplete = !product.variants?.length || Boolean(selectedVariant);
+  const sizeIsComplete = product.sizes.length === 0 || Boolean(selectedSize);
   const optionsAreComplete = visibleOptions.every((option) => selectedOptions[option.id]);
+  const customizationIsComplete =
+    !requiresCustomization || (customName.trim().length > 0 && customNumber.trim().length > 0);
   const canAddToCart =
+    variantIsComplete &&
+    sizeIsComplete &&
     optionsAreComplete &&
-    (!requiresCustomization || (customName.trim().length > 0 && customNumber.trim().length > 0));
+    customizationIsComplete;
+  const missingMessage = !variantIsComplete
+    ? "Escolha uma opcao do produto."
+    : !sizeIsComplete
+      ? "Escolha um tamanho antes de adicionar ao carrinho."
+      : !optionsAreComplete
+        ? "Escolha todas as opcoes obrigatorias."
+        : !customizationIsComplete
+          ? "Preencha a personalizacao obrigatoria."
+          : null;
 
   return (
     <div className="space-y-6 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 sm:space-y-8 sm:p-6">
@@ -141,7 +155,7 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
 
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/[0.45]">
-          Tamanho
+          Tamanho obrigatorio
         </p>
         <div className="flex flex-wrap gap-3">
           {product.sizes.map((size) => (
@@ -221,6 +235,7 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
         customNumber={customNumber}
         disabled={!canAddToCart}
       />
+      {missingMessage ? <p className="text-sm text-[#ffb4b4]">{missingMessage}</p> : null}
     </div>
   );
 }
