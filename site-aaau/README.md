@@ -23,11 +23,11 @@ DATABASE_URL="postgresql://usuario:senha@localhost:5432/aaau_site?schema=public"
 ADMIN_EMAIL="admin@exemplo.com"
 ADMIN_PASSWORD="troque-esta-senha"
 JWT_SECRET="uma-chave-longa-com-32-ou-mais-caracteres"
+APP_URL="https://seu-dominio.com.br"
 NEXT_PUBLIC_SITE_URL="https://seu-dominio.com.br"
 
 MERCADO_PAGO_ACCESS_TOKEN=""
 MERCADO_PAGO_WEBHOOK_SECRET=""
-NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY=""
 
 SMTP_HOST=""
 SMTP_PORT="587"
@@ -40,7 +40,7 @@ ORDER_NOTIFICATION_EMAIL=""
 NEXT_PUBLIC_CLARITY_PROJECT_ID=""
 ```
 
-O `MERCADO_PAGO_ACCESS_TOKEN` deve ficar somente no backend e nunca deve receber prefixo `NEXT_PUBLIC_`. A public key e opcional neste fluxo porque o Checkout Pro abre no ambiente seguro do Mercado Pago.
+O `MERCADO_PAGO_ACCESS_TOKEN` deve ficar somente no backend e nunca deve receber prefixo `NEXT_PUBLIC_`. Este fluxo de Checkout Pro nao usa public key no navegador. `APP_URL` e a origem confiavel para QR, e-mails, retornos e webhook; `NEXT_PUBLIC_SITE_URL` deve usar a mesma origem para metadata publica.
 As variaveis `SMTP_*` habilitam o email de confirmacao quando o webhook recebe pagamento aprovado. Se elas nao estiverem configuradas, o pagamento continua funcionando sem envio de email.
 Para Gmail, use `SMTP_PORT=587` com `SMTP_SECURE=false` ou `SMTP_PORT=465` com `SMTP_SECURE=true`.
 

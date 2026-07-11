@@ -3,6 +3,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { prisma } from "@/lib/db/prisma";
+import { verifyPassword } from "@/lib/password";
+
 const ADMIN_SESSION_COOKIE = "aaau_admin_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -11,7 +14,17 @@ const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 type AdminSessionPayload = {
   email: string;
+  role: AdminRole;
+  adminUserId: string | null;
   exp: number;
+};
+
+export type AdminRole = "super_admin" | "event_staff";
+
+export type AdminActor = {
+  email: string;
+  role: AdminRole;
+  adminUserId: string | null;
 };
 
 function encodeBase64Url(value: string) {
@@ -22,16 +35,19 @@ function decodeBase64Url(value: string) {
   return Buffer.from(value, "base64url").toString("utf8");
 }
 
-function getAdminEnv() {
+function getJwtSecret() {
+  return process.env.JWT_SECRET?.trim() || null;
+}
+
+function getLegacyAdminEnv() {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD?.trim();
-  const jwtSecret = process.env.JWT_SECRET?.trim();
 
-  if (!email || !password || !jwtSecret) {
+  if (!email || !password) {
     return null;
   }
 
-  return { email, password, jwtSecret };
+  return { email, password };
 }
 
 function signPayload(payload: string, secret: string) {
@@ -75,14 +91,35 @@ function parseSession(token: string, secret: string): AdminSessionPayload | null
       return null;
     }
 
-    return parsed;
+    return {
+      email: parsed.email,
+      role: parsed.role === "event_staff" ? "event_staff" : "super_admin",
+      adminUserId: parsed.adminUserId ?? null,
+      exp: parsed.exp,
+    };
   } catch {
     return null;
   }
 }
 
+export function createAdminSessionToken(actor: AdminActor, secret: string, now = Date.now()) {
+  return serializeSession(
+    {
+      email: actor.email.trim().toLowerCase(),
+      role: actor.role,
+      adminUserId: actor.adminUserId,
+      exp: now + SESSION_TTL_SECONDS * 1000,
+    },
+    secret,
+  );
+}
+
+export function parseAdminSessionToken(token: string, secret: string) {
+  return parseSession(token, secret);
+}
+
 export function isAdminAuthConfigured() {
-  return getAdminEnv() !== null;
+  return getJwtSecret() !== null;
 }
 
 export function getAdminAuthMissingMessage() {
@@ -90,20 +127,45 @@ export function getAdminAuthMissingMessage() {
     return null;
   }
 
-  return "Configure ADMIN_EMAIL, ADMIN_PASSWORD e JWT_SECRET para liberar o painel admin.";
+  return "Configure JWT_SECRET para liberar o login administrativo.";
 }
 
 export async function authenticateAdmin(email: string, password: string) {
-  const adminEnv = getAdminEnv();
+  const legacyAdmin = getLegacyAdminEnv();
+  const normalizedEmail = email.trim().toLowerCase();
 
-  if (!adminEnv) {
-    return false;
+  if (!getJwtSecret()) {
+    return null;
   }
 
-  return (
-    safeCompare(email.trim().toLowerCase(), adminEnv.email) &&
-    safeCompare(password, adminEnv.password)
-  );
+  if (legacyAdmin && safeCompare(normalizedEmail, legacyAdmin.email) && safeCompare(password, legacyAdmin.password)) {
+    return {
+      email: legacyAdmin.email,
+      role: "super_admin" as const,
+      adminUserId: null,
+    };
+  }
+
+  const adminUser = await prisma.adminUser.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true, email: true, passwordHash: true, role: true, isActive: true },
+  });
+
+  if (!adminUser?.isActive || adminUser.role !== "event_staff") {
+    return null;
+  }
+
+  const passwordMatches = await verifyPassword(password, adminUser.passwordHash);
+
+  if (!passwordMatches) {
+    return null;
+  }
+
+  return {
+    email: adminUser.email,
+    role: "event_staff" as const,
+    adminUserId: adminUser.id,
+  };
 }
 
 export function checkAdminLoginRateLimit(key: string) {
@@ -123,21 +185,15 @@ export function checkAdminLoginRateLimit(key: string) {
   return true;
 }
 
-export async function createAdminSession(email: string) {
-  const adminEnv = getAdminEnv();
+export async function createAdminSession(actor: AdminActor) {
+  const jwtSecret = getJwtSecret();
 
-  if (!adminEnv) {
+  if (!jwtSecret) {
     throw new Error("Admin auth environment is not configured.");
   }
 
   const cookieStore = await cookies();
-  const token = serializeSession(
-    {
-      email: email.trim().toLowerCase(),
-      exp: Date.now() + SESSION_TTL_SECONDS * 1000,
-    },
-    adminEnv.jwtSecret,
-  );
+  const token = createAdminSessionToken(actor, jwtSecret);
 
   cookieStore.set(ADMIN_SESSION_COOKIE, token, {
     httpOnly: true,
@@ -154,9 +210,9 @@ export async function clearAdminSession() {
 }
 
 export async function getAdminSession() {
-  const adminEnv = getAdminEnv();
+  const jwtSecret = getJwtSecret();
 
-  if (!adminEnv) {
+  if (!jwtSecret) {
     return null;
   }
 
@@ -167,9 +223,9 @@ export async function getAdminSession() {
     return null;
   }
 
-  const session = parseSession(token, adminEnv.jwtSecret);
+  const session = parseSession(token, jwtSecret);
 
-  if (!session || !safeCompare(session.email, adminEnv.email)) {
+  if (!session) {
     return null;
   }
 
@@ -185,3 +241,34 @@ export async function requireAdminSession() {
 
   return session;
 }
+
+export async function requireAdminRole(role: AdminRole) {
+  const session = await requireAdminSession();
+  const actor: AdminActor = {
+    email: session.email,
+    role: session.role,
+    adminUserId: session.adminUserId,
+  };
+
+  if (role === "super_admin" && actor.role !== "super_admin") {
+    redirect("/admin");
+  }
+
+  return actor;
+}
+
+export async function requireAnyAdminRole(roles: AdminRole[], redirectTo = "/admin/login") {
+  const session = await getAdminSession();
+
+  if (!session || !roles.includes(session.role)) {
+    redirect(redirectTo as never);
+  }
+
+  return {
+    email: session.email,
+    role: session.role,
+    adminUserId: session.adminUserId,
+  } satisfies AdminActor;
+}
+
+export { hashPassword, verifyPassword } from "@/lib/password";

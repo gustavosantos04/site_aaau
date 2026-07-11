@@ -9,11 +9,13 @@ export const siteConfig = {
     "Após a compra, a gestão entra em contato pelo WhatsApp em até 2 dias para confirmar entrega ou retirada.",
   nav: [
     { label: "Home", href: "/" },
+    { label: "Eventos", href: "/eventos" },
     { label: "Produtos", href: "/produtos" },
     { label: "Gestão", href: "/#gestao" },
   ],
   adminLinks: [
     { label: "Visão Geral", href: "/admin" },
+    { label: "Eventos", href: "/admin/eventos" },
     { label: "Gestão", href: "/admin/gestao" },
     { label: "Produtos", href: "/admin/produtos" },
     { label: "Cupons", href: "/admin/cupons" },

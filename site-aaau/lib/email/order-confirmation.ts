@@ -1,6 +1,6 @@
-import nodemailer from "nodemailer";
-
 import { prisma } from "@/lib/db/prisma";
+import { createSmtpTransport, getSmtpConfig } from "@/lib/email/smtp";
+import { getConfiguredBaseUrl } from "@/lib/site-url";
 
 type EmailItem = {
   productName: string;
@@ -37,10 +37,7 @@ function escapeHtml(value: string) {
 }
 
 function getBaseUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://site-aaau.vercel.app").replace(
-    /\/$/,
-    "",
-  );
+  return getConfiguredBaseUrl();
 }
 
 function absoluteUrl(path: string | null) {
@@ -53,27 +50,6 @@ function absoluteUrl(path: string | null) {
   }
 
   return `${getBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
-function getSmtpConfig() {
-  const host = process.env.SMTP_HOST?.trim();
-  const port = Number(process.env.SMTP_PORT ?? 587);
-  const user = process.env.SMTP_USER?.trim();
-  const pass = process.env.SMTP_PASS?.trim();
-  const from = process.env.SMTP_FROM?.trim() || user;
-
-  if (!host || !port || !user || !pass || !from) {
-    return null;
-  }
-
-  return {
-    host,
-    port,
-    secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : port === 465,
-    auth: { user, pass },
-    from,
-    internalRecipient: process.env.ORDER_NOTIFICATION_EMAIL?.trim(),
-  };
 }
 
 function buildOrderText({
@@ -379,12 +355,7 @@ export async function sendOrderPaidEmails(orderId: string) {
       items,
     }),
   };
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: config.auth,
-  });
+  const transporter = createSmtpTransport(config);
 
   await transporter.sendMail({
     from: config.from,

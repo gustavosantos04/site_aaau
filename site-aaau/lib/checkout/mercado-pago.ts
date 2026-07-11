@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { productsSeed } from "@/lib/data/seed-content";
 import { prisma } from "@/lib/db/prisma";
+import { getConfiguredBaseUrl } from "@/lib/site-url";
 
 const MAX_ITEMS = 12;
 const MAX_QUANTITY = 20;
@@ -164,12 +165,8 @@ export function mapMercadoPagoStatus(status?: string) {
   }
 }
 
-export function getBaseUrl(request: Request) {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
-    request.headers.get("origin")?.replace(/\/$/, "") ||
-    "http://localhost:3000"
-  );
+export function getBaseUrl(_request?: Request) {
+  return getConfiguredBaseUrl();
 }
 
 export function buildOrderNumber() {
