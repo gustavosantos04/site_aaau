@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { AlertCircle, BadgeCheck, Minus, Plus, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/shared/button";
+import { buildEventCheckoutParticipantPayload } from "@/lib/events/checkout-payload";
 import { formatMoney } from "@/lib/events/public";
 
 type CheckoutEvent = {
@@ -172,11 +173,7 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
       body: JSON.stringify({
         eventSlug: event.slug,
         buyer,
-        participants: participants.map((participant) => ({
-          ...participant,
-          cpf: digits(participant.cpf),
-          phone: participant.phone ? digits(participant.phone) : undefined,
-        })),
+        participants: participants.map(buildEventCheckoutParticipantPayload),
         partnerCode: partnerPreview?.valid ? partnerCode.trim() : undefined,
         idempotencyKey: idempotencyKeyRef.current,
       }),

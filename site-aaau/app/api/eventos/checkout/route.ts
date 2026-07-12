@@ -8,15 +8,19 @@ import { createEventOrderReservation } from "@/lib/events/orders";
 
 export const runtime = "nodejs";
 
+function emptyOptionalToUndefined(value: unknown) {
+  return typeof value === "string" && value.trim() === "" ? undefined : value;
+}
+
 const participantSchema = z.object({
   name: z.string().trim().min(2).max(120),
   cpf: z.string().trim().min(11).max(18),
-  email: z.string().trim().email().max(160).optional(),
-  phone: z.string().trim().min(10).max(24).optional(),
-  birthDate: z.coerce.date().optional(),
-  institution: z.string().trim().max(120).optional(),
-  course: z.string().trim().max(120).optional(),
-  campus: z.string().trim().max(120).optional(),
+  email: z.preprocess(emptyOptionalToUndefined, z.string().trim().email().max(160).optional()),
+  phone: z.preprocess(emptyOptionalToUndefined, z.string().trim().min(10).max(24).optional()),
+  birthDate: z.preprocess(emptyOptionalToUndefined, z.coerce.date().optional()),
+  institution: z.preprocess(emptyOptionalToUndefined, z.string().trim().max(120).optional()),
+  course: z.preprocess(emptyOptionalToUndefined, z.string().trim().max(120).optional()),
+  campus: z.preprocess(emptyOptionalToUndefined, z.string().trim().max(120).optional()),
 }).strict();
 
 const eventCheckoutSchema = z.object({
@@ -75,6 +79,12 @@ export async function POST(request: Request) {
   const parsed = eventCheckoutSchema.safeParse(body);
 
   if (!parsed.success) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "Event checkout validation failed",
+        parsed.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code })),
+      );
+    }
     return NextResponse.json({ message: "Revise os dados obrigatorios do checkout." }, { status: 400 });
   }
 

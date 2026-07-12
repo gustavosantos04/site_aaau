@@ -1403,6 +1403,111 @@ test("POST direto antes da abertura nao cria pedido, participantes, reservas ou 
   assert.equal((await testPrisma.eventPartnerCode.findUniqueOrThrow({ where: { id: code.id } })).reservedUses, 0);
 });
 
+test("checkout HTTP com participante somente com name e cpf chega ao servico de reserva", async () => {
+  const { event } = await createEventWithLot(5);
+  const mock = installPreferenceFetchMock({});
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "configured-for-integration-test";
+  try {
+    const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.11" },
+      body: JSON.stringify({
+        eventSlug: event.slug,
+        buyer: buyer(),
+        participants: [{ name: participant().name, cpf: participant().cpf }],
+        idempotencyKey: "minimal-participant-checkout-key",
+      }),
+    }));
+
+    assert.equal(response.status, 201);
+    assert.equal(mock.calls.create, 1);
+    assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 1);
+    assert.equal(await testPrisma.eventOrderParticipant.count({ where: { eventOrder: { eventId: event.id } } }), 1);
+  } finally {
+    mock.restore();
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+  }
+});
+
+test("checkout HTTP normaliza strings vazias somente nos campos opcionais conhecidos", async () => {
+  const { event } = await createEventWithLot(5);
+  const mock = installPreferenceFetchMock({});
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "configured-for-integration-test";
+  try {
+    const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.12" },
+      body: JSON.stringify({
+        eventSlug: event.slug,
+        buyer: buyer(),
+        participants: [{
+          name: participant().name,
+          cpf: participant().cpf,
+          email: "",
+          phone: "",
+          birthDate: "",
+          institution: "",
+          course: "",
+          campus: "",
+        }],
+        idempotencyKey: "empty-optionals-checkout-key",
+      }),
+    }));
+
+    assert.equal(response.status, 201);
+    assert.equal(mock.calls.create, 1);
+    const saved = await testPrisma.eventOrderParticipant.findFirstOrThrow({
+      where: { eventOrder: { eventId: event.id } },
+    });
+    assert.equal(saved.email, null);
+    assert.equal(saved.birthDate, null);
+    assert.equal(saved.institution, null);
+  } finally {
+    mock.restore();
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+  }
+});
+
+test("checkout HTTP rejeita opcionais vazios exigidos pelo evento sem criar reserva", async () => {
+  const scenarios = [
+    { field: "institution", event: { requireInstitution: true } },
+    { field: "birthDate", event: { requireBirthDate: true } },
+  ] as const;
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "configured-for-integration-test";
+  try {
+    for (const [index, scenario] of scenarios.entries()) {
+      const event = await createTestTicketEvent(scenario.event);
+      const lot = await createTestTicketLot(event.id);
+      const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": `198.51.100.${13 + index}` },
+        body: JSON.stringify({
+          eventSlug: event.slug,
+          buyer: buyer(index),
+          participants: [{
+            name: participant(index).name,
+            cpf: participant(index).cpf,
+            [scenario.field]: "",
+          }],
+          idempotencyKey: `required-empty-${scenario.field}-key`,
+        }),
+      }));
+
+      assert.equal(response.status, 400, scenario.field);
+      assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
+      assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: lot.id } })).reservedQuantity, 0);
+    }
+  } finally {
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+  }
+});
+
 test("checkout HTTP rejeita campos de preco, pagamento e IDs controlados pelo cliente", async () => {
   const forbiddenFields = {
     price: 0.01,
@@ -1411,6 +1516,7 @@ test("checkout HTTP rejeita campos de preco, pagamento e IDs controlados pelo cl
     discountAmount: 999,
     total: 0.01,
     lotId: "lot-arbitrario",
+    preferenceId: "pref-arbitraria",
     mercadoPagoPreferenceId: "pref-arbitraria",
     externalReference: "event_order:arbitraria",
     paymentId: "payment-arbitrario",
