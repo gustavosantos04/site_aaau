@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import { Prisma } from "@prisma/client";
+import { POST as eventCheckoutPost } from "@/app/api/eventos/checkout/route";
 
 import {
   authenticateAdmin,
@@ -33,6 +34,8 @@ import {
 import {
   EventPaymentPreferenceAmbiguousError,
   EventPaymentPreferenceCreatingError,
+  EventSalesEndedError,
+  EventSalesNotStartedError,
   IdempotencyConflictError,
   InsufficientTicketAvailabilityError,
   LateApprovedPaymentError,
@@ -57,6 +60,7 @@ import {
   getEventTicketsByAccessToken,
 } from "@/lib/events/ticket-access";
 import { issueEventTicketsForPaidOrder } from "@/lib/events/tickets";
+import { getUpcomingTicketSale } from "@/lib/events/public";
 import {
   getTransactionRetryMetrics,
   resetTransactionRetryMetrics,
@@ -1336,6 +1340,120 @@ test("autenticacao event_staff e super_admin preserva identidade sem senha na se
     if (previous.password === undefined) delete process.env.ADMIN_PASSWORD;
     else process.env.ADMIN_PASSWORD = previous.password;
   }
+});
+
+test("janela de vendas bloqueia antes, abre exatamente no inicio e encerra no limite", async () => {
+  const start = new Date("2026-08-01T15:00:00.000Z");
+  const end = new Date("2026-08-01T17:00:00.000Z");
+  const event = await createTestTicketEvent({ salesStartAt: start, salesEndAt: end });
+  const lot = await createTestTicketLot(event.id, { salesStartAt: start, salesEndAt: end, price: new Prisma.Decimal("2.00") });
+  const input = {
+    eventId: event.id,
+    idempotencyKey: "window-boundary-test-key",
+    buyer: buyer(),
+    participants: [participant()],
+  };
+
+  await assert.rejects(() => createEventOrderReservation({ ...input, now: new Date(start.getTime() - 1000) }), EventSalesNotStartedError);
+  assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
+  assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: lot.id } })).reservedQuantity, 0);
+
+  const reservation = await createEventOrderReservation({ ...input, now: start });
+  assert.equal(reservation.total.toString(), "2");
+  assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: lot.id } })).reservedQuantity, 1);
+
+  await assert.rejects(
+    () => createEventOrderReservation({ ...input, idempotencyKey: "window-end-test-key", now: end }),
+    EventSalesEndedError,
+  );
+  await assert.rejects(
+    () => createEventOrderReservation({ ...input, idempotencyKey: "window-after-test-key", now: new Date(end.getTime() + 1000) }),
+    EventSalesEndedError,
+  );
+});
+
+test("POST direto antes da abertura nao cria pedido, participantes, reservas ou preferencia", async () => {
+  const start = new Date(Date.now() + 60_000);
+  const event = await createTestTicketEvent({ salesStartAt: start });
+  const lot = await createTestTicketLot(event.id, { salesStartAt: start });
+  const code = await createTestPartnerCode(event.id);
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "configured-for-integration-test";
+  try {
+    const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.10" },
+      body: JSON.stringify({
+        eventSlug: event.slug,
+        buyer: buyer(),
+        participants: [participant()],
+        partnerCode: code.code,
+        idempotencyKey: "direct-presale-post-key",
+      }),
+    }));
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, "EVENT_SALES_NOT_STARTED");
+  } finally {
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+  }
+  assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
+  assert.equal(await testPrisma.eventOrderParticipant.count({ where: { eventOrder: { eventId: event.id } } }), 0);
+  assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: lot.id } })).reservedQuantity, 0);
+  assert.equal((await testPrisma.eventPartnerCode.findUniqueOrThrow({ where: { id: code.id } })).reservedUses, 0);
+});
+
+test("checkout HTTP rejeita campos de preco, pagamento e IDs controlados pelo cliente", async () => {
+  const forbiddenFields = {
+    price: 0.01,
+    unitPrice: -1,
+    subtotal: 0,
+    discountAmount: 999,
+    total: 0.01,
+    lotId: "lot-arbitrario",
+    mercadoPagoPreferenceId: "pref-arbitraria",
+    externalReference: "event_order:arbitraria",
+    paymentId: "payment-arbitrario",
+    paymentStatus: "approved",
+  };
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "configured-for-integration-test";
+  try {
+    let index = 0;
+    for (const [field, value] of Object.entries(forbiddenFields)) {
+      index += 1;
+      const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": `198.51.100.${20 + index}` },
+        body: JSON.stringify({
+          eventSlug: "qualquer-evento",
+          buyer: buyer(),
+          participants: [participant()],
+          idempotencyKey: `strict-payload-${field}-000000`,
+          [field]: value,
+        }),
+      }));
+      assert.equal(response.status, 400, field);
+    }
+  } finally {
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+  }
+  assert.equal(await testPrisma.eventOrder.count(), 0);
+});
+
+test("proximo lancamento retorna o evento futuro mais proximo e ignora cancelado ou aberto", async () => {
+  const now = new Date("2026-08-01T12:00:00.000Z");
+  const nearest = await createTestTicketEvent({ slug: "upcoming-nearest", salesStartAt: new Date(now.getTime() + 60_000) });
+  await createTestTicketLot(nearest.id, { salesStartAt: new Date(now.getTime() + 60_000), salesEndAt: new Date(now.getTime() + 3_600_000) });
+  const later = await createTestTicketEvent({ slug: "upcoming-later", salesStartAt: new Date(now.getTime() + 120_000) });
+  await createTestTicketLot(later.id, { salesStartAt: new Date(now.getTime() + 120_000), salesEndAt: new Date(now.getTime() + 3_600_000) });
+  const canceled = await createTestTicketEvent({ status: "CANCELED", salesStartAt: new Date(now.getTime() + 30_000) });
+  await createTestTicketLot(canceled.id);
+  const open = await createTestTicketEvent({ salesStartAt: new Date(now.getTime() - 1000) });
+  await createTestTicketLot(open.id);
+
+  assert.equal((await getUpcomingTicketSale(now))?.id, nearest.id);
 });
 
 test("acesso seguro por accessToken mostra um ticket pago", async () => {

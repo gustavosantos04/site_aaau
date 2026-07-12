@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "test:events": "tsx --test tests/events-domain.test.ts",
-    "test:events:client": "tsx --test tests/portaria-client.test.tsx",
+    "test:events:client": "tsx --test tests/*-client.test.tsx",
     "test:events:integration": "tsx tests/events-integration-runner.ts",
     "test:events:all": "npm run test:events && npm run test:events:client && npm run test:events:integration",
     "staging:fixture:create": "tsx scripts/staging-event-fixture.ts create",

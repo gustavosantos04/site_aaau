@@ -17,7 +17,7 @@ const participantSchema = z.object({
   institution: z.string().trim().max(120).optional(),
   course: z.string().trim().max(120).optional(),
   campus: z.string().trim().max(120).optional(),
-});
+}).strict();
 
 const eventCheckoutSchema = z.object({
   eventId: z.string().trim().min(1).max(160).optional(),
@@ -27,11 +27,11 @@ const eventCheckoutSchema = z.object({
     cpf: z.string().trim().min(11).max(18).optional(),
     email: z.string().trim().email().max(160),
     phone: z.string().trim().min(10).max(24),
-  }),
+  }).strict(),
   participants: z.array(participantSchema).min(1).max(10),
   partnerCode: z.string().trim().max(80).optional(),
   idempotencyKey: z.string().trim().min(16).max(160),
-}).refine((value) => value.eventId || value.eventSlug, {
+}).strict().refine((value) => value.eventId || value.eventSlug, {
   message: "Informe o evento.",
   path: ["eventId"],
 });

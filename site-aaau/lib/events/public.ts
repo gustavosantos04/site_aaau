@@ -138,6 +138,26 @@ export async function getPublishedTicketEventBySlug(slug: string) {
   return { ...event, publicStatus, currentLot };
 }
 
+export async function getUpcomingTicketSale(now = new Date()) {
+  const events = await prisma.ticketEvent.findMany({
+    where: {
+      published: true,
+      status: { notIn: ["DRAFT", "CANCELED"] },
+      salesStartAt: { gt: now },
+    },
+    include: { lots: { where: { active: true }, orderBy: [{ position: "asc" }, { id: "asc" }] } },
+    orderBy: { salesStartAt: "asc" },
+    take: 10,
+  });
+
+  return events.find((event) =>
+    event.lots.some((lot) =>
+      getTicketLotAvailability(lot) > 0 &&
+      (!lot.salesEndAt || lot.salesEndAt > now),
+    ),
+  ) ?? null;
+}
+
 export function eventPriceLabel(event: { publicStatus: PublicEventStatus; currentLot: PublicLot | null }) {
   if (event.currentLot && canBuyPublicStatus(event.publicStatus)) {
     return `A partir de ${formatMoney(toMoney(event.currentLot.price))}`;

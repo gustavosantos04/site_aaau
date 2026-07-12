@@ -17,6 +17,7 @@ import {
   publicStatusLabel,
 } from "@/lib/events/public";
 import { getTicketLotAvailability } from "@/lib/events/availability";
+import { EventSaleCountdownRefresh } from "@/components/events/event-sale-countdown";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function EventDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const serverNow = new Date();
   const { slug } = await params;
   const event = await getPublishedTicketEventBySlug(slug);
 
@@ -67,6 +69,19 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
               <Link href={`/eventos/${event.slug}/checkout` as Route} className={buttonVariants({ variant: "primary", size: "lg" })}>
                 Garantir meu ingresso
               </Link>
+            ) : event.publicStatus === "SOON" && event.salesStartAt ? (
+              <div className="max-w-xl space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-white/75">As vendas começam em</p>
+                  <EventSaleCountdownRefresh salesStartAt={event.salesStartAt.toISOString()} serverNow={serverNow.toISOString()} />
+                  <p className="text-sm text-white/65">
+                    {new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(event.salesStartAt)}
+                  </p>
+                </div>
+                <button type="button" disabled className={buttonVariants({ variant: "secondary", size: "lg" })}>
+                  Aguarde a abertura das vendas
+                </button>
+              </div>
             ) : (
               <button type="button" disabled className={buttonVariants({ variant: "secondary", size: "lg" })}>
                 {event.publicStatus === "SOON" ? "Vendas em breve" : publicStatusLabel(event.publicStatus)}
