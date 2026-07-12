@@ -35,3 +35,17 @@ export function buildAbsoluteUrl(path: string, options: { allowLocalhost?: boole
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${getConfiguredBaseUrl(options)}${normalizedPath}`;
 }
+
+export function buildMercadoPagoNotificationUrl(
+  baseUrl = getConfiguredBaseUrl(),
+  path = "/api/mercado-pago/webhook",
+) {
+  const url = new URL(path, `${normalizeBaseUrl(baseUrl)}/`);
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+
+  if (process.env.VERCEL_ENV === "preview" && bypassSecret) {
+    url.searchParams.set("x-vercel-protection-bypass", bypassSecret);
+  }
+
+  return url.toString();
+}

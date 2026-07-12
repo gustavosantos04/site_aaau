@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { productsSeed } from "@/lib/data/seed-content";
 import { prisma } from "@/lib/db/prisma";
-import { getConfiguredBaseUrl } from "@/lib/site-url";
+import { buildMercadoPagoNotificationUrl, getConfiguredBaseUrl } from "@/lib/site-url";
 
 const MAX_ITEMS = 12;
 const MAX_QUANTITY = 20;
@@ -270,7 +270,7 @@ async function createMercadoPagoPreference({
         pending: `${baseUrl}/pagamento/pendente?orderId=${orderId}`,
       },
       auto_return: "approved",
-      notification_url: `${baseUrl}/api/mercado-pago/webhook`,
+      notification_url: buildMercadoPagoNotificationUrl(baseUrl),
       metadata: {
         order_id: orderId,
       },

@@ -3,6 +3,7 @@ import test from "node:test";
 import { Prisma } from "@prisma/client";
 
 import { getBaseUrl as getMercadoPagoBaseUrl } from "@/lib/checkout/mercado-pago";
+import { buildMercadoPagoNotificationUrl } from "@/lib/site-url";
 
 import {
   assertTicketEventSalesOpen,
@@ -425,6 +426,84 @@ test("Mercado Pago uses configured APP_URL and ignores arbitrary request origin"
   } finally {
     if (previousAppUrl === undefined) delete process.env.APP_URL;
     else process.env.APP_URL = previousAppUrl;
+  }
+});
+
+test("Mercado Pago notification URL uses canonical APP_URL without bypass by default", () => {
+  const previous = {
+    appUrl: process.env.APP_URL,
+    vercelEnv: process.env.VERCEL_ENV,
+    bypassSecret: process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+  };
+
+  try {
+    process.env.APP_URL = "https://preview.aaau.example/";
+    process.env.VERCEL_ENV = "preview";
+    delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+
+    assert.equal(
+      buildMercadoPagoNotificationUrl(),
+      "https://preview.aaau.example/api/mercado-pago/webhook",
+    );
+    assert.equal(
+      buildMercadoPagoNotificationUrl(undefined, "/api/mercado-pago/webhook?source=store"),
+      "https://preview.aaau.example/api/mercado-pago/webhook?source=store",
+    );
+  } finally {
+    if (previous.appUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previous.appUrl;
+    if (previous.vercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous.vercelEnv;
+    if (previous.bypassSecret === undefined) delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    else process.env.VERCEL_AUTOMATION_BYPASS_SECRET = previous.bypassSecret;
+  }
+});
+
+test("Mercado Pago notification URL adds preview bypass and preserves existing parameters", () => {
+  const previousVercelEnv = process.env.VERCEL_ENV;
+  const previousSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = "server-only-secret";
+    const url = new URL(buildMercadoPagoNotificationUrl(
+      "https://canonical.aaau.example",
+      "/api/mercado-pago/webhook?source=events",
+    ));
+
+    assert.equal(url.origin, "https://canonical.aaau.example");
+    assert.equal(url.pathname, "/api/mercado-pago/webhook");
+    assert.equal(url.searchParams.get("source"), "events");
+    assert.equal(url.searchParams.get("x-vercel-protection-bypass"), "server-only-secret");
+  } finally {
+    if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previousVercelEnv;
+    if (previousSecret === undefined) delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    else process.env.VERCEL_AUTOMATION_BYPASS_SECRET = previousSecret;
+  }
+});
+
+test("Mercado Pago notification URL ignores empty secret and any secret in production", () => {
+  const previousVercelEnv = process.env.VERCEL_ENV;
+  const previousSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = "   ";
+    assert.equal(
+      new URL(buildMercadoPagoNotificationUrl("https://preview.aaau.example")).searchParams.has("x-vercel-protection-bypass"),
+      false,
+    );
+
+    process.env.VERCEL_ENV = "production";
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = "configured-but-disabled";
+    assert.equal(
+      buildMercadoPagoNotificationUrl("https://www.aaau.example"),
+      "https://www.aaau.example/api/mercado-pago/webhook",
+    );
+  } finally {
+    if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previousVercelEnv;
+    if (previousSecret === undefined) delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    else process.env.VERCEL_AUTOMATION_BYPASS_SECRET = previousSecret;
   }
 });
 

@@ -687,12 +687,17 @@ test("criacao de preferencia de evento usa total e externalReference persistidos
   const capturedPayloads: Array<{
     external_reference?: unknown;
     expiration_date_to?: unknown;
+    notification_url?: unknown;
     items?: Array<Record<string, unknown>>;
   }> = [];
   let calls = 0;
+  const previousVercelEnv = process.env.VERCEL_ENV;
+  const previousBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
   try {
     process.env.MERCADO_PAGO_ACCESS_TOKEN = "TEST-event-token";
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = "integration-server-only-secret";
     global.fetch = (async (_url, init) => {
       calls += 1;
       capturedPayloads.push(JSON.parse(String(init?.body)));
@@ -720,6 +725,17 @@ test("criacao de preferencia de evento usa total e externalReference persistidos
     assert.equal(repeated.preferenceId, "pref-event-test");
     assert.equal(calls, 1);
     assert.equal(capturedPayload?.external_reference, persistedOrder.externalReference);
+    const notificationUrl = new URL(String(capturedPayload.notification_url));
+    assert.equal(notificationUrl.origin, "https://aaau.test");
+    assert.equal(notificationUrl.pathname, "/api/mercado-pago/webhook");
+    assert.equal(
+      notificationUrl.searchParams.get("x-vercel-protection-bypass"),
+      "integration-server-only-secret",
+    );
+    assert.equal(JSON.stringify(preference).includes("integration-server-only-secret"), false);
+    assert.equal(JSON.stringify(await testPrisma.eventOrder.findUniqueOrThrow({
+      where: { id: order.orderId },
+    })).includes("integration-server-only-secret"), false);
     assert.equal(item.unit_price, Number(persistedOrder.total.toString()));
     assert.ok(new Date(String(capturedPayload?.expiration_date_to)) <= persistedOrder.expiresAt);
   } finally {
@@ -729,6 +745,10 @@ test("criacao de preferencia de evento usa total e externalReference persistidos
     } else {
       process.env.MERCADO_PAGO_ACCESS_TOKEN = previousAccessToken;
     }
+    if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previousVercelEnv;
+    if (previousBypassSecret === undefined) delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    else process.env.VERCEL_AUTOMATION_BYPASS_SECRET = previousBypassSecret;
   }
 });
 

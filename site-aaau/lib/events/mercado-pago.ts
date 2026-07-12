@@ -21,7 +21,7 @@ import {
 } from "@/lib/events/errors";
 import { ensureEventTicketConfirmationEmail } from "@/lib/events/email";
 import { assertSameMoney, toMoney } from "@/lib/events/money";
-import { getConfiguredBaseUrl } from "@/lib/site-url";
+import { buildMercadoPagoNotificationUrl, getConfiguredBaseUrl } from "@/lib/site-url";
 import {
   confirmEventOrderPayment,
   expireEventOrderReservation,
@@ -435,7 +435,7 @@ function buildEventPreferencePayload(input: {
       failure: `${input.baseUrl}/eventos/pagamento/erro?eventOrderId=${input.order.id}`,
     },
     auto_return: "approved",
-    notification_url: `${input.baseUrl}/api/mercado-pago/webhook`,
+    notification_url: buildMercadoPagoNotificationUrl(input.baseUrl),
     expires: true,
     expiration_date_from: input.now.toISOString(),
     expiration_date_to: input.order.expiresAt.toISOString(),
