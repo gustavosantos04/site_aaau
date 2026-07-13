@@ -56,6 +56,15 @@ export function formatEventDate(value: Date) {
   }).format(value);
 }
 
+export function formatEventDateOnly(value: Date) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(value);
+}
+
 export function formatEventTime(value: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
     hour: "2-digit",

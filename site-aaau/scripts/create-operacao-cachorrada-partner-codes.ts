@@ -1,17 +1,17 @@
 import "dotenv/config";
 
-import { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const eventName = "OPERAÇÃO CACHORRADA";
+const eventSlug = "operacao-cachorrada";
 const startsAt = new Date("2026-07-16T18:00:00-03:00");
 const expiresAt = new Date("2026-08-21T23:00:00-03:00");
 
 const partners = [
   { code: "AAAU", partnerName: "AAAU" },
   { code: "SERPENTES", partnerName: "SERPENTES" },
-  { code: "CORUJOES", partnerName: "CORUJÕES" },
+  { code: "CORUJOES", partnerName: "CORUJOES" },
   { code: "COIOTES", partnerName: "COIOTES" },
   { code: "POMBOS", partnerName: "POMBOS" },
   { code: "AAAD", partnerName: "AAAD" },
@@ -23,16 +23,19 @@ const partners = [
   { code: "PANTERAS", partnerName: "PANTERAS" },
   { code: "TIGRES", partnerName: "TIGRES" },
   { code: "LIGA", partnerName: "LIGA" },
+  { code: "FANFA", partnerName: "FANFA" },
+  { code: "GUAXA", partnerName: "GUAXA" },
+  { code: "SURICATOS", partnerName: "SURICATOS" },
 ];
 
 async function main() {
   const event = await prisma.ticketEvent.findFirst({
-    where: { name: { equals: eventName, mode: "insensitive" } },
+    where: { slug: eventSlug },
     select: { id: true, name: true, slug: true },
   });
 
   if (!event) {
-    throw new Error(`Evento nao encontrado: ${eventName}`);
+    throw new Error(`Evento nao encontrado: ${eventSlug}`);
   }
 
   const created: string[] = [];

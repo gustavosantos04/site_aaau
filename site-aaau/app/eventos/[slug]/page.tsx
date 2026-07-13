@@ -10,6 +10,7 @@ import { buttonVariants } from "@/components/shared/button";
 import {
   canBuyPublicStatus,
   formatEventDate,
+  formatEventDateOnly,
   formatEventTime,
   formatMoney,
   getCurrentPublicLot,
@@ -105,7 +106,7 @@ export default async function EventDetailPage({
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[0.78fr,1.22fr] lg:px-8">
         <aside className="space-y-4">
           {[
-            { label: "Data", value: formatEventDate(event.startAt), Icon: CalendarDays },
+            { label: "Data", value: formatEventDateOnly(event.startAt), Icon: CalendarDays },
             { label: "Horário", value: formatEventTime(event.startAt), Icon: Clock },
             { label: "Local", value: event.venueAddress || event.venueName, Icon: MapPin },
             { label: "Classificação", value: event.minimumAge ? `${event.minimumAge}+` : "Livre", Icon: ShieldCheck },
