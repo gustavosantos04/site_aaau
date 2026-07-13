@@ -28,7 +28,7 @@ export default async function EventCheckoutPage({ params }: { params: Promise<{ 
         <div className="w-full space-y-6 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5 sm:p-8">
           <div className="space-y-2">
             <p className="text-xs font-bold uppercase text-aaau-sand">{event.name}</p>
-            <h1 className="font-display text-4xl uppercase text-white sm:text-5xl">Vendas ainda nao iniciadas</h1>
+            <h1 className="font-display text-4xl uppercase text-white sm:text-5xl">Vendas ainda não iniciadas</h1>
             <p className="text-sm leading-6 text-white/65">
               A abertura acontece em {new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(event.salesStartAt)}.
             </p>

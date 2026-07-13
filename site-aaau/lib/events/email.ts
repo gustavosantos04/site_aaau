@@ -105,13 +105,14 @@ export function buildEventTicketConfirmationEmail(input: {
     : buildAbsoluteUrl(`/meus-ingressos/${input.order.accessToken}`);
   const eventDate = formatEventDate(input.event.startAt);
   const venue = input.event.venueAddress || input.event.venueName;
-  const subject = `Seus ingressos para ${input.event.name} estao confirmados`;
+  const subject = `Seus ingressos para ${input.event.name} estão confirmados`;
   const greeting = firstName(input.order.buyerName);
+  const mascotUrl = `${new URL(ticketsUrl).origin}/images/mascots/bull_torcida.png`;
 
   const text = [
-    `Ola, ${greeting}.`,
+    `Olá, ${greeting}.`,
     "",
-    `Seu pagamento foi confirmado e seus ingressos para ${input.event.name} ja estao disponiveis.`,
+    `Seu pagamento foi confirmado e seus ingressos para ${input.event.name} já estão disponíveis.`,
     "",
     `Evento: ${input.event.name}`,
     `Data: ${eventDate}`,
@@ -122,7 +123,7 @@ export function buildEventTicketConfirmationEmail(input: {
     "",
     "Cada participante possui um QR Code individual.",
     "Apresente o ingresso correspondente na entrada do evento.",
-    "Nao compartilhe seu QR Code com terceiros.",
+    "Não compartilhe seu QR Code com terceiros.",
     "",
     "AAAU Uniritter",
   ].join("\n");
@@ -134,16 +135,25 @@ export function buildEventTicketConfirmationEmail(input: {
           <td align="center" style="padding:28px 12px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;border-collapse:collapse;background:#120d0f;border:1px solid rgba(255,255,255,.12);border-radius:18px;overflow:hidden;">
               <tr>
-                <td style="padding:26px 28px;background:#7b1023;font-family:Arial,sans-serif;color:#ffffff;">
-                  <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;">AAAU Uniritter</div>
-                  <div style="margin-top:8px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#f3d2dc;">Ingressos confirmados</div>
+                <td style="padding:20px 28px;background:#7b1023;font-family:Arial,sans-serif;color:#ffffff;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                    <tr>
+                      <td>
+                        <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;">AAAU Uniritter</div>
+                        <div style="margin-top:8px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#f3d2dc;">Ingressos confirmados</div>
+                      </td>
+                      <td align="right" width="112">
+                        <img src="${mascotUrl}" width="96" alt="Bull da AAAU" style="display:block;width:96px;max-width:100%;height:auto;margin-left:auto;" />
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
               <tr>
                 <td style="padding:30px 28px 10px;font-family:Arial,sans-serif;">
                   <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#e3bd8f;font-weight:800;">Pagamento confirmado</div>
-                  <h1 style="margin:10px 0 12px;font-size:30px;line-height:1.08;color:#ffffff;text-transform:uppercase;">Seus ingressos estao disponiveis.</h1>
-                  <p style="margin:0;font-size:15px;line-height:1.65;color:#ddd0d5;">Ola, ${escapeHtml(greeting)}. Seu pagamento foi confirmado e seus ingressos para <strong style="color:#ffffff;">${escapeHtml(input.event.name)}</strong> ja podem ser acessados.</p>
+                  <h1 style="margin:10px 0 12px;font-size:30px;line-height:1.08;color:#ffffff;text-transform:uppercase;">Seus ingressos estão disponíveis.</h1>
+                  <p style="margin:0;font-size:15px;line-height:1.65;color:#ddd0d5;">Olá, ${escapeHtml(greeting)}. Seu pagamento foi confirmado e seus ingressos para <strong style="color:#ffffff;">${escapeHtml(input.event.name)}</strong> já podem ser acessados.</p>
                 </td>
               </tr>
               <tr>
@@ -165,7 +175,7 @@ export function buildEventTicketConfirmationEmail(input: {
               </tr>
               <tr>
                 <td style="padding:12px 28px 30px;font-family:Arial,sans-serif;color:#c8b8bf;font-size:13px;line-height:1.7;">
-                  Cada participante possui um QR Code individual. Apresente o ingresso correspondente na entrada do evento e nao compartilhe seu QR Code com terceiros.
+                  Cada participante possui um QR Code individual. Apresente o ingresso correspondente na entrada do evento e não compartilhe seu QR Code com terceiros.
                 </td>
               </tr>
             </table>

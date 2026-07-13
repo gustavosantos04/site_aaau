@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const image = event.coverImage || event.bannerImage || undefined;
   return {
-    title: `${event.name} | AU`,
+    title: `${event.name} | AAAU`,
     description: event.shortDescription,
     openGraph: {
       title: event.name,

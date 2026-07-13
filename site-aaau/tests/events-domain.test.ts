@@ -531,6 +531,8 @@ test("event ticket confirmation email uses accessToken link and omits sensitive 
   });
 
   assert.equal(email.ticketsUrl, "https://au.example/meus-ingressos/access_token_seguro");
+  assert.match(email.html, /images\/mascots\/bull_torcida\.png/);
+  assert.match(email.html, /alt="Bull da AAAU"/);
   assert.match(email.text, /Cada participante possui um QR Code individual/);
   assert.match(email.html, /Ver meus ingressos/);
   for (const forbidden of ["52998224725", "tk_", "paymentId", "mercadoPago", "participantCpf"]) {

@@ -36,7 +36,7 @@ export async function EventTicketCard({ ticket, event, index, total }: EventTick
     <article className="overflow-hidden rounded-[0.5rem] border border-white/10 bg-[#111]/90 shadow-glow">
       {used ? (
         <div className="bg-white/12 px-4 py-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-white">
-          Ingresso ja utilizado
+          Ingresso já utilizado
         </div>
       ) : null}
       <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1fr,18rem] lg:items-center">
@@ -79,7 +79,7 @@ export async function EventTicketCard({ ticket, event, index, total }: EventTick
           </dl>
 
           <div className="rounded-[0.5rem] border border-white/10 bg-aaau-night/55 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Codigo do ingresso</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Código do ingresso</p>
             <p className="mt-2 break-words font-display text-3xl uppercase tracking-[0.08em] text-white">
               {ticket.ticketCode}
             </p>
@@ -101,7 +101,7 @@ export async function EventTicketCard({ ticket, event, index, total }: EventTick
             />
           </div>
           <p className="mt-3 text-center text-xs leading-6 text-white/55">
-            Nao compartilhe seu QR Code com terceiros.
+            Não compartilhe seu QR Code com terceiros.
           </p>
         </div>
       </div>

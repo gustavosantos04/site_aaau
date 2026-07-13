@@ -77,7 +77,7 @@ export function UpcomingSalePopup() {
       <section role="dialog" aria-modal="true" aria-labelledby="upcoming-sale-title" className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[0.5rem] border border-aaau-sand/25 bg-[#110b0d] shadow-2xl">
         <div className="space-y-5 p-5 sm:p-7">
           <button ref={closeRef} type="button" onClick={close} aria-label="Fechar aviso do evento" className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/65 text-white"><X className="h-5 w-5" /></button>
-          <p className="text-xs font-bold uppercase text-aaau-sand">Evento oficial AU</p>
+          <p className="text-xs font-bold uppercase text-aaau-sand">Evento oficial AAAU</p>
           <div>
             <h2 id="upcoming-sale-title" className="break-words font-display text-4xl uppercase text-white sm:text-5xl">{event.eventName}</h2>
             <div className="mt-3 flex flex-col gap-2 text-sm text-white/65 sm:flex-row sm:gap-5">

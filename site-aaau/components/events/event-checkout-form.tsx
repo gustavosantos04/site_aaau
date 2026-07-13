@@ -200,8 +200,15 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr,24rem]">
       <div className="space-y-5">
+        <ol className="grid grid-cols-3 overflow-hidden rounded-[0.5rem] border border-white/10 bg-white/[0.04]" aria-label="Etapas da compra">
+          {["1. Ingressos", "2. Seus dados", "3. Pagamento"].map((step, index) => (
+            <li key={step} className={`px-2 py-3 text-center text-[0.68rem] font-semibold uppercase text-white/70 sm:text-xs ${index > 0 ? "border-l border-white/10" : ""}`}>
+              {step}
+            </li>
+          ))}
+        </ol>
         <section className="rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-aaau-sand">Compra oficial AU</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-aaau-sand">Compra oficial AAAU</p>
           <h1 className="mt-2 break-words font-display text-3xl uppercase tracking-[0.06em] text-white sm:text-4xl sm:tracking-[0.08em]">{event.name}</h1>
           <p className="mt-2 text-sm leading-6 text-white/65">{event.venueName} · {new Date(event.startAt).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" })}</p>
           <p className="mt-3 flex items-start gap-2 text-xs leading-6 text-white/55"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" /><span>Pagamento concluído no Mercado Pago.</span></p>
@@ -215,19 +222,20 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
               <p className="text-sm text-white/60">{formatMoney(event.currentLotPrice)} por ingresso</p>
             </div>
             <div className="flex h-12 w-fit items-center rounded-full border border-white/10 bg-aaau-night">
-              <button type="button" className="h-12 w-12" onClick={() => setParticipantCount(quantity - 1)} aria-label="Diminuir quantidade"><Minus className="mx-auto h-4 w-4" /></button>
+              <button type="button" className="h-12 w-12 disabled:cursor-not-allowed disabled:opacity-35" disabled={quantity <= 1} onClick={() => setParticipantCount(quantity - 1)} aria-label="Diminuir quantidade"><Minus className="mx-auto h-4 w-4" /></button>
               <span className="w-10 text-center font-semibold">{quantity}</span>
-              <button type="button" className="h-12 w-12" onClick={() => setParticipantCount(quantity + 1)} aria-label="Aumentar quantidade"><Plus className="mx-auto h-4 w-4" /></button>
+              <button type="button" className="h-12 w-12 disabled:cursor-not-allowed disabled:opacity-35" disabled={quantity >= event.maxTicketsPerOrder} onClick={() => setParticipantCount(quantity + 1)} aria-label="Aumentar quantidade"><Plus className="mx-auto h-4 w-4" /></button>
             </div>
           </div>
         </section>
 
         <section className="grid gap-4 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5 sm:grid-cols-2">
           <h2 className="font-display text-2xl uppercase tracking-[0.08em] text-white sm:col-span-2">Comprador</h2>
-          <Input label="Nome completo" value={buyer.name} onChange={(value) => setBuyer({ ...buyer, name: value })} error={fieldErrors.buyerName} />
-          <Input label="CPF" inputMode="numeric" value={buyer.cpf} onChange={(value) => setBuyer({ ...buyer, cpf: value })} error={fieldErrors.buyerCpf} />
-          <Input label="E-mail" type="email" value={buyer.email} onChange={(value) => setBuyer({ ...buyer, email: value })} error={fieldErrors.buyerEmail} />
-          <Input label="WhatsApp" inputMode="numeric" value={buyer.phone} onChange={(value) => setBuyer({ ...buyer, phone: value })} error={fieldErrors.buyerPhone} />
+          <p className="text-sm leading-6 text-white/60 sm:col-span-2">Usaremos estes dados para identificar a compra e enviar o acesso aos ingressos.</p>
+          <Input label="Nome completo" required autoComplete="name" value={buyer.name} onChange={(value) => setBuyer({ ...buyer, name: value })} error={fieldErrors.buyerName} />
+          <Input label="CPF" required autoComplete="off" inputMode="numeric" value={buyer.cpf} onChange={(value) => setBuyer({ ...buyer, cpf: value })} error={fieldErrors.buyerCpf} />
+          <Input label="E-mail" required autoComplete="email" type="email" value={buyer.email} onChange={(value) => setBuyer({ ...buyer, email: value })} error={fieldErrors.buyerEmail} />
+          <Input label="WhatsApp" required autoComplete="tel" inputMode="numeric" value={buyer.phone} onChange={(value) => setBuyer({ ...buyer, phone: value })} error={fieldErrors.buyerPhone} />
         </section>
 
         <section className="space-y-4 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5">
@@ -242,8 +250,8 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
           {participants.map((participant, index) => (
             <div key={index} className="grid gap-3 rounded-[0.5rem] border border-white/10 bg-aaau-night/45 p-4 sm:grid-cols-2">
               <h3 className="font-semibold uppercase tracking-[0.16em] text-white sm:col-span-2">Participante {index + 1}</h3>
-              <Input label="Nome completo" value={participant.name} onChange={(value) => updateParticipant(index, "name", value)} error={fieldErrors[`participant-${index}-name`]} />
-              <Input label="CPF" inputMode="numeric" value={participant.cpf} onChange={(value) => updateParticipant(index, "cpf", value)} error={fieldErrors[`participant-${index}-cpf`]} />
+              <Input label="Nome completo" required autoComplete="name" value={participant.name} onChange={(value) => updateParticipant(index, "name", value)} error={fieldErrors[`participant-${index}-name`]} />
+              <Input label="CPF" required autoComplete="off" inputMode="numeric" value={participant.cpf} onChange={(value) => updateParticipant(index, "cpf", value)} error={fieldErrors[`participant-${index}-cpf`]} />
               {event.requireParticipantEmail ? <Input label="E-mail" type="email" value={participant.email} onChange={(value) => updateParticipant(index, "email", value)} error={fieldErrors[`participant-${index}-email`]} /> : null}
               {event.requireParticipantPhone ? <Input label="Telefone" inputMode="numeric" value={participant.phone} onChange={(value) => updateParticipant(index, "phone", value)} error={fieldErrors[`participant-${index}-phone`]} /> : null}
               {event.requireBirthDate ? <Input label="Data de nascimento" type="date" value={participant.birthDate} onChange={(value) => updateParticipant(index, "birthDate", value)} error={fieldErrors[`participant-${index}-birthDate`]} /> : null}
@@ -301,6 +309,8 @@ function Input({
   type = "text",
   inputMode,
   placeholder,
+  autoComplete,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -309,16 +319,20 @@ function Input({
   type?: string;
   inputMode?: "numeric" | "email" | "text";
   placeholder?: string;
+  autoComplete?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">{label}{required ? <span className="text-aaau-sand"> *</span> : null}</span>
       <input
         type={type}
         inputMode={inputMode}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        autoComplete={autoComplete}
+        required={required}
         className="mt-2 h-12 w-full rounded-[0.5rem] border border-white/10 bg-aaau-night px-3 text-sm text-white outline-none transition focus:border-aaau-sand/60"
         aria-invalid={Boolean(error)}
       />

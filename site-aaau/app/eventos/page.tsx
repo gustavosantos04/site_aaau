@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Eventos",
-  description: "Eventos oficiais da AU com compra segura de ingressos pelo site oficial.",
+  description: "Eventos oficiais da AAAU com compra segura de ingressos pelo site oficial.",
 };
 
 export default async function EventsPage() {
@@ -28,16 +28,16 @@ export default async function EventsPage() {
     <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
       <div className="grid gap-8 lg:grid-cols-[0.85fr,1.15fr] lg:items-end">
         <div className="space-y-5">
-          <Badge>Eventos oficiais AU</Badge>
+          <Badge>Eventos oficiais AAAU</Badge>
           <h1 className="max-w-full break-words font-display text-3xl uppercase leading-tight tracking-[0.05em] text-white sm:text-7xl sm:tracking-[0.08em]">
-            Ingressos para <span className="block">viver a AU</span>
+            Ingressos para <span className="block">viver a AAAU</span>
           </h1>
           <p className="max-w-2xl text-base leading-8 text-white/70">
-            Compra realizada diretamente no site oficial da AU. O pagamento é processado pelo Mercado Pago e os ingressos são liberados após a confirmação.
+            Compre no site oficial da AAAU. Após a confirmação do pagamento pelo Mercado Pago, cada participante recebe seu ingresso individual.
           </p>
         </div>
         <div className="grid gap-3 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-4 sm:grid-cols-3">
-          {["Evento oficial AU", "Pagamento Mercado Pago", "Ingresso individual"].map((item) => (
+          {["Evento oficial AAAU", "Pagamento seguro", "QR Code individual"].map((item) => (
             <div key={item} className="flex items-center gap-3 text-sm font-semibold text-white/78">
               <ShieldCheck className="h-5 w-5 text-aaau-sand" />
               {item}
@@ -49,7 +49,7 @@ export default async function EventsPage() {
       {events.length === 0 ? (
         <div className="mt-12 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-8 text-center">
           <h2 className="font-display text-3xl uppercase tracking-[0.08em] text-white">Nenhum evento anunciado por enquanto.</h2>
-          <p className="mt-3 text-sm leading-7 text-white/65">Quando a AU preparar a próxima, ela aparece aqui.</p>
+          <p className="mt-3 text-sm leading-7 text-white/65">Quando a AAAU anunciar o próximo evento, ele aparecerá aqui.</p>
         </div>
       ) : (
         <div className="mt-10 grid gap-5 lg:grid-cols-2">
