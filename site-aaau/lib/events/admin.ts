@@ -352,6 +352,214 @@ export async function getAdminEventCockpit(eventId: string) {
   };
 }
 
+export async function getAdminEventReport(eventId: string) {
+  const event = await prisma.ticketEvent.findUnique({
+    where: { id: eventId },
+    include: {
+      lots: { orderBy: { position: "asc" } },
+      partnerCodes: { orderBy: { code: "asc" } },
+    },
+  });
+
+  if (!event) return null;
+
+  const [
+    ordersByStatus,
+    paidFinancials,
+    paidTickets,
+    ticketsByStatus,
+    paidTicketsByLot,
+    emailStatuses,
+    paymentPreferenceStatuses,
+    paymentErrorOrders,
+    paymentEvents,
+    checkInResults,
+    checkInActions,
+    checkInByOperator,
+    recentCheckInIssues,
+  ] = await Promise.all([
+    prisma.eventOrder.groupBy({
+      by: ["status"],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventOrder.aggregate({
+      where: { eventId, status: "PAID" },
+      _count: { _all: true },
+      _sum: { subtotal: true, discountAmount: true, total: true },
+    }),
+    prisma.eventTicket.count({ where: { eventId, eventOrder: { status: "PAID" } } }),
+    prisma.eventTicket.groupBy({
+      by: ["status"],
+      where: { eventId, eventOrder: { status: "PAID" } },
+      _count: { _all: true },
+    }),
+    prisma.eventTicket.groupBy({
+      by: ["lotId"],
+      where: { eventId, eventOrder: { status: "PAID" } },
+      _count: { _all: true },
+    }),
+    prisma.eventOrder.groupBy({
+      by: ["ticketConfirmationEmailStatus"],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventOrder.groupBy({
+      by: ["paymentPreferenceStatus"],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventOrder.count({
+      where: {
+        eventId,
+        OR: [
+          { paymentPreferenceStatus: "AMBIGUOUS" },
+          { paymentPreferenceLastErrorAt: { not: null } },
+          { status: { in: ["FAILED", "CANCELED", "EXPIRED", "REFUNDED"] } },
+        ],
+      },
+    }),
+    prisma.paymentEvent.groupBy({
+      by: ["eventType", "status"],
+      where: { eventOrder: { eventId } },
+      _count: { _all: true },
+    }),
+    prisma.eventCheckInLog.groupBy({
+      by: ["result"],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventCheckInLog.groupBy({
+      by: ["action"],
+      where: { eventId },
+      _count: { _all: true },
+    }),
+    prisma.eventCheckInLog.groupBy({
+      by: ["adminUserId"],
+      where: { eventId, result: "CHECKED_IN" },
+      _count: { _all: true },
+    }),
+    prisma.eventCheckInLog.findMany({
+      where: {
+        eventId,
+        result: { in: ["ALREADY_USED", "INVALID", "WRONG_EVENT", "UNAUTHORIZED"] },
+      },
+      include: {
+        adminUser: { select: { name: true, email: true } },
+        ticket: { select: { ticketCode: true, participantName: true, status: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+  ]);
+
+  const lotTicketCount = new Map(paidTicketsByLot.map((row) => [row.lotId, row._count._all]));
+  const operatorIds = checkInByOperator.map((row) => row.adminUserId).filter((id): id is string => Boolean(id));
+  const operators = operatorIds.length
+    ? await prisma.adminUser.findMany({
+        where: { id: { in: operatorIds } },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+  const operatorById = new Map(operators.map((operator) => [operator.id, operator]));
+
+  const partnerCodeRows = await Promise.all(event.partnerCodes.map(async (code) => {
+    const [orders, tickets] = await Promise.all([
+      prisma.eventOrder.aggregate({
+        where: { eventId, partnerCodeId: code.id, status: "PAID" },
+        _count: { _all: true },
+        _sum: { total: true, discountAmount: true },
+      }),
+      prisma.eventTicket.count({
+        where: { eventId, eventOrder: { partnerCodeId: code.id, status: "PAID" } },
+      }),
+    ]);
+
+    return {
+      code: code.code,
+      partnerName: code.partnerName,
+      active: code.active,
+      paidOrders: orders._count._all,
+      paidTickets: tickets,
+      revenue: orders._sum.total ?? new Prisma.Decimal(0),
+      discount: orders._sum.discountAmount ?? new Prisma.Decimal(0),
+    };
+  }));
+
+  const checkIns = checkInResults.find((row) => row.result === "CHECKED_IN")?._count._all ?? 0;
+  const alreadyUsed = checkInResults.find((row) => row.result === "ALREADY_USED")?._count._all ?? 0;
+  const invalid = checkInResults.find((row) => row.result === "INVALID")?._count._all ?? 0;
+  const wrongEvent = checkInResults.find((row) => row.result === "WRONG_EVENT")?._count._all ?? 0;
+  const unauthorized = checkInResults.find((row) => row.result === "UNAUTHORIZED")?._count._all ?? 0;
+
+  return {
+    event: { id: event.id, name: event.name, startAt: event.startAt, venueName: event.venueName },
+    sales: {
+      paidOrders: paidFinancials._count._all,
+      paidTickets,
+      subtotal: paidFinancials._sum.subtotal ?? new Prisma.Decimal(0),
+      discount: paidFinancials._sum.discountAmount ?? new Prisma.Decimal(0),
+      revenue: paidFinancials._sum.total ?? new Prisma.Decimal(0),
+      ordersByStatus: ordersByStatus.map((row) => ({ status: row.status, count: row._count._all })),
+      ticketsByStatus: ticketsByStatus.map((row) => ({ status: row.status, count: row._count._all })),
+    },
+    lots: event.lots.map((lot) => ({
+      id: lot.id,
+      name: lot.name,
+      price: lot.price,
+      quantity: lot.quantity,
+      soldQuantity: lot.soldQuantity,
+      reservedQuantity: lot.reservedQuantity,
+      paidTickets: lotTicketCount.get(lot.id) ?? 0,
+      available: getTicketLotAvailability(lot),
+      status: lotStatus(lot),
+    })),
+    partnerCodes: partnerCodeRows.sort((left, right) => right.paidTickets - left.paidTickets || left.code.localeCompare(right.code)),
+    email: emailStatuses.map((row) => ({ status: row.ticketConfirmationEmailStatus, count: row._count._all })),
+    payments: {
+      preferenceStatuses: paymentPreferenceStatuses.map((row) => ({ status: row.paymentPreferenceStatus, count: row._count._all })),
+      issueOrders: paymentErrorOrders,
+      events: paymentEvents.map((row) => ({
+        eventType: row.eventType,
+        status: row.status ?? "-",
+        count: row._count._all,
+      })),
+    },
+    checkIn: {
+      total: checkIns,
+      rate: paidTickets === 0 ? 0 : Math.round((checkIns / paidTickets) * 100),
+      pending: Math.max(paidTickets - checkIns, 0),
+      alreadyUsed,
+      invalid,
+      wrongEvent,
+      unauthorized,
+      results: checkInResults.map((row) => ({ result: row.result, count: row._count._all })),
+      actions: checkInActions.map((row) => ({ action: row.action, count: row._count._all })),
+      operators: checkInByOperator
+        .map((row) => {
+          const operator = row.adminUserId ? operatorById.get(row.adminUserId) : null;
+          return {
+            adminUserId: row.adminUserId,
+            name: operator?.name ?? "Operador nao identificado",
+            email: operator?.email ?? null,
+            checkIns: row._count._all,
+          };
+        })
+        .sort((left, right) => right.checkIns - left.checkIns),
+      recentIssues: recentCheckInIssues.map((log) => ({
+        id: log.id,
+        createdAt: log.createdAt,
+        result: log.result,
+        action: log.action,
+        operatorName: log.adminUser?.name ?? "Operador nao identificado",
+        ticketCode: log.ticket?.ticketCode ?? "-",
+        participantName: log.ticket?.participantName ?? "-",
+        ticketStatus: log.ticket?.status ?? "-",
+      })),
+    },
+  };
+}
+
 export async function createTicketEventAdmin(input: TicketEventAdminInput, actor: EventAdminActor) {
   assertSuperAdmin(actor);
   const parsed = eventInputSchema.parse(input);

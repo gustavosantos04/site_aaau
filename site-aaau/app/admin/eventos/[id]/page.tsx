@@ -15,13 +15,14 @@ import { EventAdminForm, EventLotForm, EventPartnerCodeForm } from "@/components
 import { SummaryCard } from "@/components/admin/summary-card";
 import { buttonVariants } from "@/components/shared/button";
 import { requireAdminRole } from "@/lib/auth";
-import { formatAdminMoney, getAdminEventCockpit } from "@/lib/events/admin";
+import { formatAdminMoney, getAdminEventCockpit, getAdminEventReport } from "@/lib/events/admin";
 import { getEventStaffAdmin } from "@/lib/portaria";
 
 export const metadata: Metadata = { title: "Admin Evento" };
 
 const tabs = [
   ["geral", "Visao geral"],
+  ["relatorio", "Relatorio"],
   ["lotes", "Lotes"],
   ["ingressos", "Ingressos"],
   ["pedidos", "Pedidos"],
@@ -47,6 +48,33 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ReportCard({ label, value, helper }: { label: string; value: React.ReactNode; helper?: string }) {
+  return (
+    <div className="rounded-[0.75rem] border border-white/10 bg-white/[0.04] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{label}</p>
+      <p className="mt-2 break-words font-display text-3xl uppercase tracking-[0.04em] text-white">{value}</p>
+      {helper ? <p className="mt-2 text-sm leading-6 text-white/55">{helper}</p> : null}
+    </div>
+  );
+}
+
+function StatusPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
+      {children}
+    </span>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+      <div className="h-full rounded-full bg-aaau-ember" style={{ width: `${clamped}%` }} />
+    </div>
+  );
+}
+
 export default async function AdminEventCockpitPage({
   params,
   searchParams,
@@ -61,6 +89,7 @@ export default async function AdminEventCockpitPage({
   const activeTab = tabs.some(([key]) => key === query.tab) ? query.tab! : "geral";
   const { event } = cockpit;
   const staffAdmin = activeTab === "equipe" ? await getEventStaffAdmin(event.id) : null;
+  const report = activeTab === "relatorio" ? await getAdminEventReport(event.id) : null;
 
   return (
     <AdminShell
@@ -130,6 +159,185 @@ export default async function AdminEventCockpitPage({
               <Badge>Data e local</Badge>
               <Badge>Periodo de vendas</Badge>
               <Badge>{cockpit.lots.length} lote(s) configurado(s)</Badge>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {activeTab === "relatorio" && report ? (
+        <div className="space-y-6">
+          <section className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Relatorio comercial</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Vendas, receita e saude operacional</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusPill>{formatDate(report.event.startAt)}</StatusPill>
+                <StatusPill>{report.event.venueName}</StatusPill>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <ReportCard label="Pedidos pagos" value={report.sales.paidOrders} helper="Pedidos com status PAID." />
+              <ReportCard label="Ingressos pagos" value={report.sales.paidTickets} helper="Tickets emitidos de pedidos pagos." />
+              <ReportCard label="Receita liquida" value={formatAdminMoney(report.sales.revenue)} helper="Total recebido apos descontos." />
+              <ReportCard label="Descontos" value={formatAdminMoney(report.sales.discount)} helper="Valor concedido por codigos." />
+              <ReportCard label="Problemas pagamento" value={report.payments.issueOrders} helper="Falhas, expirados, ambiguos ou erro de preferencia." />
+            </div>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
+            <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Lotes</p>
+                  <h3 className="mt-2 text-xl font-semibold text-white">Capacidade e venda por lote</h3>
+                </div>
+              </div>
+              <div className="mt-5 space-y-4">
+                {report.lots.map((lot) => {
+                  const percent = lot.quantity === 0 ? 0 : Math.round((lot.paidTickets / lot.quantity) * 100);
+                  return (
+                    <div key={lot.id} className="rounded-[0.75rem] border border-white/10 bg-white/[0.035] p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-semibold uppercase tracking-[0.14em] text-white">{lot.name}</p>
+                          <p className="mt-1 text-sm text-white/55">{formatAdminMoney(lot.price)} - {lot.status}</p>
+                        </div>
+                        <div className="text-sm text-white/70 sm:text-right">
+                          <p><strong className="text-white">{lot.paidTickets}</strong> pagos de {lot.quantity}</p>
+                          <p>{lot.available} disponiveis / {lot.reservedQuantity} reservados</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        <ProgressBar value={percent} />
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">{percent}% da capacidade paga</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Codigos</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">Parceiros mais usados</h3>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm [&_td]:pr-4 [&_th]:pr-4">
+                  <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
+                    <tr><th>Codigo</th><th>Parceiro</th><th>Ingressos</th><th>Receita</th><th>Desconto</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 text-white/70">
+                    {report.partnerCodes.slice(0, 12).map((code) => (
+                      <tr key={code.code}>
+                        <td className="py-3 font-semibold text-white">{code.code}</td>
+                        <td>{code.partnerName}</td>
+                        <td>{code.paidTickets}</td>
+                        <td>{formatAdminMoney(code.revenue)}</td>
+                        <td>{formatAdminMoney(code.discount)}</td>
+                      </tr>
+                    ))}
+                    {report.partnerCodes.length === 0 ? (
+                      <tr><td colSpan={5} className="py-4 text-white/55">Nenhum codigo cadastrado.</td></tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">E-mails e pagamento</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">Estados de envio e preferencia</h3>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">E-mail dos ingressos</p>
+                  {report.email.map((item) => (
+                    <div key={item.status} className="flex items-center justify-between rounded-[0.75rem] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm">
+                      <span className="text-white/65">{item.status}</span>
+                      <strong className="text-white">{item.count}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">Preferencia Mercado Pago</p>
+                  {report.payments.preferenceStatuses.map((item) => (
+                    <div key={item.status} className="flex items-center justify-between rounded-[0.75rem] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm">
+                      <span className="text-white/65">{item.status}</span>
+                      <strong className="text-white">{item.count}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {report.sales.ordersByStatus.map((item) => <StatusPill key={item.status}>{item.status}: {item.count}</StatusPill>)}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Dia do evento</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">Validacao e entrada</h3>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <ReportCard label="Check-ins" value={report.checkIn.total} helper={`${report.checkIn.rate}% dos ingressos pagos.`} />
+                <ReportCard label="Pendentes" value={report.checkIn.pending} helper="Ingressos pagos ainda nao usados." />
+                <ReportCard label="Duplicados" value={report.checkIn.alreadyUsed} helper="Tentativas de ingresso ja utilizado." />
+                <ReportCard label="Invalidos" value={report.checkIn.invalid + report.checkIn.wrongEvent + report.checkIn.unauthorized} helper="Invalidos, outro evento ou acesso bloqueado." />
+              </div>
+              <div className="mt-5 space-y-2">
+                <ProgressBar value={report.checkIn.rate} />
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">Taxa de entrada validada</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[0.85fr,1.15fr]">
+            <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Operadores</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">Check-ins por portaria</h3>
+              <div className="mt-5 space-y-3">
+                {report.checkIn.operators.map((operator) => (
+                  <div key={operator.adminUserId ?? operator.name} className="flex items-center justify-between rounded-[0.75rem] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm">
+                    <span>
+                      <strong className="block text-white">{operator.name}</strong>
+                      {operator.email ? <span className="text-xs text-white/45">{operator.email}</span> : null}
+                    </span>
+                    <strong className="text-white">{operator.checkIns}</strong>
+                  </div>
+                ))}
+                {report.checkIn.operators.length === 0 ? <p className="text-sm text-white/55">Nenhum check-in confirmado ainda.</p> : null}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Ocorrencias</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">Duplicados, invalidos e bloqueados</h3>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm [&_td]:pr-4 [&_th]:pr-4">
+                  <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
+                    <tr><th>Data</th><th>Resultado</th><th>Ticket</th><th>Participante</th><th>Status</th><th>Operador</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 text-white/70">
+                    {report.checkIn.recentIssues.map((issue) => (
+                      <tr key={issue.id}>
+                        <td className="py-3">{formatDate(issue.createdAt)}</td>
+                        <td className="font-semibold text-white">{issue.result}</td>
+                        <td>{issue.ticketCode}</td>
+                        <td>{issue.participantName}</td>
+                        <td>{issue.ticketStatus}</td>
+                        <td>{issue.operatorName}</td>
+                      </tr>
+                    ))}
+                    {report.checkIn.recentIssues.length === 0 ? (
+                      <tr><td colSpan={6} className="py-4 text-white/55">Nenhuma ocorrencia operacional registrada.</td></tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 text-xs leading-6 text-white/45">
+                A auditoria atual registra confirmacoes e tentativas bloqueadas no ato de confirmar entrada. Validacoes apenas consultadas antes da confirmacao nao alteram dados.
+              </p>
             </div>
           </section>
         </div>
