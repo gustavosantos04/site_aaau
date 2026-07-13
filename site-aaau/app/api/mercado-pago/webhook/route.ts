@@ -10,6 +10,8 @@ import {
 } from "@/lib/checkout/mercado-pago";
 import { prisma } from "@/lib/db/prisma";
 import { sendOrderPaidEmails } from "@/lib/email/order-confirmation";
+import { processEventPayment } from "@/lib/events/mercado-pago";
+import { routeMercadoPagoExternalReference } from "@/lib/mercado-pago-routing";
 
 export const runtime = "nodejs";
 
@@ -119,6 +121,77 @@ function extractPaymentId(url: URL, payload: Record<string, unknown>) {
   );
 }
 
+async function processStorePayment(input: {
+  payment: MercadoPagoPayment;
+  payload: Record<string, unknown>;
+  eventType: string;
+  paymentId: string;
+  webhookRequestId: string | null;
+  routedOrderId?: string | null;
+}) {
+  const preferenceId = input.payment.preference_id ? String(input.payment.preference_id) : null;
+  const order = input.routedOrderId
+    ? await prisma.order.findUnique({ where: { id: input.routedOrderId } })
+    : preferenceId
+      ? await prisma.order.findFirst({ where: { mercadoPagoPreferenceId: preferenceId } })
+      : null;
+  const mappedStatus = mapMercadoPagoStatus(input.payment.status);
+  const paidAmount = Number(input.payment.transaction_amount ?? 0);
+  const orderTotal = order ? Number(order.total) : null;
+  const amountMatches = orderTotal === null || Math.abs(orderTotal - paidAmount) < 0.01;
+
+  try {
+    await prisma.paymentEvent.create({
+      data: {
+        orderId: order?.id ?? null,
+        provider: "MERCADO_PAGO",
+        eventType: input.eventType,
+        mercadoPagoPaymentId: input.paymentId,
+        webhookRequestId: input.webhookRequestId,
+        status: input.payment.status ?? "unknown",
+        payload: asJson({
+          raw: input.payload,
+          payment: redactPayment(input.payment),
+          amountMatches,
+        }),
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return;
+    }
+
+    throw error;
+  }
+
+  if (order && amountMatches) {
+    const shouldSendPaidEmail =
+      mappedStatus.paymentStatus === "APPROVED" && order.paymentStatus !== "APPROVED";
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: mappedStatus.orderStatus,
+        paymentStatus: mappedStatus.paymentStatus,
+        mercadoPagoPaymentId: input.paymentId,
+        mercadoPagoPreferenceId: preferenceId ?? undefined,
+        paymentMethodId: input.payment.payment_method_id ?? undefined,
+        paymentTypeId: input.payment.payment_type_id ?? undefined,
+        statusDetail: input.payment.status_detail ?? undefined,
+        paidAt: input.payment.date_approved ? new Date(input.payment.date_approved) : undefined,
+      },
+    });
+
+    if (shouldSendPaidEmail) {
+      try {
+        await sendOrderPaidEmails(order.id);
+      } catch (error) {
+        console.error("Nao foi possivel enviar email de confirmacao do pedido.", error);
+      }
+    }
+  }
+}
+
 export async function POST(request: Request) {
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ ok: true });
@@ -184,68 +257,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const orderId = payment.external_reference ? String(payment.external_reference) : null;
-  const preferenceId = payment.preference_id ? String(payment.preference_id) : null;
-  const order = orderId
-    ? await prisma.order.findUnique({ where: { id: orderId } })
-    : preferenceId
-      ? await prisma.order.findFirst({ where: { mercadoPagoPreferenceId: preferenceId } })
-      : null;
-  const mappedStatus = mapMercadoPagoStatus(payment.status);
-  const paidAmount = Number(payment.transaction_amount ?? 0);
-  const orderTotal = order ? Number(order.total) : null;
-  const amountMatches = orderTotal === null || Math.abs(orderTotal - paidAmount) < 0.01;
+  const route = routeMercadoPagoExternalReference(payment.external_reference);
 
-  try {
-    await prisma.paymentEvent.create({
-      data: {
-        orderId: order?.id ?? null,
-        provider: "MERCADO_PAGO",
-        eventType,
-        mercadoPagoPaymentId: paymentId,
-        webhookRequestId,
-        status: payment.status ?? "unknown",
-        payload: asJson({
-          raw: payload,
-          payment: redactPayment(payment),
-          amountMatches,
-        }),
-      },
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ ok: true });
-    }
-
-    throw error;
+  if (route.kind === "event") {
+    await processEventPayment(payment, { eventType, webhookRequestId });
+    return NextResponse.json({ ok: true });
   }
 
-  if (order && amountMatches) {
-    const shouldSendPaidEmail =
-      mappedStatus.paymentStatus === "APPROVED" && order.paymentStatus !== "APPROVED";
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: mappedStatus.orderStatus,
-        paymentStatus: mappedStatus.paymentStatus,
-        mercadoPagoPaymentId: paymentId,
-        mercadoPagoPreferenceId: preferenceId ?? undefined,
-        paymentMethodId: payment.payment_method_id ?? undefined,
-        paymentTypeId: payment.payment_type_id ?? undefined,
-        statusDetail: payment.status_detail ?? undefined,
-        paidAt: payment.date_approved ? new Date(payment.date_approved) : undefined,
-      },
-    });
-
-    if (shouldSendPaidEmail) {
-      try {
-        await sendOrderPaidEmails(order.id);
-      } catch (error) {
-        console.error("Nao foi possivel enviar email de confirmacao do pedido.", error);
-      }
-    }
-  }
+  await processStorePayment({
+    payment,
+    payload,
+    eventType,
+    paymentId,
+    webhookRequestId,
+    routedOrderId: route.kind === "store" || route.kind === "legacy-store" ? route.orderId : null,
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -8,6 +8,7 @@ import { Preloader } from "@/components/home/preloader";
 import { SponsorsSection } from "@/components/home/sponsors-section";
 import { SportsSection } from "@/components/home/sports-section";
 import { getFeaturedProducts } from "@/lib/data/store";
+import { UpcomingSalePopup } from "@/components/events/upcoming-sale-popup";
 
 export default async function HomePage() {
   const products = await getFeaturedProducts();
@@ -15,6 +16,7 @@ export default async function HomePage() {
   return (
     <>
       <Preloader />
+      <UpcomingSalePopup />
       <HeroSection />
       <AboutSection />
       {/* <TimelineSection /> */}

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { productsSeed } from "@/lib/data/seed-content";
 import { prisma } from "@/lib/db/prisma";
+import { buildMercadoPagoNotificationUrl, getConfiguredBaseUrl } from "@/lib/site-url";
 import type { ProductMetadata } from "@/types/store";
 
 const MAX_ITEMS = 12;
@@ -197,12 +198,8 @@ export function mapMercadoPagoStatus(status?: string) {
   }
 }
 
-export function getBaseUrl(request: Request) {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
-    request.headers.get("origin")?.replace(/\/$/, "") ||
-    "http://localhost:3000"
-  );
+export function getBaseUrl(_request?: Request) {
+  return getConfiguredBaseUrl();
 }
 
 export function buildOrderNumber() {
@@ -306,7 +303,7 @@ async function createMercadoPagoPreference({
         pending: `${baseUrl}/pagamento/pendente?orderId=${orderId}`,
       },
       auto_return: "approved",
-      notification_url: `${baseUrl}/api/mercado-pago/webhook`,
+      notification_url: buildMercadoPagoNotificationUrl(baseUrl),
       metadata: {
         order_id: orderId,
       },

@@ -42,15 +42,16 @@ export async function loginAdminAction(
     };
   }
 
-  const isAuthenticated = await authenticateAdmin(email, password);
+  const actor = await authenticateAdmin(email, password);
 
-  if (!isAuthenticated) {
+  if (!actor) {
     return {
       status: "error",
       message: "Credenciais inválidas.",
     };
   }
 
-  await createAdminSession(email);
+  await createAdminSession(actor);
+  if (actor.role === "event_staff") redirect("/portaria" as never);
   redirect("/admin");
 }
