@@ -10,7 +10,11 @@ import { getPortariaEventDashboard } from "@/lib/portaria";
 export const metadata: Metadata = { title: "Portaria do evento" };
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(value);
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(value);
 }
 
 export default async function PortariaEventPage({ params }: { params: Promise<{ eventId: string }> }) {

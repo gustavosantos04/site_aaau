@@ -52,7 +52,24 @@ export function formatEventDate(value: Date) {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
   }).format(value);
+}
+
+export function formatEventTime(value: Date) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(value);
+}
+
+export function formatEventDateTime(value: Date | string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
 }
 
 function isLotInSalesWindow(lot: Pick<PublicLot, "active" | "salesStartAt" | "salesEndAt">, now: Date) {

@@ -32,7 +32,11 @@ const tabs = [
 
 function formatDate(value?: Date | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(value);
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(value);
 }
 
 function Badge({ children }: { children: React.ReactNode }) {

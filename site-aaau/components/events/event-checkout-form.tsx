@@ -5,7 +5,7 @@ import { AlertCircle, BadgeCheck, Minus, Plus, ShieldCheck } from "lucide-react"
 
 import { Button } from "@/components/shared/button";
 import { buildEventCheckoutParticipantPayload } from "@/lib/events/checkout-payload";
-import { formatMoney } from "@/lib/events/public";
+import { formatEventDateTime, formatMoney } from "@/lib/events/public";
 
 type CheckoutEvent = {
   slug: string;
@@ -210,7 +210,7 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
         <section className="rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-aaau-sand">Compra oficial AAAU</p>
           <h1 className="mt-2 break-words font-display text-3xl uppercase tracking-[0.06em] text-white sm:text-4xl sm:tracking-[0.08em]">{event.name}</h1>
-          <p className="mt-2 text-sm leading-6 text-white/65">{event.venueName} · {new Date(event.startAt).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" })}</p>
+          <p className="mt-2 text-sm leading-6 text-white/65">{event.venueName} · {formatEventDateTime(event.startAt)}</p>
           <p className="mt-3 flex items-start gap-2 text-xs leading-6 text-white/55"><ShieldCheck className="mt-1 h-4 w-4 shrink-0" /><span>Pagamento concluído no Mercado Pago.</span></p>
         </section>
 

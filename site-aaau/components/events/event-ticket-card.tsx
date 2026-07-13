@@ -2,7 +2,7 @@ import { CalendarDays, Clock, MapPin, Ticket } from "lucide-react";
 import type { EventTicketStatus } from "@prisma/client";
 
 import { Badge } from "@/components/shared/badge";
-import { formatEventDate } from "@/lib/events/public";
+import { formatEventDate, formatEventDateTime, formatEventTime } from "@/lib/events/public";
 import {
   eventTicketStatusLabel,
   eventTicketStatusTone,
@@ -66,7 +66,7 @@ export async function EventTicketCard({ ticket, event, index, total }: EventTick
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 shrink-0 text-aaau-sand" />
-              <span>{new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(event.startAt)}</span>
+              <span>{formatEventTime(event.startAt)}</span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 shrink-0 text-aaau-sand" />
@@ -85,7 +85,7 @@ export async function EventTicketCard({ ticket, event, index, total }: EventTick
             </p>
             {used && ticket.checkedInAt ? (
               <p className="mt-2 text-sm text-white/60">
-                Entrada registrada em {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(ticket.checkedInAt)}.
+                Entrada registrada em {formatEventDateTime(ticket.checkedInAt)}.
               </p>
             ) : null}
           </div>

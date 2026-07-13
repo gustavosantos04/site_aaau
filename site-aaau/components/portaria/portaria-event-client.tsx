@@ -47,7 +47,11 @@ const statusCopy: Record<ValidationResponse["status"], { title: string; tone: st
 
 function formatTime(value?: string | Date | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
 }
 
 async function requestJson(url: string, body: Record<string, unknown>, timeoutMs = 9000) {

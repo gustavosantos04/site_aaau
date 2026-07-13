@@ -10,6 +10,7 @@ import { buttonVariants } from "@/components/shared/button";
 import {
   canBuyPublicStatus,
   formatEventDate,
+  formatEventTime,
   formatMoney,
   getCurrentPublicLot,
   getPublishedTicketEventBySlug,
@@ -95,7 +96,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
         <aside className="space-y-4">
           {[
             { label: "Data", value: formatEventDate(event.startAt), Icon: CalendarDays },
-            { label: "Horário", value: new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(event.startAt), Icon: Clock },
+            { label: "Horário", value: formatEventTime(event.startAt), Icon: Clock },
             { label: "Local", value: event.venueAddress || event.venueName, Icon: MapPin },
             { label: "Classificação", value: event.minimumAge ? `${event.minimumAge}+` : "Livre", Icon: ShieldCheck },
           ].map(({ label, value, Icon }) => (
