@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, BadgeCheck, Minus, Plus, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/shared/button";
@@ -64,11 +64,17 @@ function randomKey() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
+export function EventCheckoutForm({
+  event,
+  initialPartnerCode = "",
+}: {
+  event: CheckoutEvent;
+  initialPartnerCode?: string;
+}) {
   const [quantity, setQuantity] = useState(1);
   const [buyer, setBuyer] = useState<Buyer>({ name: "", cpf: "", email: "", phone: "" });
   const [participants, setParticipants] = useState<Participant[]>([{ ...emptyParticipant }]);
-  const [partnerCode, setPartnerCode] = useState("");
+  const [partnerCode, setPartnerCode] = useState(initialPartnerCode);
   const [partnerPreview, setPartnerPreview] = useState<PartnerPreview | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -131,21 +137,25 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
     return Object.keys(errors).length === 0;
   }
 
-  async function validatePartnerCode() {
-    if (!partnerCode.trim()) return;
+  const validatePartnerCode = useCallback(async (code: string) => {
+    if (!code.trim()) return;
     setValidatingCode(true);
     setPartnerPreview(null);
     try {
       const response = await fetch("/api/eventos/partner-code/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventSlug: event.slug, code: partnerCode, quantity }),
+        body: JSON.stringify({ eventSlug: event.slug, code, quantity }),
       });
       setPartnerPreview(await response.json());
     } finally {
       setValidatingCode(false);
     }
-  }
+  }, [event.slug, quantity]);
+
+  useEffect(() => {
+    if (initialPartnerCode.trim()) void validatePartnerCode(initialPartnerCode);
+  }, [initialPartnerCode, validatePartnerCode]);
 
   function payloadSignature() {
     return JSON.stringify({
@@ -266,7 +276,7 @@ export function EventCheckoutForm({ event }: { event: CheckoutEvent }) {
           <h2 className="font-display text-2xl uppercase tracking-[0.08em] text-white">Código de atlética ou parceiro</h2>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <Input label="Código" value={partnerCode} onChange={(value) => { setPartnerCode(value); setPartnerPreview(null); }} placeholder="Ex.: UFRGS10" />
-            <Button className="mt-6 sm:mt-0" variant="secondary" onClick={validatePartnerCode} disabled={validatingCode || !partnerCode.trim()}>
+            <Button className="mt-6 sm:mt-0" variant="secondary" onClick={() => void validatePartnerCode(partnerCode)} disabled={validatingCode || !partnerCode.trim()}>
               {validatingCode ? "Validando" : "Aplicar"}
             </Button>
           </div>

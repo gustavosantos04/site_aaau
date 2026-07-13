@@ -40,15 +40,25 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function EventDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function EventDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ codigo?: string; cupom?: string; code?: string }>;
+}) {
   const serverNow = new Date();
-  const { slug } = await params;
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const event = await getPublishedTicketEventBySlug(slug);
 
   if (!event) notFound();
 
   const canBuy = canBuyPublicStatus(event.publicStatus);
   const image = event.bannerImage || event.coverImage || "/images/brand/event-integration.svg";
+  const initialPartnerCode = query.codigo || query.cupom || query.code || "";
+  const checkoutPath = initialPartnerCode
+    ? `/eventos/${event.slug}/checkout?codigo=${encodeURIComponent(initialPartnerCode)}`
+    : `/eventos/${event.slug}/checkout`;
 
   return (
     <article>
@@ -67,7 +77,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2"><MapPin className="h-4 w-4" />{event.venueName}</span>
             </div>
             {canBuy ? (
-              <Link href={`/eventos/${event.slug}/checkout` as Route} className={buttonVariants({ variant: "primary", size: "lg" })}>
+              <Link href={checkoutPath as Route} className={buttonVariants({ variant: "primary", size: "lg" })}>
                 Garantir meu ingresso
               </Link>
             ) : event.publicStatus === "SOON" && event.salesStartAt ? (

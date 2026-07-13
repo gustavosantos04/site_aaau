@@ -15,10 +15,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function EventCheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function EventCheckoutPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ codigo?: string; cupom?: string; code?: string }>;
+}) {
   const serverNow = new Date();
-  const { slug } = await params;
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const event = await getPublishedTicketEventBySlug(slug);
+  const initialPartnerCode = query.codigo || query.cupom || query.code || "";
 
   if (!event) notFound();
 
@@ -60,6 +67,7 @@ export default async function EventCheckoutPage({ params }: { params: Promise<{ 
           requireCourse: event.requireCourse,
           requireCampus: event.requireCampus,
         }}
+        initialPartnerCode={initialPartnerCode}
       />
     </section>
   );
