@@ -3,6 +3,7 @@ import test from "node:test";
 import { Prisma } from "@prisma/client";
 
 import { getBaseUrl as getMercadoPagoBaseUrl } from "@/lib/checkout/mercado-pago";
+import { resendDeliveryStatus } from "@/lib/email/resend-webhook";
 import { buildMercadoPagoNotificationUrl } from "@/lib/site-url";
 
 import {
@@ -32,7 +33,7 @@ import {
   normalizeEventSlug,
   normalizePartnerCodeAdmin,
 } from "@/lib/events/admin";
-import { adminStatusLabel } from "@/lib/events/admin-labels";
+import { adminStatusLabel, emailDeliveryStatusLabel } from "@/lib/events/admin-labels";
 import { normalizeEventImagePath } from "@/lib/events/images";
 import { getPublicEventStatus, getPublicLotStatus } from "@/lib/events/public";
 import {
@@ -406,6 +407,19 @@ test("admin status labels never expose internal English codes", () => {
   assert.equal(adminStatusLabel("NOT_SENT"), "Aguardando envio");
   assert.equal(adminStatusLabel("USED"), "Entrada confirmada");
   assert.equal(adminStatusLabel("FUTURO"), "Abre futuramente");
+  assert.equal(emailDeliveryStatusLabel("DELIVERED"), "Entregue ao destinatário");
+  assert.equal(emailDeliveryStatusLabel("COMPLAINED"), "Marcado como spam");
+});
+
+test("resend webhook events map to persistent delivery statuses", () => {
+  assert.equal(resendDeliveryStatus("email.sent"), "SENT");
+  assert.equal(resendDeliveryStatus("email.delivered"), "DELIVERED");
+  assert.equal(resendDeliveryStatus("email.delivery_delayed"), "DELAYED");
+  assert.equal(resendDeliveryStatus("email.bounced"), "BOUNCED");
+  assert.equal(resendDeliveryStatus("email.failed"), "FAILED");
+  assert.equal(resendDeliveryStatus("email.complained"), "COMPLAINED");
+  assert.equal(resendDeliveryStatus("email.suppressed"), "SUPPRESSED");
+  assert.equal(resendDeliveryStatus("email.opened"), null);
 });
 
 test("event image paths accept admin input with Windows separators", () => {

@@ -7,16 +7,16 @@ import {
   assignEventStaffAction,
   createEventStaffAction,
   eventStatusAction,
-  resendTicketEmailAction,
   setEventStaffAssignmentAction,
 } from "@/app/admin/eventos/actions";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { EventAdminForm, EventLotForm, EventPartnerCodeForm } from "@/components/admin/event-admin-forms";
+import { ResendTicketEmailForm } from "@/components/admin/resend-ticket-email-form";
 import { SummaryCard } from "@/components/admin/summary-card";
 import { buttonVariants } from "@/components/shared/button";
 import { requireAdminRole } from "@/lib/auth";
 import { formatAdminMoney, getAdminEventCockpit, getAdminEventReport } from "@/lib/events/admin";
-import { adminStatusLabel } from "@/lib/events/admin-labels";
+import { adminStatusLabel, emailDeliveryStatusLabel } from "@/lib/events/admin-labels";
 import { getEventStaffAdmin } from "@/lib/portaria";
 
 export const metadata: Metadata = { title: "Admin Evento" };
@@ -261,7 +261,7 @@ export default async function AdminEventCockpitPage({
                   <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">E-mail dos ingressos</p>
                   {report.email.map((item) => (
                     <div key={item.status} className="flex items-center justify-between rounded-[0.75rem] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm">
-                      <span className="text-white/65">{adminStatusLabel(item.status)}</span>
+                      <span className="text-white/65">{emailDeliveryStatusLabel(item.status)}</span>
                       <strong className="text-white">{item.count}</strong>
                     </div>
                   ))}
@@ -436,15 +436,14 @@ export default async function AdminEventCockpitPage({
                   <tr key={order.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{order.code}</td>
                     <td>{order.buyerName}<br /><span className="text-xs text-white/45">{order.buyerEmail} - {order.buyerCpfMasked}</span></td>
-                    <td>{order.participantCount}</td><td>{formatAdminMoney(order.subtotal)}</td><td>{formatAdminMoney(order.discountAmount)}</td><td className="font-semibold text-aaau-sand">{formatAdminMoney(order.total)}</td><td>{order.partnerCode ?? "-"}</td><td>{adminStatusLabel(order.status)}</td><td>{adminStatusLabel(order.emailStatus)}</td><td>{formatDate(order.createdAt)}</td>
+                    <td>{order.participantCount}</td><td>{formatAdminMoney(order.subtotal)}</td><td>{formatAdminMoney(order.discountAmount)}</td><td className="font-semibold text-aaau-sand">{formatAdminMoney(order.total)}</td><td>{order.partnerCode ?? "-"}</td><td>{adminStatusLabel(order.status)}</td><td>{emailDeliveryStatusLabel(order.emailStatus)}</td><td>{formatDate(order.createdAt)}</td>
                     <td>
-                      {(order.emailStatus === "NOT_SENT" || order.emailStatus === "AMBIGUOUS") && order.status === "PAID" ? (
-                        <form action={resendTicketEmailAction}>
-                          <input type="hidden" name="eventId" value={event.id} />
-                          <input type="hidden" name="eventOrderId" value={order.id} />
-                          {order.emailStatus === "AMBIGUOUS" ? <input type="hidden" name="confirmAmbiguous" value="on" /> : null}
-                          <button className="text-xs font-semibold uppercase tracking-[0.14em] text-aaau-sand">Reenviar</button>
-                        </form>
+                      {order.emailStatus !== "SENDING" && order.status === "PAID" ? (
+                        <ResendTicketEmailForm
+                          eventId={event.id}
+                          eventOrderId={order.id}
+                          alreadySent={["SENT", "DELIVERED", "DELAYED"].includes(order.emailStatus)}
+                        />
                       ) : "-"}
                     </td>
                   </tr>

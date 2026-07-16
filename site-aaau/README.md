@@ -29,20 +29,24 @@ NEXT_PUBLIC_SITE_URL="https://seu-dominio.com.br"
 MERCADO_PAGO_ACCESS_TOKEN=""
 MERCADO_PAGO_WEBHOOK_SECRET=""
 
+RESEND_API_KEY=""
+RESEND_FROM="AAAU UniRitter <ingressos@aaau.com.br>"
+RESEND_REPLY_TO=""
+RESEND_WEBHOOK_SECRET=""
+ORDER_NOTIFICATION_EMAIL=""
+
 SMTP_HOST=""
 SMTP_PORT="587"
 SMTP_SECURE="false"
 SMTP_USER=""
 SMTP_PASS=""
 SMTP_FROM=""
-ORDER_NOTIFICATION_EMAIL=""
 
 NEXT_PUBLIC_CLARITY_PROJECT_ID=""
 ```
 
 O `MERCADO_PAGO_ACCESS_TOKEN` deve ficar somente no backend e nunca deve receber prefixo `NEXT_PUBLIC_`. Este fluxo de Checkout Pro nao usa public key no navegador. `APP_URL` e a origem confiavel para QR, e-mails, retornos e webhook; `NEXT_PUBLIC_SITE_URL` deve usar a mesma origem para metadata publica.
-As variaveis `SMTP_*` habilitam o email de confirmacao quando o webhook recebe pagamento aprovado. Se elas nao estiverem configuradas, o pagamento continua funcionando sem envio de email.
-Para Gmail, use `SMTP_PORT=587` com `SMTP_SECURE=false` ou `SMTP_PORT=465` com `SMTP_SECURE=true`.
+`RESEND_API_KEY` habilita o envio transacional pelo Resend. `RESEND_WEBHOOK_SECRET` valida os eventos recebidos em `POST /api/resend/webhook`, usados para registrar entrega, atraso, rejeicao e reclamacao de spam. As variaveis `SMTP_*` ficam como contingencia e so sao usadas quando `RESEND_API_KEY` estiver vazia.
 
 ## Analytics e performance
 

@@ -70,6 +70,24 @@ enum EventTicketConfirmationEmailStatus {
   AMBIGUOUS
 }
 
+enum EmailDeliveryKind {
+  EVENT_TICKET_CONFIRMATION
+  STORE_ORDER_CONFIRMATION
+  INTERNAL_ORDER_NOTIFICATION
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  DELAYED
+  BOUNCED
+  FAILED
+  COMPLAINED
+  SUPPRESSED
+}
+
 enum EventTicketStatus {
   VALID
   USED
@@ -154,37 +172,38 @@ model Coupon {
 }
 
 model Order {
-  id                      String         @id @default(cuid())
-  orderNumber             String         @unique
+  id                      String          @id @default(cuid())
+  orderNumber             String          @unique
   customerName            String
   customerCpf             String?
   customerEmail           String
   customerPhone           String
   customerCampus          String?
-  notes                   String?        @db.Text
-  fulfillmentType         String         @default("WHATSAPP_CONTACT")
-  status                  OrderStatus    @default(PENDING)
-  paymentStatus           PaymentStatus  @default(PENDING)
-  paymentProvider         String         @default("MERCADO_PAGO")
-  checkoutSessionKey      String?        @unique
+  notes                   String?         @db.Text
+  fulfillmentType         String          @default("WHATSAPP_CONTACT")
+  status                  OrderStatus     @default(PENDING)
+  paymentStatus           PaymentStatus   @default(PENDING)
+  paymentProvider         String          @default("MERCADO_PAGO")
+  checkoutSessionKey      String?         @unique
   mercadoPagoPreferenceId String?
-  mercadoPagoInitPoint    String?        @db.Text
+  mercadoPagoInitPoint    String?         @db.Text
   mercadoPagoPaymentId    String?
   paymentMethodId         String?
   paymentTypeId           String?
   statusDetail            String?
   paidAt                  DateTime?
-  subtotal                Decimal        @db.Decimal(10, 2)
-  discount                Decimal        @default(0) @db.Decimal(10, 2)
-  total                   Decimal        @db.Decimal(10, 2)
+  subtotal                Decimal         @db.Decimal(10, 2)
+  discount                Decimal         @default(0) @db.Decimal(10, 2)
+  total                   Decimal         @db.Decimal(10, 2)
   customerCpfHash         String?
   customerCpfLast4        String?
   couponId                String?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
-  coupon                  Coupon?        @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  coupon                  Coupon?         @relation(fields: [couponId], references: [id], onDelete: SetNull)
   items                   OrderItem[]
   paymentEvents           PaymentEvent[]
+  emailDeliveries         EmailDelivery[]
 
   @@unique([mercadoPagoPaymentId])
   @@index([status, createdAt])
@@ -436,6 +455,7 @@ model EventOrder {
   participants                       EventOrderParticipant[]
   tickets                            EventTicket[]
   paymentEvents                      PaymentEvent[]
+  emailDeliveries                    EmailDelivery[]
 
   @@unique([mercadoPagoPaymentId])
   @@index([eventId, status, createdAt])
@@ -445,6 +465,54 @@ model EventOrder {
   @@index([idempotencyKey])
   @@index([payloadFingerprint])
   @@index([ticketConfirmationEmailStatus, ticketConfirmationEmailStartedAt])
+}
+
+model EmailDelivery {
+  id              String               @id @default(cuid())
+  provider        String               @default("RESEND")
+  providerEmailId String?              @unique
+  kind            EmailDeliveryKind
+  status          EmailDeliveryStatus  @default(PENDING)
+  idempotencyKey  String               @unique
+  orderId         String?
+  eventOrderId    String?
+  sender          String
+  recipient       String
+  subject         String
+  attemptCount    Int                  @default(0)
+  lastAttemptAt   DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  failedAt        DateTime?
+  complainedAt    DateTime?
+  lastEventAt     DateTime?
+  lastError       String?              @db.Text
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  order           Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  eventOrder      EventOrder?          @relation(fields: [eventOrderId], references: [id], onDelete: SetNull)
+  events          EmailDeliveryEvent[]
+
+  @@index([orderId, createdAt])
+  @@index([eventOrderId, createdAt])
+  @@index([status, createdAt])
+  @@index([recipient, createdAt])
+}
+
+model EmailDeliveryEvent {
+  id              String         @id @default(cuid())
+  providerEventId String         @unique
+  providerEmailId String
+  emailDeliveryId String?
+  type            String
+  occurredAt      DateTime
+  payload         Json
+  createdAt       DateTime       @default(now())
+  emailDelivery   EmailDelivery? @relation(fields: [emailDeliveryId], references: [id], onDelete: SetNull)
+
+  @@index([providerEmailId, occurredAt])
+  @@index([emailDeliveryId, occurredAt])
+  @@index([type, occurredAt])
 }
 
 model EventOrderParticipant {

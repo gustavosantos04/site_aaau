@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
@@ -253,6 +254,11 @@ async function loadAdminEventOrders(eventId: string) {
     include: {
       partnerCode: true,
       participants: { include: { ticketLot: true, ticket: true } },
+      emailDeliveries: {
+        where: { kind: "EVENT_TICKET_CONFIRMATION" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -365,8 +371,8 @@ export async function getAdminEventCockpit(eventId: string, section: AdminEventS
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
       paidAt: order.paidAt,
-      emailStatus: order.ticketConfirmationEmailStatus,
-      emailSentAt: order.ticketConfirmationEmailSentAt,
+      emailStatus: order.emailDeliveries[0]?.status ?? order.ticketConfirmationEmailStatus,
+      emailSentAt: order.emailDeliveries[0]?.sentAt ?? order.ticketConfirmationEmailSentAt,
       participants: order.participants.map((participant) => ({
         id: participant.id,
         name: participant.name,
@@ -774,7 +780,7 @@ export async function resendTicketConfirmationEmailAdmin(input: {
   if (!order || order.status !== "PAID" || order.tickets.length === 0 || order.tickets.length !== order.participants.length) {
     throw new EventAdminValidationError("Reenvio permitido somente para pedido pago com ingressos emitidos.");
   }
-  if (order.ticketConfirmationEmailStatus === "SENT" || order.ticketConfirmationEmailStatus === "SENDING") {
+  if (order.ticketConfirmationEmailStatus === "SENDING") {
     throw new EventAdminValidationError("Este pedido nao esta elegivel para reenvio agora.");
   }
   if (order.ticketConfirmationEmailStatus === "AMBIGUOUS" && !input.confirmAmbiguous) {
@@ -801,6 +807,7 @@ export async function resendTicketConfirmationEmailAdmin(input: {
     sender: input.sender,
     from: input.from,
     baseUrl: input.baseUrl,
+    idempotencyKey: `event-ticket-resend/${order.id}/${randomUUID()}`,
   });
   if (result.reason === "smtp_ambiguous") throw new AmbiguousEventTicketEmailError();
   return result;

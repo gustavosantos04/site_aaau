@@ -1,7 +1,7 @@
-import { EventTicketConfirmationEmailStatus, Prisma } from "@prisma/client";
+import { EmailDeliveryKind, EventTicketConfirmationEmailStatus, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
-import { createSmtpTransport, getSmtpConfig } from "@/lib/email/smtp";
+import { getTransactionalEmailConfig, sendTrackedEmail } from "@/lib/email/delivery";
 import { buildAbsoluteUrl } from "@/lib/site-url";
 
 export const EVENT_TICKET_EMAIL_SENDING_LEASE_MS = 5 * 60_000;
@@ -195,6 +195,7 @@ export async function ensureEventTicketConfirmationEmail(
     sender?: EventTicketEmailSender;
     from?: string;
     baseUrl?: string;
+    idempotencyKey?: string;
   } = {},
 ) {
   const now = options.now ?? new Date();
@@ -239,11 +240,11 @@ export async function ensureEventTicketConfirmationEmail(
     return { sent: false, skipped: true, reason: "not_ready_after_claim" as const };
   }
 
-  const config = getSmtpConfig();
-  const sender = options.sender ?? (config ? createSmtpTransport(config) : null);
+  const config = getTransactionalEmailConfig();
+  const sender = options.sender;
   const from = options.from ?? config?.from;
 
-  if (!sender || !from) {
+  if ((!sender && !config) || !from) {
     await prisma.eventOrder.update({
       where: { id: eventOrderId },
       data: {
@@ -263,13 +264,26 @@ export async function ensureEventTicketConfirmationEmail(
   });
 
   try {
-    await sender.sendMail({
-      from,
-      to: order.buyerEmail,
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-    });
+    if (sender) {
+      await sender.sendMail({
+        from,
+        to: order.buyerEmail,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+      });
+    } else {
+      await sendTrackedEmail({
+        kind: EmailDeliveryKind.EVENT_TICKET_CONFIRMATION,
+        idempotencyKey: options.idempotencyKey ?? `event-ticket-confirmation/${order.id}`,
+        eventOrderId: order.id,
+        from,
+        to: order.buyerEmail,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+      });
+    }
   } catch (error) {
     await prisma.eventOrder.update({
       where: { id: eventOrderId },

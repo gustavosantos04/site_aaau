@@ -1,5 +1,7 @@
+import { EmailDeliveryKind } from "@prisma/client";
+
 import { prisma } from "@/lib/db/prisma";
-import { createSmtpTransport, getSmtpConfig } from "@/lib/email/smtp";
+import { getTransactionalEmailConfig, sendTrackedEmail } from "@/lib/email/delivery";
 import { getConfiguredBaseUrl } from "@/lib/site-url";
 
 type EmailItem = {
@@ -302,7 +304,7 @@ function buildInternalOrderHtml({
 }
 
 export async function sendOrderPaidEmails(orderId: string) {
-  const config = getSmtpConfig();
+  const config = getTransactionalEmailConfig();
 
   if (!config) {
     return { skipped: true };
@@ -355,17 +357,21 @@ export async function sendOrderPaidEmails(orderId: string) {
       items,
     }),
   };
-  const transporter = createSmtpTransport(config);
-
-  await transporter.sendMail({
-    from: config.from,
+  await sendTrackedEmail({
+    kind: EmailDeliveryKind.STORE_ORDER_CONFIRMATION,
+    idempotencyKey: `store-order-confirmation/${order.id}`,
+    orderId: order.id,
     to: order.customerEmail,
-    ...customerMessage,
+    subject: customerMessage.subject,
+    text: customerMessage.text,
+    html: customerMessage.html,
   });
 
   if (config.internalRecipient && config.internalRecipient !== order.customerEmail) {
-    await transporter.sendMail({
-      from: config.from,
+    await sendTrackedEmail({
+      kind: EmailDeliveryKind.INTERNAL_ORDER_NOTIFICATION,
+      idempotencyKey: `internal-order-notification/${order.id}`,
+      orderId: order.id,
       to: config.internalRecipient,
       subject: `Novo pedido pago - ${order.orderNumber}`,
       text: [
