@@ -32,7 +32,9 @@ import {
   normalizeEventSlug,
   normalizePartnerCodeAdmin,
 } from "@/lib/events/admin";
-import { getPublicEventStatus } from "@/lib/events/public";
+import { adminStatusLabel } from "@/lib/events/admin-labels";
+import { normalizeEventImagePath } from "@/lib/events/images";
+import { getPublicEventStatus, getPublicLotStatus } from "@/lib/events/public";
 import {
   buildEventTicketQrPayload,
   eventTicketStatusLabel,
@@ -380,6 +382,38 @@ test("public event status covers soon, open, low stock, sold out and ended", () 
   assert.equal(getPublicEventStatus({ ...base, lots: [lot({ quantity: 2, reservedQuantity: 1 })] }, now), "LOW_STOCK");
   assert.equal(getPublicEventStatus({ ...base, lots: [lot({ quantity: 1, soldQuantity: 1 })] }, now), "SOLD_OUT");
   assert.equal(getPublicEventStatus({ ...base, startAt: new Date("2026-07-08T20:00:00.000Z") }, now), "ENDED");
+});
+
+test("public lot status distinguishes future, waiting and sold out lots", () => {
+  const current = lot({ id: "current", position: 1 });
+  const future = lot({
+    id: "future",
+    position: 2,
+    salesStartAt: new Date("2026-07-09T18:00:00.000Z"),
+  });
+  const waiting = lot({ id: "waiting", position: 3 });
+  const soldOut = lot({ id: "sold", position: 4, quantity: 1, soldQuantity: 1 });
+  const now = new Date("2026-07-09T15:00:00.000Z");
+
+  assert.equal(getPublicLotStatus(current, current.id, now), "CURRENT");
+  assert.equal(getPublicLotStatus(future, current.id, now), "UPCOMING");
+  assert.equal(getPublicLotStatus(waiting, current.id, now), "WAITING");
+  assert.equal(getPublicLotStatus(soldOut, current.id, now), "SOLD_OUT");
+});
+
+test("admin status labels never expose internal English codes", () => {
+  assert.equal(adminStatusLabel("PAID"), "Pagamento confirmado");
+  assert.equal(adminStatusLabel("NOT_SENT"), "Aguardando envio");
+  assert.equal(adminStatusLabel("USED"), "Entrada confirmada");
+  assert.equal(adminStatusLabel("FUTURO"), "Abre futuramente");
+});
+
+test("event image paths accept admin input with Windows separators", () => {
+  assert.equal(
+    normalizeEventImagePath("\\images\\events\\evento.jpeg"),
+    "/images/events/evento.jpeg",
+  );
+  assert.equal(normalizeEventImagePath("https://cdn.example/evento.jpeg"), "https://cdn.example/evento.jpeg");
 });
 
 test("event ticket QR payload uses only qrToken and safe base URL", () => {

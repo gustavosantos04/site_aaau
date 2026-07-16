@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getTicketLotAvailability } from "@/lib/events/availability";
 import { toMoney } from "@/lib/events/money";
 
-type PublicLot = {
+export type PublicLot = {
   id: string;
   name: string;
   description: string | null;
@@ -36,6 +36,14 @@ export type PublicEventStatus =
   | "SOLD_OUT"
   | "ENDED"
   | "CANCELED";
+
+export type PublicLotStatus =
+  | "CURRENT"
+  | "UPCOMING"
+  | "WAITING"
+  | "SOLD_OUT"
+  | "ENDED"
+  | "INACTIVE";
 
 export function formatMoney(value: Prisma.Decimal | string | number) {
   const decimal = value instanceof Prisma.Decimal ? value : new Prisma.Decimal(value.toString());
@@ -89,6 +97,30 @@ export function getCurrentPublicLot(event: Pick<PublicEvent, "lots">, now = new 
   return [...event.lots]
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
     .find((lot) => isLotInSalesWindow(lot, now) && getTicketLotAvailability(lot) > 0) ?? null;
+}
+
+export function getPublicLotStatus(
+  lot: PublicLot,
+  currentLotId: string | null,
+  now = new Date(),
+): PublicLotStatus {
+  if (!lot.active) return "INACTIVE";
+  if (lot.id === currentLotId) return "CURRENT";
+  if (lot.salesStartAt && lot.salesStartAt > now) return "UPCOMING";
+  if (lot.salesEndAt && lot.salesEndAt <= now) return "ENDED";
+  if (getTicketLotAvailability(lot) <= 0) return "SOLD_OUT";
+  return "WAITING";
+}
+
+export function publicLotStatusLabel(status: PublicLotStatus) {
+  return {
+    CURRENT: "Disponível agora",
+    UPCOMING: "Abre em breve",
+    WAITING: "Próximo lote",
+    SOLD_OUT: "Esgotado",
+    ENDED: "Vendas encerradas",
+    INACTIVE: "Indisponível",
+  }[status];
 }
 
 export function getPublicEventStatus(event: PublicEvent, now = new Date()): PublicEventStatus {

@@ -16,6 +16,7 @@ import { SummaryCard } from "@/components/admin/summary-card";
 import { buttonVariants } from "@/components/shared/button";
 import { requireAdminRole } from "@/lib/auth";
 import { formatAdminMoney, getAdminEventCockpit, getAdminEventReport } from "@/lib/events/admin";
+import { adminStatusLabel } from "@/lib/events/admin-labels";
 import { getEventStaffAdmin } from "@/lib/portaria";
 
 export const metadata: Metadata = { title: "Admin Evento" };
@@ -101,7 +102,7 @@ export default async function AdminEventCockpitPage({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             <Badge>{event.published ? "Publicado" : "Rascunho"}</Badge>
-            <Badge>{event.status}</Badge>
+            <Badge>{adminStatusLabel(event.status)}</Badge>
           </div>
           <div className="flex flex-wrap gap-3">
             {event.published ? (
@@ -146,11 +147,11 @@ export default async function AdminEventCockpitPage({
       {activeTab === "geral" ? (
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <SummaryCard label="Vendidos" value={cockpit.kpis.ticketsSold} helper="Tickets emitidos." />
-            <SummaryCard label="Receita" value={formatAdminMoney(cockpit.kpis.confirmedRevenue)} helper="Somente PAID." />
-            <SummaryCard label="Pendentes" value={cockpit.kpis.pendingOrders} helper="Reservas abertas." />
+            <SummaryCard label="Ingressos vendidos" value={cockpit.kpis.ticketsSold} helper="Ingressos gerados após o pagamento." />
+            <SummaryCard label="Receita confirmada" value={formatAdminMoney(cockpit.kpis.confirmedRevenue)} helper="Somente pagamentos confirmados." />
+            <SummaryCard label="Aguardando pagamento" value={cockpit.kpis.pendingOrders} helper="Pedidos ainda não pagos." />
             <SummaryCard label="Check-ins" value={cockpit.kpis.checkIns} helper="Ingressos usados." />
-            <SummaryCard label="Taxa" value={`${cockpit.kpis.checkInRate}%`} helper="USED / emitidos." />
+            <SummaryCard label="Entrada realizada" value={`${cockpit.kpis.checkInRate}%`} helper="Percentual de ingressos já utilizados." />
           </div>
           <section className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
             <h2 className="text-xl font-semibold text-white">Checklist de publicacao</h2>
@@ -179,8 +180,8 @@ export default async function AdminEventCockpitPage({
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <ReportCard label="Pedidos pagos" value={report.sales.paidOrders} helper="Pedidos com status PAID." />
-              <ReportCard label="Ingressos pagos" value={report.sales.paidTickets} helper="Tickets emitidos de pedidos pagos." />
+              <ReportCard label="Pedidos pagos" value={report.sales.paidOrders} helper="Pagamentos confirmados." />
+              <ReportCard label="Ingressos vendidos" value={report.sales.paidTickets} helper="Ingressos de pedidos pagos." />
               <ReportCard label="Receita liquida" value={formatAdminMoney(report.sales.revenue)} helper="Total recebido apos descontos." />
               <ReportCard label="Descontos" value={formatAdminMoney(report.sales.discount)} helper="Valor concedido por codigos." />
               <ReportCard label="Problemas pagamento" value={report.payments.issueOrders} helper="Falhas, expirados, ambiguos ou erro de preferencia." />
@@ -203,7 +204,7 @@ export default async function AdminEventCockpitPage({
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-semibold uppercase tracking-[0.14em] text-white">{lot.name}</p>
-                          <p className="mt-1 text-sm text-white/55">{formatAdminMoney(lot.price)} - {lot.status}</p>
+                          <p className="mt-1 text-sm text-white/55">{formatAdminMoney(lot.price)} - {adminStatusLabel(lot.status)}</p>
                         </div>
                         <div className="text-sm text-white/70 sm:text-right">
                           <p><strong className="text-white">{lot.paidTickets}</strong> pagos de {lot.quantity}</p>
@@ -250,29 +251,29 @@ export default async function AdminEventCockpitPage({
           <section className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">E-mails e pagamento</p>
-              <h3 className="mt-2 text-xl font-semibold text-white">Estados de envio e preferencia</h3>
+              <h3 className="mt-2 text-xl font-semibold text-white">Situação dos e-mails e pagamentos</h3>
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div className="space-y-3">
                   <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">E-mail dos ingressos</p>
                   {report.email.map((item) => (
                     <div key={item.status} className="flex items-center justify-between rounded-[0.75rem] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm">
-                      <span className="text-white/65">{item.status}</span>
+                      <span className="text-white/65">{adminStatusLabel(item.status)}</span>
                       <strong className="text-white">{item.count}</strong>
                     </div>
                   ))}
                 </div>
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">Preferencia Mercado Pago</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">Criação do pagamento</p>
                   {report.payments.preferenceStatuses.map((item) => (
                     <div key={item.status} className="flex items-center justify-between rounded-[0.75rem] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm">
-                      <span className="text-white/65">{item.status}</span>
+                      <span className="text-white/65">{adminStatusLabel(item.status)}</span>
                       <strong className="text-white">{item.count}</strong>
                     </div>
                   ))}
                 </div>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
-                {report.sales.ordersByStatus.map((item) => <StatusPill key={item.status}>{item.status}: {item.count}</StatusPill>)}
+                {report.sales.ordersByStatus.map((item) => <StatusPill key={item.status}>{adminStatusLabel(item.status)}: {item.count}</StatusPill>)}
               </div>
             </div>
 
@@ -322,10 +323,10 @@ export default async function AdminEventCockpitPage({
                     {report.checkIn.recentIssues.map((issue) => (
                       <tr key={issue.id}>
                         <td className="py-3">{formatDate(issue.createdAt)}</td>
-                        <td className="font-semibold text-white">{issue.result}</td>
+                        <td className="font-semibold text-white">{adminStatusLabel(issue.result)}</td>
                         <td>{issue.ticketCode}</td>
                         <td>{issue.participantName}</td>
-                        <td>{issue.ticketStatus}</td>
+                        <td>{adminStatusLabel(issue.ticketStatus)}</td>
                         <td>{issue.operatorName}</td>
                       </tr>
                     ))}
@@ -345,6 +346,12 @@ export default async function AdminEventCockpitPage({
 
       {activeTab === "lotes" ? (
         <section className="space-y-5 rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+          {cockpit.lots.some((lot) => !lot.active) ? (
+            <div className="rounded-[0.75rem] border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-6 text-amber-50">
+              <strong className="block">Atenção: existe lote desativado.</strong>
+              Um lote desativado não abre automaticamente, mesmo que tenha uma data de início. Edite o lote e marque “Disponibilizar este lote no site”.
+            </div>
+          ) : null}
           <EventLotForm eventId={event.id} />
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left text-sm [&_td]:pr-6 [&_th]:pr-6">
@@ -355,7 +362,7 @@ export default async function AdminEventCockpitPage({
                 {cockpit.lots.map((lot) => (
                   <tr key={lot.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{lot.name}</td>
-                    <td>{lot.position}</td><td>{formatAdminMoney(lot.price)}</td><td>{lot.quantity}</td><td>{lot.soldQuantity}</td><td>{lot.reservedQuantity}</td><td>{lot.available}</td><td>{formatDate(lot.salesStartAt)}</td><td>{formatDate(lot.salesEndAt)}</td><td>{lot.computedStatus}</td>
+                    <td>{lot.position}</td><td>{formatAdminMoney(lot.price)}</td><td>{lot.quantity}</td><td>{lot.soldQuantity}</td><td>{lot.reservedQuantity}</td><td>{lot.available}</td><td>{formatDate(lot.salesStartAt)}</td><td>{formatDate(lot.salesEndAt)}</td><td>{adminStatusLabel(lot.computedStatus)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -404,7 +411,7 @@ export default async function AdminEventCockpitPage({
                 {cockpit.tickets.map((ticket) => (
                   <tr key={ticket.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{ticket.ticketCode}</td>
-                    <td>{ticket.participantName}</td><td>{ticket.participantCpfMasked}</td><td>{ticket.lotName}</td><td>{ticket.orderCode}</td><td>{ticket.status}</td><td>{formatDate(ticket.checkedInAt)}</td><td>{ticket.partnerCode ?? "-"}</td>
+                    <td>{ticket.participantName}</td><td>{ticket.participantCpfMasked}</td><td>{ticket.lotName}</td><td>{ticket.orderCode}</td><td>{adminStatusLabel(ticket.status)}</td><td>{formatDate(ticket.checkedInAt)}</td><td>{ticket.partnerCode ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -425,7 +432,7 @@ export default async function AdminEventCockpitPage({
                   <tr key={order.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{order.code}</td>
                     <td>{order.buyerName}<br /><span className="text-xs text-white/45">{order.buyerEmail} - {order.buyerCpfMasked}</span></td>
-                    <td>{order.participantCount}</td><td>{formatAdminMoney(order.subtotal)}</td><td>{formatAdminMoney(order.discountAmount)}</td><td className="font-semibold text-aaau-sand">{formatAdminMoney(order.total)}</td><td>{order.partnerCode ?? "-"}</td><td>{order.status}</td><td>{order.emailStatus}</td><td>{formatDate(order.createdAt)}</td>
+                    <td>{order.participantCount}</td><td>{formatAdminMoney(order.subtotal)}</td><td>{formatAdminMoney(order.discountAmount)}</td><td className="font-semibold text-aaau-sand">{formatAdminMoney(order.total)}</td><td>{order.partnerCode ?? "-"}</td><td>{adminStatusLabel(order.status)}</td><td>{adminStatusLabel(order.emailStatus)}</td><td>{formatDate(order.createdAt)}</td>
                     <td>
                       {(order.emailStatus === "NOT_SENT" || order.emailStatus === "AMBIGUOUS") && order.status === "PAID" ? (
                         <form action={resendTicketEmailAction}>
@@ -456,7 +463,7 @@ export default async function AdminEventCockpitPage({
                 {cockpit.partnerCodes.map((code) => (
                   <tr key={code.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{code.code}</td>
-                    <td>{code.partnerName}</td><td>{code.partnerType}</td><td>{code.discountType === "PERCENTAGE" ? `${code.discountValue.toString()}%` : formatAdminMoney(code.discountValue)}</td><td>{code.reservedUses}</td><td>{code.confirmedUses}</td><td>{code.maxUses ?? "-"}</td><td>{code.paidOrders}</td><td>{formatAdminMoney(code.confirmedRevenue)}</td><td>{formatAdminMoney(code.confirmedDiscount)}</td><td>{code.active ? "Ativo" : "Inativo"}</td>
+                    <td>{code.partnerName}</td><td>{adminStatusLabel(code.partnerType)}</td><td>{code.discountType === "PERCENTAGE" ? `${code.discountValue.toString()}%` : formatAdminMoney(code.discountValue)}</td><td>{code.reservedUses}</td><td>{code.confirmedUses}</td><td>{code.maxUses ?? "-"}</td><td>{code.paidOrders}</td><td>{formatAdminMoney(code.confirmedRevenue)}</td><td>{formatAdminMoney(code.confirmedDiscount)}</td><td>{code.active ? "Ativo" : "Desativado"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -500,8 +507,8 @@ export default async function AdminEventCockpitPage({
             <form action={assignEventStaffAction} className="space-y-4 rounded-[1.25rem] border border-white/10 bg-white/[0.025] p-4">
               <input type="hidden" name="eventId" value={event.id} />
               <div>
-                <h2 className="text-lg font-semibold text-white">Atribuir staff existente</h2>
-                <p className="mt-1 text-sm text-white/55">Somente usuarios event_staff aparecem aqui.</p>
+                <h2 className="text-lg font-semibold text-white">Adicionar pessoa da portaria</h2>
+                <p className="mt-1 text-sm text-white/55">Escolha uma pessoa que já possui acesso à portaria.</p>
               </div>
               <select name="adminUserId" required className="w-full rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-white">
                 <option value="">Selecione</option>
@@ -517,8 +524,8 @@ export default async function AdminEventCockpitPage({
             <form action={createEventStaffAction} className="space-y-4 rounded-[1.25rem] border border-white/10 bg-white/[0.025] p-4">
               <input type="hidden" name="eventId" value={event.id} />
               <div>
-                <h2 className="text-lg font-semibold text-white">Criar event_staff</h2>
-                <p className="mt-1 text-sm text-white/55">Role fixo event_staff. A senha inicial e armazenada somente como hash.</p>
+                <h2 className="text-lg font-semibold text-white">Cadastrar pessoa da portaria</h2>
+                <p className="mt-1 text-sm text-white/55">Ela usará o e-mail e a senha abaixo para entrar na portaria.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <input name="name" required minLength={2} placeholder="Nome" className="rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-white placeholder:text-white/35" />
@@ -529,7 +536,7 @@ export default async function AdminEventCockpitPage({
                   Ativo
                 </label>
               </div>
-              <button className={buttonVariants({ size: "sm" })}>Criar staff</button>
+              <button className={buttonVariants({ size: "sm" })}>Cadastrar pessoa</button>
             </form>
           </div>
 

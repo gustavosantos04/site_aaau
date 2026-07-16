@@ -38,11 +38,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Check({ name, label, defaultChecked = false }: { name: string; label: string; defaultChecked?: boolean }) {
+function Check({
+  name,
+  label,
+  helper,
+  defaultChecked = false,
+}: {
+  name: string;
+  label: string;
+  helper?: string;
+  defaultChecked?: boolean;
+}) {
   return (
-    <label className="flex items-center gap-3 rounded-[1rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/72">
+    <label className="flex items-start gap-3 rounded-[1rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/72">
       <input name={name} type="checkbox" defaultChecked={defaultChecked} className="h-4 w-4 accent-aaau-ember" />
-      {label}
+      <span>
+        <strong className="block font-semibold text-white/85">{label}</strong>
+        {helper ? <span className="mt-1 block text-xs leading-5 text-white/45">{helper}</span> : null}
+      </span>
     </label>
   );
 }
@@ -217,21 +230,28 @@ export function EventLotForm({ eventId, lot }: { eventId: string; lot?: LotFormV
   return (
     <form action={formAction} className="space-y-4 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-4">
       <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name="autoActivate" value="true" />
       {lot?.id ? <input type="hidden" name="lotId" value={lot.id} /> : null}
       <Message state={state} />
+      <div>
+        <h2 className="text-lg font-semibold text-white">{editing ? `Editar ${lot?.name}` : "Criar novo lote"}</h2>
+        <p className="mt-1 text-sm leading-6 text-white/55">Defina a data de abertura. O site libera o lote automaticamente quando chegar o horário.</p>
+      </div>
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="Lote"><input name="name" required defaultValue={lot?.name ?? ""} className={inputClass} /></Field>
         <Field label="Preco"><input name="price" required defaultValue={decimalInput(lot?.price)} className={inputClass} placeholder="49,90" /></Field>
         <Field label="Quantidade"><input name="quantity" type="number" min="1" required defaultValue={lot?.quantity ?? ""} className={inputClass} /></Field>
-        <Field label="Posicao"><input name="position" type="number" min="1" defaultValue={lot?.position ?? 1} required className={inputClass} /></Field>
-        <Field label="Inicio"><input name="salesStartAt" type="datetime-local" defaultValue={toLocalInput(lot?.salesStartAt)} className={inputClass} /></Field>
-        <Field label="Fim"><input name="salesEndAt" type="datetime-local" defaultValue={toLocalInput(lot?.salesEndAt)} className={inputClass} /></Field>
+        <Field label="Ordem do lote"><input name="position" type="number" min="1" defaultValue={lot?.position ?? 1} required className={inputClass} /></Field>
+        <Field label="Abre para vendas em"><input name="salesStartAt" type="datetime-local" defaultValue={toLocalInput(lot?.salesStartAt)} className={inputClass} /></Field>
+        <Field label="Encerra as vendas em"><input name="salesEndAt" type="datetime-local" defaultValue={toLocalInput(lot?.salesEndAt)} className={inputClass} /></Field>
       </div>
       <Field label="Descricao"><input name="description" defaultValue={lot?.description ?? ""} className={inputClass} /></Field>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Check name="active" label="Ativo" defaultChecked={lot?.active ?? true} />
-        <Check name="autoActivate" label="Auto activate: proximo lote elegivel assume pela ordem" defaultChecked={lot?.autoActivate ?? true} />
-      </div>
+      <Check
+        name="active"
+        label="Disponibilizar este lote no site"
+        helper="Deixe marcado mesmo que a abertura seja futura. A data acima controla quando as vendas começam."
+        defaultChecked={lot?.active ?? true}
+      />
       <SubmitButton label={editing ? "Salvar lote" : "Criar lote"} />
     </form>
   );

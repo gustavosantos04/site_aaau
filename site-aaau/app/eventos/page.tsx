@@ -13,6 +13,7 @@ import {
   getPublishedTicketEvents,
   publicStatusLabel,
 } from "@/lib/events/public";
+import { normalizeEventImagePath } from "@/lib/events/images";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export default async function EventsPage() {
         <div className="mt-10 grid gap-5 lg:grid-cols-2">
           {events.map((event) => {
             const canBuy = canBuyPublicStatus(event.publicStatus);
-            const image = event.coverImage || event.bannerImage || "/images/brand/event-launch.svg";
+            const image = normalizeEventImagePath(event.coverImage || event.bannerImage) || "/images/brand/event-launch.svg";
             return (
               <article key={event.id} className="overflow-hidden rounded-[0.5rem] border border-white/10 bg-[#111]/80 shadow-glow">
                 <div className="relative aspect-[16/9] bg-white/[0.04]">

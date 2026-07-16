@@ -7,6 +7,7 @@ import { SummaryCard } from "@/components/admin/summary-card";
 import { buttonVariants } from "@/components/shared/button";
 import { requireAdminRole } from "@/lib/auth";
 import { formatAdminMoney, getAdminEventsDashboard } from "@/lib/events/admin";
+import { adminStatusLabel } from "@/lib/events/admin-labels";
 
 export const metadata: Metadata = { title: "Admin Eventos" };
 
@@ -70,7 +71,7 @@ export default async function AdminEventsPage() {
                   </td>
                   <td className="py-4 pr-4">{formatDate(event.startAt)}</td>
                   <td className="py-4 pr-4">{event.publicStatus}</td>
-                  <td className="py-4 pr-4">{event.published ? "Publicado" : "Rascunho"} · {event.adminStatus}</td>
+                  <td className="py-4 pr-4">{event.published ? "Publicado" : "Rascunho"} · {adminStatusLabel(event.adminStatus)}</td>
                   <td className="py-4 pr-4">{event.currentLotName}</td>
                   <td className="py-4 pr-4">{event.sold}</td>
                   <td className="py-4 pr-4 font-semibold text-aaau-sand">{formatAdminMoney(event.revenue)}</td>

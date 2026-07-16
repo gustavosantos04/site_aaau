@@ -9,6 +9,7 @@ import {
   ensureEventTicketConfirmationEmail,
 } from "@/lib/events/email";
 import { getTicketLotAvailability } from "@/lib/events/availability";
+import { normalizeEventImagePath } from "@/lib/events/images";
 import { formatMoney, getPublicEventStatus, publicStatusLabel } from "@/lib/events/public";
 
 export type EventAdminActor = {
@@ -573,6 +574,8 @@ export async function createTicketEventAdmin(input: TicketEventAdminInput, actor
   const event = await prisma.ticketEvent.create({
     data: {
       ...parsed,
+      bannerImage: normalizeEventImagePath(parsed.bannerImage),
+      coverImage: normalizeEventImagePath(parsed.coverImage),
       slug,
       status: parsed.published ? "PUBLISHED" : "DRAFT",
     },
@@ -595,6 +598,8 @@ export async function updateTicketEventAdmin(eventId: string, input: TicketEvent
     where: { id: eventId },
     data: {
       ...parsed,
+      bannerImage: normalizeEventImagePath(parsed.bannerImage),
+      coverImage: normalizeEventImagePath(parsed.coverImage),
       slug,
       status: parsed.published ? "PUBLISHED" : "DRAFT",
     },

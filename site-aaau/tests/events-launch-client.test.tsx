@@ -106,6 +106,7 @@ test("contador nunca fica negativo e ao zerar consulta novamente o servidor", as
   await waitFor(() => assert.ok(calls >= 2), { timeout: 2500 });
   await waitFor(() => assert.equal(screen.queryByRole("dialog"), null));
 
-  const { countdownParts } = await import("@/components/events/event-sale-countdown");
+  const { compactCountdownLabel, countdownParts } = await import("@/components/events/event-sale-countdown");
   assert.deepEqual(countdownParts(-1000), { days: 0, hours: 0, minutes: 0, seconds: 0 });
+  assert.equal(compactCountdownLabel(2 * 60 * 60_000 + 15 * 60_000), "Abre em 2h 15min");
 });

@@ -13,13 +13,14 @@ import {
   formatEventDateOnly,
   formatEventTime,
   formatMoney,
-  getCurrentPublicLot,
   getPublishedTicketEventBySlug,
-  getPublicEventStatus,
+  getPublicLotStatus,
+  publicLotStatusLabel,
   publicStatusLabel,
 } from "@/lib/events/public";
 import { getTicketLotAvailability } from "@/lib/events/availability";
-import { EventSaleCountdownRefresh } from "@/components/events/event-sale-countdown";
+import { normalizeEventImagePath } from "@/lib/events/images";
+import { EventLotOpeningCountdown, EventSaleCountdownRefresh } from "@/components/events/event-sale-countdown";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   if (!event) return { title: "Evento" };
 
-  const image = event.coverImage || event.bannerImage || undefined;
+  const image = normalizeEventImagePath(event.coverImage || event.bannerImage) || undefined;
   return {
     title: `${event.name} | AAAU`,
     description: event.shortDescription,
@@ -55,7 +56,7 @@ export default async function EventDetailPage({
   if (!event) notFound();
 
   const canBuy = canBuyPublicStatus(event.publicStatus);
-  const image = event.bannerImage || event.coverImage || "/images/brand/event-integration.svg";
+  const image = normalizeEventImagePath(event.bannerImage || event.coverImage) || "/images/brand/event-integration.svg";
   const initialPartnerCode = query.codigo || query.cupom || query.code || "";
   const checkoutPath = initialPartnerCode
     ? `/eventos/${event.slug}/checkout?codigo=${encodeURIComponent(initialPartnerCode)}`
@@ -132,15 +133,21 @@ export default async function EventDetailPage({
             <h2 className="break-words font-display text-3xl uppercase tracking-[0.06em] text-white sm:tracking-[0.08em]">Ingressos e lotes</h2>
             <div className="mt-5 grid gap-3">
               {event.lots.map((lot) => {
-                const status = getPublicEventStatus({ ...event, lots: [lot] });
-                const current = getCurrentPublicLot({ lots: [lot] })?.id === lot.id;
+                const status = getPublicLotStatus(lot, event.currentLot?.id ?? null, serverNow);
                 const available = getTicketLotAvailability(lot);
                 return (
                   <div key={lot.id} className="rounded-[0.5rem] border border-white/10 bg-aaau-night/45 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-semibold uppercase tracking-[0.16em] text-white">{lot.name}</p>
-                        <p className="mt-1 text-sm text-white/60">{current ? "Lote atual" : publicStatusLabel(status)}</p>
+                        <p className="mt-1 text-sm font-semibold text-white/70">
+                          {status === "UPCOMING" && lot.salesStartAt ? (
+                            <EventLotOpeningCountdown salesStartAt={lot.salesStartAt.toISOString()} serverNow={serverNow.toISOString()} />
+                          ) : publicLotStatusLabel(status)}
+                        </p>
+                        {status === "UPCOMING" && lot.salesStartAt ? (
+                          <p className="mt-1 text-xs text-white/45">Abre em {formatEventDate(lot.salesStartAt)}</p>
+                        ) : null}
                       </div>
                       <div className="text-left sm:text-right">
                         <p className="font-display text-2xl text-aaau-sand">{formatMoney(lot.price)}</p>
