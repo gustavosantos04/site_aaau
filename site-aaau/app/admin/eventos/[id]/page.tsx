@@ -85,12 +85,14 @@ export default async function AdminEventCockpitPage({
 }) {
   await requireAdminRole("super_admin");
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const cockpit = await getAdminEventCockpit(id);
+  const activeTab = tabs.find(([key]) => key === query.tab)?.[0] ?? "geral";
+  const [cockpit, staffAdmin, report] = await Promise.all([
+    getAdminEventCockpit(id, activeTab),
+    activeTab === "equipe" ? getEventStaffAdmin(id) : Promise.resolve(null),
+    activeTab === "relatorio" ? getAdminEventReport(id) : Promise.resolve(null),
+  ]);
   if (!cockpit) notFound();
-  const activeTab = tabs.some(([key]) => key === query.tab) ? query.tab! : "geral";
   const { event } = cockpit;
-  const staffAdmin = activeTab === "equipe" ? await getEventStaffAdmin(event.id) : null;
-  const report = activeTab === "relatorio" ? await getAdminEventReport(event.id) : null;
 
   return (
     <AdminShell
@@ -132,6 +134,8 @@ export default async function AdminEventCockpitPage({
             <Link
               key={key}
               href={`/admin/eventos/${event.id}?tab=${key}` as Route}
+              prefetch
+              aria-current={activeTab === key ? "page" : undefined}
               className={
                 activeTab === key
                   ? "shrink-0 rounded-full border border-aaau-ember bg-aaau-ember px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white"

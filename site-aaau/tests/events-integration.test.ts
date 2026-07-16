@@ -1961,12 +1961,20 @@ test("admin metricas usam somente PAID e DTOs nao expoem tokens sensiveis", asyn
     paidAmount: order.total,
   });
   await reserveOrder({ eventId: event.id, idempotencyKey: "admin-pending-order", quantity: 1, participantOffset: 1 });
-  const cockpit = await getAdminEventCockpit(event.id);
-  assert.ok(cockpit);
-  assert.equal(cockpit.kpis.paidOrdersCount, 1);
-  assert.equal(cockpit.kpis.confirmedRevenue.toString(), order.total.toString());
-  assert.equal(cockpit.orders.some((adminOrder) => "accessToken" in adminOrder), false);
-  assert.equal(cockpit.tickets.some((ticket) => "qrToken" in ticket), false);
+  const [overview, orders, tickets] = await Promise.all([
+    getAdminEventCockpit(event.id, "geral"),
+    getAdminEventCockpit(event.id, "pedidos"),
+    getAdminEventCockpit(event.id, "ingressos"),
+  ]);
+  assert.ok(overview);
+  assert.ok(orders);
+  assert.ok(tickets);
+  assert.equal(overview.kpis.paidOrdersCount, 1);
+  assert.equal(overview.kpis.confirmedRevenue.toString(), order.total.toString());
+  assert.equal(orders.orders.length, 2);
+  assert.equal(tickets.tickets.length, 1);
+  assert.equal(orders.orders.some((adminOrder) => "accessToken" in adminOrder), false);
+  assert.equal(tickets.tickets.some((ticket) => "qrToken" in ticket), false);
 });
 
 test("admin reenvio bloqueia pending e permite PAID/AMBIGUOUS com confirmacao", async () => {

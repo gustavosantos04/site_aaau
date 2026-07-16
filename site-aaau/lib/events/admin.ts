@@ -237,45 +237,101 @@ export async function getAdminEventsDashboard() {
   };
 }
 
-export async function getAdminEventCockpit(eventId: string) {
+export type AdminEventSection =
+  | "geral"
+  | "relatorio"
+  | "lotes"
+  | "ingressos"
+  | "pedidos"
+  | "codigos"
+  | "equipe"
+  | "config";
+
+async function loadAdminEventOrders(eventId: string) {
+  return prisma.eventOrder.findMany({
+    where: { eventId },
+    include: {
+      partnerCode: true,
+      participants: { include: { ticketLot: true, ticket: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+}
+
+async function loadAdminEventTickets(eventId: string) {
+  return prisma.eventTicket.findMany({
+    where: { eventId },
+    include: {
+      lot: true,
+      eventOrder: { select: { id: true, partnerCode: true, buyerName: true } },
+    },
+    orderBy: [{ issuedAt: "desc" }],
+    take: 50,
+  });
+}
+
+async function loadAdminPartnerCodes(eventId: string) {
+  const [codes, orderMetrics, paidTicketRows] = await Promise.all([
+    prisma.eventPartnerCode.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.eventOrder.groupBy({
+      by: ["partnerCodeId"],
+      where: { eventId, status: "PAID", partnerCodeId: { not: null } },
+      _count: { _all: true },
+      _sum: { total: true, discountAmount: true },
+    }),
+    prisma.eventTicket.findMany({
+      where: { eventId, eventOrder: { status: "PAID", partnerCodeId: { not: null } } },
+      select: { eventOrder: { select: { partnerCodeId: true } } },
+    }),
+  ]);
+
+  const metricsByCode = new Map(orderMetrics.map((row) => [row.partnerCodeId, row]));
+  const ticketsByCode = new Map<string, number>();
+  for (const row of paidTicketRows) {
+    const codeId = row.eventOrder.partnerCodeId;
+    if (codeId) ticketsByCode.set(codeId, (ticketsByCode.get(codeId) ?? 0) + 1);
+  }
+
+  return codes.map((code) => {
+    const metrics = metricsByCode.get(code.id);
+    return {
+      ...code,
+      paidOrders: metrics?._count._all ?? 0,
+      confirmedTickets: ticketsByCode.get(code.id) ?? 0,
+      confirmedRevenue: metrics?._sum.total ?? new Prisma.Decimal(0),
+      confirmedDiscount: metrics?._sum.discountAmount ?? new Prisma.Decimal(0),
+    };
+  });
+}
+
+export async function getAdminEventCockpit(eventId: string, section: AdminEventSection = "geral") {
   const event = await prisma.ticketEvent.findUnique({
     where: { id: eventId },
     include: {
       lots: { orderBy: { position: "asc" } },
-      partnerCodes: { orderBy: { createdAt: "desc" } },
-      orders: {
-        include: {
-          partnerCode: true,
-          participants: { include: { ticketLot: true, ticket: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-      },
-      tickets: {
-        include: {
-          lot: true,
-          eventOrder: { select: { id: true, partnerCode: true, buyerName: true } },
-        },
-        orderBy: [{ issuedAt: "desc" }],
-        take: 50,
-      },
     },
   });
 
   if (!event) return null;
 
-  const [paid, pendingOrders, checkIns, paidOrdersCount] = await Promise.all([
-    prisma.eventOrder.aggregate({
-      where: { eventId, status: "PAID" },
-      _sum: { total: true },
-    }),
-    prisma.eventOrder.count({ where: { eventId, status: "PENDING" } }),
-    prisma.eventTicket.count({ where: { eventId, status: "USED" } }),
-    prisma.eventOrder.count({ where: { eventId, status: "PAID" } }),
+  const shouldLoadKpis = section === "geral";
+  const [orders, tickets, partnerCodes, paid, pendingOrders, checkIns, paidOrdersCount, totalIssuedTickets] = await Promise.all([
+    section === "pedidos" ? loadAdminEventOrders(eventId) : Promise.resolve([]),
+    section === "ingressos" ? loadAdminEventTickets(eventId) : Promise.resolve([]),
+    section === "codigos" ? loadAdminPartnerCodes(eventId) : Promise.resolve([]),
+    shouldLoadKpis
+      ? prisma.eventOrder.aggregate({ where: { eventId, status: "PAID" }, _sum: { total: true } })
+      : Promise.resolve({ _sum: { total: null } }),
+    shouldLoadKpis ? prisma.eventOrder.count({ where: { eventId, status: "PENDING" } }) : Promise.resolve(0),
+    shouldLoadKpis ? prisma.eventTicket.count({ where: { eventId, status: "USED" } }) : Promise.resolve(0),
+    shouldLoadKpis ? prisma.eventOrder.count({ where: { eventId, status: "PAID" } }) : Promise.resolve(0),
+    shouldLoadKpis ? prisma.eventTicket.count({ where: { eventId } }) : Promise.resolve(0),
   ]);
 
-  const issuedTickets = event.tickets.length;
-  const totalIssuedTickets = await prisma.eventTicket.count({ where: { eventId } });
   const checkInRate = totalIssuedTickets === 0 ? 0 : Math.round((checkIns / totalIssuedTickets) * 100);
 
   return {
@@ -293,7 +349,7 @@ export async function getAdminEventCockpit(eventId: string) {
       available: getTicketLotAvailability(lot),
       computedStatus: lotStatus(lot),
     })),
-    orders: event.orders.map((order) => ({
+    orders: orders.map((order) => ({
       id: order.id,
       code: order.id.slice(0, 8).toUpperCase(),
       buyerName: order.buyerName,
@@ -321,7 +377,7 @@ export async function getAdminEventCockpit(eventId: string) {
         checkedInAt: participant.ticket?.checkedInAt ?? null,
       })),
     })),
-    tickets: event.tickets.map((ticket) => ({
+    tickets: tickets.map((ticket) => ({
       id: ticket.id,
       ticketCode: ticket.ticketCode,
       participantName: ticket.participantName,
@@ -333,23 +389,7 @@ export async function getAdminEventCockpit(eventId: string) {
       checkedInAt: ticket.checkedInAt,
       partnerCode: ticket.eventOrder.partnerCode?.code ?? null,
     })),
-    partnerCodes: await Promise.all(event.partnerCodes.map(async (code) => {
-      const metrics = await prisma.eventOrder.aggregate({
-        where: { eventId, partnerCodeId: code.id, status: "PAID" },
-        _count: { _all: true },
-        _sum: { total: true, discountAmount: true },
-      });
-      const ticketCount = await prisma.eventTicket.count({
-        where: { eventId, eventOrder: { partnerCodeId: code.id, status: "PAID" } },
-      });
-      return {
-        ...code,
-        paidOrders: metrics._count._all,
-        confirmedTickets: ticketCount,
-        confirmedRevenue: metrics._sum.total ?? new Prisma.Decimal(0),
-        confirmedDiscount: metrics._sum.discountAmount ?? new Prisma.Decimal(0),
-      };
-    })),
+    partnerCodes,
   };
 }
 
