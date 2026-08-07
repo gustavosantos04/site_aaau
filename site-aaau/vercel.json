@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/event-ticket-outbox",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

@@ -48,6 +48,34 @@ async function cleanupFixture() {
   const userIds = users.map(({ id }) => id);
 
   await prisma.$transaction(async (tx) => {
+    const transfers = await tx.eventTicketTransfer.findMany({
+      where: { ticket: { eventId: { in: eventIds } } },
+      select: { id: true },
+    });
+    const transferIds = transfers.map(({ id }) => id);
+    const portalSessions = await tx.eventTicketPortalSession.findMany({
+      where: { email: staffEmail },
+      select: { id: true },
+    });
+    const portalSessionIds = portalSessions.map(({ id }) => id);
+    await tx.emailDeliveryEvent.deleteMany({
+      where: { emailDelivery: { OR: [
+        { transferId: { in: transferIds } },
+        { portalSessionId: { in: portalSessionIds } },
+      ] } },
+    });
+    await tx.emailDelivery.deleteMany({
+      where: { OR: [
+        { transferId: { in: transferIds } },
+        { portalSessionId: { in: portalSessionIds } },
+      ] },
+    });
+    await tx.eventTicketTransferOutbox.deleteMany({ where: { transferId: { in: transferIds } } });
+    await tx.eventTicketPortalOutbox.deleteMany({ where: { portalSessionId: { in: portalSessionIds } } });
+    await tx.eventTicketAccessGrant.deleteMany({ where: { ticket: { eventId: { in: eventIds } } } });
+    await tx.eventTicketQrVersion.deleteMany({ where: { ticket: { eventId: { in: eventIds } } } });
+    await tx.eventTicketTransfer.deleteMany({ where: { id: { in: transferIds } } });
+    await tx.eventTicketPortalSession.deleteMany({ where: { id: { in: portalSessionIds } } });
     await tx.paymentEvent.deleteMany({ where: { eventOrder: { eventId: { in: eventIds } } } });
     await tx.eventCheckInLog.deleteMany({ where: { eventId: { in: eventIds } } });
     await tx.eventAdminAuditLog.deleteMany({ where: { eventId: { in: eventIds } } });
@@ -182,7 +210,7 @@ async function createFixture() {
 
   const baseUrl = getConfiguredBaseUrl({ nodeEnv: "production" });
   console.log("Fixture de staging criado com dados exclusivamente ficticios.");
-  console.log(`Ingressos: ${baseUrl}/meus-ingressos/${accessToken}`);
+  console.log("Acesso ao pedido criado. Use a central Meus ingressos com o e-mail ficticio da fixture; tokens nao sao escritos em logs.");
   console.log(`Portaria: ${baseUrl}/portaria`);
   console.log(`Event staff: ${staffEmail}`);
   console.log("Senha: utilize o valor temporario fornecido em STAGING_EVENT_STAFF_PASSWORD; ele nao foi persistido em texto puro.");

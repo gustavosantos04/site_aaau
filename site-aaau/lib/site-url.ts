@@ -27,6 +27,9 @@ export function getConfiguredBaseUrl(options: { allowLocalhost?: boolean; nodeEn
   if (nodeEnv === "production" && isLocalhost && !options.allowLocalhost) {
     throw new Error("APP_URL de producao nao pode apontar para localhost.");
   }
+  if (nodeEnv === "production" && parsed.protocol !== "https:") {
+    throw new Error("APP_URL de producao precisa usar HTTPS.");
+  }
 
   return baseUrl;
 }

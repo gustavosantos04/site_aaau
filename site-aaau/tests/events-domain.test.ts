@@ -41,6 +41,29 @@ import {
   eventTicketStatusLabel,
 } from "@/lib/events/ticket-display";
 import { isRetryableTransactionConflict } from "@/lib/events/transaction";
+import { eventTicketTransfersEnabled } from "@/lib/events/transfer-config";
+import {
+  generateEventTicketTransferToken,
+  hashEventTicketAccessToken,
+  hashEventTicketHolderEmail,
+  normalizeEventTicketHolderEmail,
+} from "@/lib/events/transfer-security";
+import { normalizeEventTicketTransferRecipient } from "@/lib/events/transfer-validation";
+import { decryptTransferEmailPayload, encryptTransferEmailPayload } from "@/lib/events/transfer-outbox";
+import { maskEmail } from "@/lib/events/transfer-emails";
+import { assertEventTicketTransferCsrf, assertEventTicketTransferRateLimit } from "@/lib/events/transfer-http-security";
+import {
+  decryptPortalEmailPayload,
+  encryptPortalEmailPayload,
+  generatePortalToken,
+  hashPortalMagicLinkToken,
+  hashPortalSessionToken,
+  normalizePortalEmail,
+} from "@/lib/events/portal-security";
+import { consumePortalRateLimits, type PortalRateLimitBackend } from "@/lib/events/portal-rate-limit";
+import { portalCookieOptions } from "@/lib/events/portal-cookie";
+import { validateEventTicketOperationalConfig } from "@/lib/events/operational-config";
+import { handleEventTicketOutboxCron } from "@/lib/events/outbox-cron-http";
 import { routeMercadoPagoExternalReference } from "@/lib/mercado-pago-routing";
 import {
   buildCpfHashForPortariaSearch,
@@ -51,6 +74,159 @@ import { parseEventTicketQrPayload } from "@/lib/portaria-qr";
 import { buildAbsoluteUrl, normalizeBaseUrl } from "@/lib/site-url";
 
 const now = new Date("2026-07-07T18:00:00.000Z");
+
+test("outbox de transferencia cifra payload autenticado e mascaramento nao expoe email", () => {
+  const previous = process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET;
+  process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET = "domain-outbox-secret-with-at-least-32-characters";
+  try {
+    const payload = { subject: "Convite", text: "token-super-secreto", html: "<p>token-super-secreto</p>" };
+    const encrypted = encryptTransferEmailPayload(payload);
+    assert.equal(JSON.stringify(encrypted).includes("token-super-secreto"), false);
+    assert.deepEqual(decryptTransferEmailPayload(encrypted), payload);
+    assert.equal(maskEmail("pessoa@example.com"), "pe****@example.com");
+    assert.throws(() => decryptTransferEmailPayload({ ...encrypted, authenticationTag: Buffer.alloc(16).toString("base64") }));
+  } finally {
+    if (previous === undefined) delete process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET;
+    else process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET = previous;
+  }
+});
+
+test("protecoes de transferencia bloqueiam CSRF e abuso sem usar token cru na chave", () => {
+  const previousSecret = process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+  const previousAppUrl = process.env.APP_URL;
+  process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = "domain-transfer-http-secret-with-at-least-32-characters";
+  process.env.APP_URL = "https://aaau.test";
+  try {
+    assert.doesNotThrow(() => assertEventTicketTransferCsrf(new Headers({ origin: "https://aaau.test" })));
+    assert.throws(() => assertEventTicketTransferCsrf(new Headers({ origin: "https://evil.test" })), /EVENT_TICKET_TRANSFER_CSRF/);
+    for (let index = 0; index < 10; index += 1) {
+      assertEventTicketTransferRateLimit({ action: "domain", opaqueCredential: "opaque-token", ip: "192.0.2.1", now: 1000 });
+    }
+    assert.throws(() => assertEventTicketTransferRateLimit({ action: "domain", opaqueCredential: "opaque-token", ip: "192.0.2.1", now: 1000 }), /RATE_LIMITED/);
+  } finally {
+    if (previousSecret === undefined) delete process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+    else process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = previousSecret;
+    if (previousAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousAppUrl;
+  }
+});
+
+test("portal usa tokens distintos, HMAC por finalidade e outbox autenticada", () => {
+  const previous = process.env.EVENT_TICKET_PORTAL_SECRET;
+  process.env.EVENT_TICKET_PORTAL_SECRET = "domain-portal-secret-with-at-least-32-characters";
+  try {
+    const magic = generatePortalToken();
+    const session = generatePortalToken();
+    assert.notEqual(magic, session);
+    assert.notEqual(hashPortalMagicLinkToken(magic), hashPortalSessionToken(magic));
+    assert.equal(hashPortalMagicLinkToken(magic).includes(magic), false);
+    assert.equal(normalizePortalEmail("  PESSOA@EXAMPLE.COM "), "pessoa@example.com");
+    const payload = { subject: "Acesso", text: `Link ${magic}`, html: `<a>${magic}</a>` };
+    const encrypted = encryptPortalEmailPayload(payload);
+    assert.equal(JSON.stringify(encrypted).includes(magic), false);
+    assert.deepEqual(decryptPortalEmailPayload(encrypted), payload);
+  } finally {
+    if (previous === undefined) delete process.env.EVENT_TICKET_PORTAL_SECRET;
+    else process.env.EVENT_TICKET_PORTAL_SECRET = previous;
+  }
+});
+
+test("rate limit do portal usa backend substituivel e dimensoes IP e email", async () => {
+  const previous = process.env.EVENT_TICKET_PORTAL_SECRET;
+  process.env.EVENT_TICKET_PORTAL_SECRET = "domain-portal-rate-secret-with-at-least-32-characters";
+  const consumed: string[] = [];
+  const backend: PortalRateLimitBackend = {
+    async consume(input) { consumed.push(input.key); return !input.key.startsWith("email:"); },
+  };
+  try {
+    assert.equal(await consumePortalRateLimits({
+      action: "request", ip: "192.0.2.20", emailHash: "email-hash", backend,
+    }), false);
+    assert.deepEqual(consumed, ["ip:192.0.2.20", "email:email-hash"]);
+    const options = portalCookieOptions(new Date("2026-08-06T12:00:00.000Z"));
+    assert.equal(options.httpOnly, true);
+    assert.equal(options.sameSite, "lax");
+    assert.equal(options.path, "/meus-ingressos");
+  } finally {
+    if (previous === undefined) delete process.env.EVENT_TICKET_PORTAL_SECRET;
+    else process.env.EVENT_TICKET_PORTAL_SECRET = previous;
+  }
+});
+
+test("configuracao operacional valida flags, secrets distintos, HTTPS e email", () => {
+  const names = [
+    "EVENT_TICKET_TRANSFERS_ENABLED", "EVENT_TICKET_PORTAL_ENABLED",
+    "EVENT_TICKET_TRANSFER_TOKEN_SECRET", "EVENT_TICKET_TRANSFER_OUTBOX_SECRET",
+    "EVENT_TICKET_PORTAL_SECRET", "CRON_SECRET", "APP_URL", "NODE_ENV",
+    "RESEND_API_KEY", "RESEND_FROM", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "SMTP_FROM",
+  ] as const;
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    for (const name of names) delete process.env[name];
+    process.env.EVENT_TICKET_TRANSFERS_ENABLED = "false";
+    process.env.EVENT_TICKET_PORTAL_ENABLED = "false";
+    assert.doesNotThrow(() => validateEventTicketOperationalConfig());
+
+    process.env.EVENT_TICKET_TRANSFERS_ENABLED = "true";
+    assert.throws(() => validateEventTicketOperationalConfig(), /TOKEN_SECRET/);
+    process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = "operational-shared-secret-with-32-characters";
+    process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET = process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+    assert.throws(() => validateEventTicketOperationalConfig(), /secrets diferentes/);
+
+    process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET = "operational-outbox-secret-with-32-characters";
+    process.env.RESEND_API_KEY = "re_test_only";
+    process.env.RESEND_FROM = "AAAU <teste@aaau.test>";
+    process.env.APP_URL = "not-a-url";
+    assert.throws(() => validateEventTicketOperationalConfig(), /URL absoluta/);
+    process.env.APP_URL = "http://aaau.test";
+    Reflect.set(process.env, "NODE_ENV", "production");
+    assert.throws(() => validateEventTicketOperationalConfig(), /HTTPS/);
+    process.env.APP_URL = "https://aaau.test";
+    assert.equal(validateEventTicketOperationalConfig().emailProvider, "RESEND");
+
+    delete process.env.RESEND_API_KEY;
+    delete process.env.SMTP_HOST;
+    assert.throws(() => validateEventTicketOperationalConfig(), /Resend ou SMTP/);
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) Reflect.deleteProperty(process.env, name);
+      else Reflect.set(process.env, name, value);
+    }
+  }
+});
+
+test("endpoint de cron exige Bearer secret e nunca aceita segredo na query", async () => {
+  const previous = {
+    cron: process.env.CRON_SECRET,
+    transfers: process.env.EVENT_TICKET_TRANSFERS_ENABLED,
+    portal: process.env.EVENT_TICKET_PORTAL_ENABLED,
+  };
+  const secret = "domain-dedicated-cron-secret-with-at-least-32-characters";
+  process.env.CRON_SECRET = secret;
+  process.env.EVENT_TICKET_TRANSFERS_ENABLED = "false";
+  process.env.EVENT_TICKET_PORTAL_ENABLED = "false";
+  try {
+    const absent = await handleEventTicketOutboxCron(new Request("https://aaau.test/api/internal/event-ticket-outbox"));
+    const query = await handleEventTicketOutboxCron(new Request(`https://aaau.test/api/internal/event-ticket-outbox?secret=${secret}`));
+    const wrong = await handleEventTicketOutboxCron(new Request("https://aaau.test/api/internal/event-ticket-outbox", { headers: { authorization: "Bearer incorreto" } }));
+    assert.equal(absent.status, 401);
+    assert.equal(query.status, 401);
+    assert.equal(wrong.status, 401);
+    assert.deepEqual(await absent.json(), { ok: false });
+
+    const valid = await handleEventTicketOutboxCron(new Request("https://aaau.test/api/internal/event-ticket-outbox", {
+      headers: { authorization: `Bearer ${secret}` },
+    }));
+    assert.equal(valid.status, 200);
+    assert.deepEqual(await valid.json(), { ok: true, status: "disabled" });
+    assert.equal((await wrong.text()).includes(secret), false);
+  } finally {
+    if (previous.cron === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = previous.cron;
+    if (previous.transfers === undefined) delete process.env.EVENT_TICKET_TRANSFERS_ENABLED; else process.env.EVENT_TICKET_TRANSFERS_ENABLED = previous.transfers;
+    if (previous.portal === undefined) delete process.env.EVENT_TICKET_PORTAL_ENABLED; else process.env.EVENT_TICKET_PORTAL_ENABLED = previous.portal;
+  }
+});
 
 function lot(overrides: Partial<Parameters<typeof selectActiveTicketLot>[0][number]> = {}) {
   return {
@@ -638,4 +814,96 @@ test("event_staff password hash validates without exposing plain text", async ()
   assert.equal(passwordHash.includes("senha-segura-123"), false);
   assert.equal(await verifyPassword("senha-segura-123", passwordHash), true);
   assert.equal(await verifyPassword("senha-errada", passwordHash), false);
+});
+
+test("transfer security normalizes email, hashes by purpose and never persists the raw token", () => {
+  const previousSecret = process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+  const previousFlag = process.env.EVENT_TICKET_TRANSFERS_ENABLED;
+  process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = "domain-test-transfer-secret-with-at-least-32-characters";
+  process.env.EVENT_TICKET_TRANSFERS_ENABLED = "false";
+  try {
+    const token = generateEventTicketTransferToken();
+    const tokenHash = hashEventTicketAccessToken(token);
+    assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+    assert.match(tokenHash, /^[a-f0-9]{64}$/);
+    assert.equal(tokenHash.includes(token), false);
+    assert.equal(normalizeEventTicketHolderEmail("  Titular@Exemplo.COM "), "titular@exemplo.com");
+    assert.equal(
+      hashEventTicketHolderEmail("Titular@Exemplo.COM"),
+      hashEventTicketHolderEmail(" titular@exemplo.com "),
+    );
+    assert.equal(eventTicketTransfersEnabled(), false);
+    process.env.EVENT_TICKET_TRANSFERS_ENABLED = "true";
+    assert.equal(eventTicketTransfersEnabled(), true);
+  } finally {
+    if (previousSecret === undefined) delete process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+    else process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = previousSecret;
+    if (previousFlag === undefined) delete process.env.EVENT_TICKET_TRANSFERS_ENABLED;
+    else process.env.EVENT_TICKET_TRANSFERS_ENABLED = previousFlag;
+  }
+});
+
+test("transfer security rejects missing and short HMAC secrets", () => {
+  const previousSecret = process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+  try {
+    delete process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+    assert.throws(() => hashEventTicketAccessToken("token"), /pelo menos 32 caracteres/);
+    process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = "curto";
+    assert.throws(() => hashEventTicketAccessToken("token"), /pelo menos 32 caracteres/);
+  } finally {
+    if (previousSecret === undefined) delete process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
+    else process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = previousSecret;
+  }
+});
+
+test("transfer recipient normalization validates CPF, email and event requirements", () => {
+  const requirements = {
+    requireParticipantEmail: true,
+    requireParticipantPhone: true,
+    requireBirthDate: true,
+    requireInstitution: true,
+    requireCourse: true,
+    requireCampus: true,
+    minimumAge: 18,
+    startAt: new Date("2026-07-07T18:00:00.000Z"),
+  };
+  const recipient = normalizeEventTicketTransferRecipient({
+    name: "  Nova   Titular <Teste> ",
+    cpf: "529.982.247-25",
+    email: " NOVA.TITULAR@EVENT-TEST.LOCAL ",
+    phone: "(51) 99999-0000",
+    birthDate: "2000-01-02",
+    institution: " UFRGS ",
+    course: " Direito ",
+    campus: " Centro ",
+  }, requirements);
+
+  assert.equal(recipient.name, "Nova Titular Teste");
+  assert.equal(recipient.cpf, "52998224725");
+  assert.equal(recipient.cpfLast4, "4725");
+  assert.equal(recipient.email, "nova.titular@event-test.local");
+  assert.equal(recipient.phone, "51999990000");
+  assert.equal(recipient.institution, "UFRGS");
+  assert.throws(() => normalizeEventTicketTransferRecipient({
+    name: "Nova Titular",
+    cpf: "52998224725",
+    email: "nova@event-test.local",
+  }, requirements), /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
+  assert.throws(() => normalizeEventTicketTransferRecipient({
+    name: "Nova Titular",
+    cpf: "11111111111",
+    email: "invalido",
+  }, { ...requirements, requireParticipantPhone: false, requireBirthDate: false,
+    requireInstitution: false, requireCourse: false, requireCampus: false }),
+  /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
+  assert.throws(() => normalizeEventTicketTransferRecipient({
+    name: "Titular Menor",
+    cpf: "52998224725",
+    email: "menor@event-test.local",
+    phone: "51999990000",
+    birthDate: "2010-01-01",
+    institution: "UFRGS",
+    course: "Direito",
+    campus: "Centro",
+  }, requirements), /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
 });

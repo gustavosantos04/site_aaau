@@ -74,6 +74,14 @@ enum EmailDeliveryKind {
   EVENT_TICKET_CONFIRMATION
   STORE_ORDER_CONFIRMATION
   INTERNAL_ORDER_NOTIFICATION
+  EVENT_TICKET_TRANSFER_HOLDER_CONFIRMATION
+  EVENT_TICKET_TRANSFER_RECIPIENT_INVITATION
+  EVENT_TICKET_TRANSFER_RECIPIENT_COMPLETED
+  EVENT_TICKET_TRANSFER_PREVIOUS_HOLDER_COMPLETED
+  EVENT_TICKET_TRANSFER_CANCELED
+  EVENT_TICKET_TRANSFER_REJECTED
+  EVENT_TICKET_TRANSFER_EXPIRED
+  EVENT_TICKET_PORTAL_ACCESS
 }
 
 enum EmailDeliveryStatus {
@@ -93,6 +101,39 @@ enum EventTicketStatus {
   USED
   CANCELED
   REFUNDED
+}
+
+enum EventTicketTransferStatus {
+  PENDING_CURRENT_CONFIRMATION
+  PENDING_RECIPIENT_ACCEPTANCE
+  COMPLETED
+  CANCELED
+  EXPIRED
+  REJECTED
+}
+
+enum EventTicketTransferKind {
+  TRANSFER
+  RESALE
+}
+
+enum EventTicketQrVersionStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum EventTicketTransferOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum EventTicketPortalOutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
 }
 
 enum EventPartnerType {
@@ -232,19 +273,20 @@ model OrderItem {
 }
 
 model AdminUser {
-  id                  String                 @id @default(cuid())
-  name                String
-  email               String                 @unique
-  passwordHash        String
-  role                String                 @default("ADMIN")
-  isActive            Boolean                @default(true)
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  checkedEventTickets EventTicket[]
-  eventCheckInLogs    EventCheckInLog[]
-  eventAuditLogs      EventAdminAuditLog[]
-  eventAssignments    EventStaffAssignment[] @relation("EventStaffAssignmentUser")
-  createdAssignments  EventStaffAssignment[] @relation("EventStaffAssignmentCreator")
+  id                       String                 @id @default(cuid())
+  name                     String
+  email                    String                 @unique
+  passwordHash             String
+  role                     String                 @default("ADMIN")
+  isActive                 Boolean                @default(true)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  checkedEventTickets      EventTicket[]
+  eventCheckInLogs         EventCheckInLog[]
+  eventAuditLogs           EventAdminAuditLog[]
+  eventAssignments         EventStaffAssignment[] @relation("EventStaffAssignmentUser")
+  createdAssignments       EventStaffAssignment[] @relation("EventStaffAssignmentCreator")
+  initiatedTicketTransfers EventTicketTransfer[]  @relation("EventTicketTransferInitiator")
 }
 
 model Event {
@@ -468,35 +510,95 @@ model EventOrder {
 }
 
 model EmailDelivery {
-  id              String               @id @default(cuid())
-  provider        String               @default("RESEND")
-  providerEmailId String?              @unique
+  id              String                    @id @default(cuid())
+  provider        String                    @default("RESEND")
+  providerEmailId String?                   @unique
   kind            EmailDeliveryKind
-  status          EmailDeliveryStatus  @default(PENDING)
-  idempotencyKey  String               @unique
+  status          EmailDeliveryStatus       @default(PENDING)
+  idempotencyKey  String                    @unique
   orderId         String?
   eventOrderId    String?
+  transferId      String?
+  portalSessionId String?
   sender          String
   recipient       String
   subject         String
-  attemptCount    Int                  @default(0)
+  attemptCount    Int                       @default(0)
   lastAttemptAt   DateTime?
   sentAt          DateTime?
   deliveredAt     DateTime?
   failedAt        DateTime?
   complainedAt    DateTime?
   lastEventAt     DateTime?
-  lastError       String?              @db.Text
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  order           Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  eventOrder      EventOrder?          @relation(fields: [eventOrderId], references: [id], onDelete: SetNull)
+  lastError       String?                   @db.Text
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  order           Order?                    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  eventOrder      EventOrder?               @relation(fields: [eventOrderId], references: [id], onDelete: SetNull)
+  transfer        EventTicketTransfer?      @relation(fields: [transferId], references: [id], onDelete: SetNull)
+  portalSession   EventTicketPortalSession? @relation(fields: [portalSessionId], references: [id], onDelete: SetNull)
   events          EmailDeliveryEvent[]
 
   @@index([orderId, createdAt])
   @@index([eventOrderId, createdAt])
+  @@index([transferId, createdAt])
+  @@index([portalSessionId, createdAt])
   @@index([status, createdAt])
   @@index([recipient, createdAt])
+}
+
+model EventTicketPortalSession {
+  id                  String                    @id @default(cuid())
+  email               String
+  emailHash           String
+  magicLinkTokenHash  String?                   @unique
+  sessionTokenHash    String?                   @unique
+  expiresAt           DateTime
+  magicLinkConsumedAt DateTime?
+  revokedAt           DateTime?
+  lastAccessAt        DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  outboxMessages      EventTicketPortalOutbox[]
+  emailDeliveries     EmailDelivery[]
+
+  @@index([emailHash, createdAt])
+  @@index([expiresAt, revokedAt])
+}
+
+model EventTicketPortalOutbox {
+  id                   String                        @id @default(cuid())
+  portalSessionId      String
+  status               EventTicketPortalOutboxStatus @default(PENDING)
+  idempotencyKey       String                        @unique
+  recipient            String
+  encryptedPayload     String?                       @db.Text
+  initializationVector String?
+  authenticationTag    String?
+  attemptCount         Int                           @default(0)
+  nextAttemptAt        DateTime                      @default(now())
+  processingStartedAt  DateTime?
+  sentAt               DateTime?
+  lastError            String?                       @db.Text
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  portalSession        EventTicketPortalSession      @relation(fields: [portalSessionId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([portalSessionId, createdAt])
+}
+
+model EventTicketPortalRateLimit {
+  id              String   @id @default(cuid())
+  keyHash         String   @unique
+  action          String
+  count           Int      @default(0)
+  windowStartedAt DateTime
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([action, expiresAt])
 }
 
 model EmailDeliveryEvent {
@@ -541,41 +643,157 @@ model EventOrderParticipant {
 }
 
 model EventTicket {
-  id                  String                @id @default(cuid())
-  eventOrderId        String
-  eventId             String
-  lotId               String
-  orderParticipantId  String                @unique
-  participantName     String
-  participantCpf      String?
-  participantCpfHash  String?
-  participantCpfLast4 String?
-  participantEmail    String?
-  participantPhone    String?
-  birthDate           DateTime?
-  institution         String?
-  course              String?
-  campus              String?
-  ticketCode          String                @unique
-  qrToken             String                @unique
-  status              EventTicketStatus
-  issuedAt            DateTime              @default(now())
-  checkedInAt         DateTime?
-  checkedInByUserId   String?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  eventOrder          EventOrder            @relation(fields: [eventOrderId], references: [id], onDelete: Restrict)
-  event               TicketEvent           @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  lot                 EventTicketLot        @relation(fields: [lotId], references: [id], onDelete: Restrict)
-  orderParticipant    EventOrderParticipant @relation(fields: [orderParticipantId], references: [id], onDelete: Restrict)
-  checkedInBy         AdminUser?            @relation(fields: [checkedInByUserId], references: [id], onDelete: SetNull)
-  checkInLogs         EventCheckInLog[]
+  id                           String                   @id @default(cuid())
+  eventOrderId                 String
+  eventId                      String
+  lotId                        String
+  orderParticipantId           String                   @unique
+  participantName              String
+  participantCpf               String?
+  participantCpfHash           String?
+  participantCpfLast4          String?
+  participantEmail             String?
+  participantPhone             String?
+  birthDate                    DateTime?
+  institution                  String?
+  course                       String?
+  campus                       String?
+  ticketCode                   String                   @unique
+  qrToken                      String                   @unique
+  status                       EventTicketStatus
+  ownershipVersion             Int                      @default(1)
+  qrVersion                    Int                      @default(1)
+  originalOrderAccessRevokedAt DateTime?
+  transferredAt                DateTime?
+  lastQrRotatedAt              DateTime?
+  issuedAt                     DateTime                 @default(now())
+  checkedInAt                  DateTime?
+  checkedInByUserId            String?
+  createdAt                    DateTime                 @default(now())
+  updatedAt                    DateTime                 @updatedAt
+  eventOrder                   EventOrder               @relation(fields: [eventOrderId], references: [id], onDelete: Restrict)
+  event                        TicketEvent              @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  lot                          EventTicketLot           @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  orderParticipant             EventOrderParticipant    @relation(fields: [orderParticipantId], references: [id], onDelete: Restrict)
+  checkedInBy                  AdminUser?               @relation(fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+  checkInLogs                  EventCheckInLog[]
+  transfers                    EventTicketTransfer[]
+  accessGrants                 EventTicketAccessGrant[]
+  qrVersions                   EventTicketQrVersion[]
 
   @@index([eventId, status])
   @@index([eventOrderId])
   @@index([lotId])
   @@index([participantCpfHash])
   @@index([checkedInAt])
+  @@index([originalOrderAccessRevokedAt])
+}
+
+model EventTicketTransfer {
+  id                                 String                      @id @default(cuid())
+  ticketId                           String
+  status                             EventTicketTransferStatus   @default(PENDING_CURRENT_CONFIRMATION)
+  kind                               EventTicketTransferKind     @default(TRANSFER)
+  fromOwnershipVersion               Int
+  toOwnershipVersion                 Int?
+  fromHolderName                     String
+  fromHolderEmail                    String?
+  fromHolderEmailHash                String?
+  toHolderName                       String
+  toHolderEmail                      String
+  toHolderEmailHash                  String
+  toHolderCpfHash                    String?
+  toHolderCpfLast4                   String?
+  toHolderPhone                      String?
+  currentHolderConfirmationTokenHash String?                     @unique
+  recipientAcceptanceTokenHash       String?                     @unique
+  currentHolderConfirmedAt           DateTime?
+  recipientConfirmedAt               DateTime?
+  completedAt                        DateTime?
+  canceledAt                         DateTime?
+  rejectedAt                         DateTime?
+  expiredAt                          DateTime?
+  expiresAt                          DateTime
+  initiatedByAdminUserId             String?
+  metadata                           Json?
+  createdAt                          DateTime                    @default(now())
+  updatedAt                          DateTime                    @updatedAt
+  ticket                             EventTicket                 @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  initiatedByAdminUser               AdminUser?                  @relation("EventTicketTransferInitiator", fields: [initiatedByAdminUserId], references: [id], onDelete: SetNull)
+  accessGrants                       EventTicketAccessGrant[]
+  qrVersions                         EventTicketQrVersion[]
+  outboxMessages                     EventTicketTransferOutbox[]
+  emailDeliveries                    EmailDelivery[]
+
+  @@index([ticketId, status, createdAt])
+  @@index([status, expiresAt])
+  @@index([toHolderEmailHash, status])
+  @@index([initiatedByAdminUserId, createdAt])
+}
+
+model EventTicketTransferOutbox {
+  id                   String                          @id @default(cuid())
+  transferId           String
+  kind                 EmailDeliveryKind
+  status               EventTicketTransferOutboxStatus @default(PENDING)
+  idempotencyKey       String                          @unique
+  recipient            String
+  encryptedPayload     String?                         @db.Text
+  initializationVector String?
+  authenticationTag    String?
+  attemptCount         Int                             @default(0)
+  nextAttemptAt        DateTime                        @default(now())
+  processingStartedAt  DateTime?
+  sentAt               DateTime?
+  lastError            String?                         @db.Text
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
+  transfer             EventTicketTransfer             @relation(fields: [transferId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([transferId, kind])
+}
+
+model EventTicketAccessGrant {
+  id                    String               @id @default(cuid())
+  ticketId              String
+  ownershipVersion      Int
+  holderEmail           String
+  holderEmailHash       String
+  tokenHash             String               @unique
+  issuedAt              DateTime             @default(now())
+  expiresAt             DateTime?
+  revokedAt             DateTime?
+  lastAccessAt          DateTime?
+  createdFromTransferId String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  ticket                EventTicket          @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  createdFromTransfer   EventTicketTransfer? @relation(fields: [createdFromTransferId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, revokedAt])
+  @@index([holderEmailHash, revokedAt])
+  @@index([createdFromTransferId])
+}
+
+model EventTicketQrVersion {
+  id               String                     @id @default(cuid())
+  ticketId         String
+  version          Int
+  qrTokenHash      String                     @unique
+  ticketCodeHash   String                     @unique
+  status           EventTicketQrVersionStatus @default(ACTIVE)
+  issuedAt         DateTime
+  revokedAt        DateTime?
+  revocationReason String?
+  transferId       String?
+  createdAt        DateTime                   @default(now())
+  ticket           EventTicket                @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  transfer         EventTicketTransfer?       @relation(fields: [transferId], references: [id], onDelete: SetNull)
+
+  @@unique([ticketId, version])
+  @@index([ticketId, status])
+  @@index([transferId])
 }
 
 model EventCheckInLog {

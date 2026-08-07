@@ -11,7 +11,7 @@ import {
 } from "@/lib/events/errors";
 import type { EventTx } from "@/lib/events/types";
 
-function buildTicketCode() {
+export function generateEventTicketCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.randomBytes(6);
   let suffix = "";
@@ -23,7 +23,7 @@ function buildTicketCode() {
   return `AU-${suffix}`;
 }
 
-function buildQrToken() {
+export function generateEventTicketQrToken() {
   return `tk_${crypto.randomBytes(QR_TOKEN_BYTES).toString("base64url")}`;
 }
 
@@ -52,8 +52,8 @@ async function createTicketWithRetry(
       await tx.eventTicket.create({
         data: {
           ...data,
-          ticketCode: buildTicketCode(),
-          qrToken: buildQrToken(),
+          ticketCode: generateEventTicketCode(),
+          qrToken: generateEventTicketQrToken(),
           status: "VALID",
         },
       });

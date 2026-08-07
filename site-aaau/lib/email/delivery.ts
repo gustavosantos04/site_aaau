@@ -3,15 +3,19 @@ import { Resend } from "resend";
 
 import { prisma } from "@/lib/db/prisma";
 import { createSmtpTransport, getSmtpConfig } from "@/lib/email/smtp";
+import { logEventTicketOperation } from "@/lib/events/operations-log";
 
 const EMAIL_SENDING_LEASE_MS = 5 * 60_000;
+export const EMAIL_PROVIDER_TIMEOUT_MS = 8_000;
 const DEFAULT_FROM = "AAAU UniRitter <ingressos@aaau.com.br>";
 
-type TrackedEmailInput = {
+export type TrackedEmailInput = {
   kind: EmailDeliveryKind;
   idempotencyKey: string;
   orderId?: string;
   eventOrderId?: string;
+  transferId?: string;
+  portalSessionId?: string;
   to: string;
   subject: string;
   text: string;
@@ -19,6 +23,19 @@ type TrackedEmailInput = {
   from?: string;
   replyTo?: string;
 };
+
+type DeliveryTestHooks = {
+  timeoutMs?: number;
+  resendSend?: (input: TrackedEmailInput) => Promise<string>;
+  smtpSend?: (input: TrackedEmailInput) => Promise<string | null>;
+};
+
+export class EmailProviderTimeoutError extends Error {
+  constructor() {
+    super("EMAIL_PROVIDER_TIMEOUT");
+    this.name = "EmailProviderTimeoutError";
+  }
+}
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message.slice(0, 4000);
@@ -35,18 +52,19 @@ export function getTransactionalEmailConfig() {
   const resendFrom = process.env.RESEND_FROM?.trim() || DEFAULT_FROM;
   const replyTo = process.env.RESEND_REPLY_TO?.trim() || process.env.SMTP_USER?.trim();
   const internalRecipient = process.env.ORDER_NOTIFICATION_EMAIL?.trim();
+  const smtp = getSmtpConfig();
 
   if (resendApiKey) {
     return {
       provider: "RESEND" as const,
       resendApiKey,
+      smtpFallback: smtp,
       from: resendFrom,
       replyTo,
       internalRecipient,
     };
   }
 
-  const smtp = getSmtpConfig();
   if (!smtp) return null;
   return {
     provider: "SMTP" as const,
@@ -55,6 +73,27 @@ export function getTransactionalEmailConfig() {
     replyTo,
     internalRecipient: smtp.internalRecipient,
   };
+}
+
+async function withProviderTimeout<T>(
+  operation: () => Promise<T>,
+  timeoutMs: number,
+  onTimeout?: () => void,
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          onTimeout?.();
+          reject(new EmailProviderTimeoutError());
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function isAlreadyAccepted(status: EmailDeliveryStatus) {
@@ -69,7 +108,13 @@ function isAlreadyAccepted(status: EmailDeliveryStatus) {
   return acceptedStatuses.has(status);
 }
 
-export async function sendTrackedEmail(input: TrackedEmailInput) {
+export async function sendTrackedEmail(
+  input: TrackedEmailInput,
+  options: { testHooks?: DeliveryTestHooks } = {},
+) {
+  if (options.testHooks && process.env.NODE_ENV !== "test") {
+    throw new Error("EMAIL_DELIVERY_TEST_HOOKS_FORBIDDEN");
+  }
   const config = getTransactionalEmailConfig();
   if (!config) return { sent: false, skipped: true, reason: "not_configured" as const };
 
@@ -110,6 +155,8 @@ export async function sendTrackedEmail(input: TrackedEmailInput) {
       idempotencyKey: input.idempotencyKey,
       orderId: input.orderId,
       eventOrderId: input.eventOrderId,
+      transferId: input.transferId,
+      portalSessionId: input.portalSessionId,
       sender: from,
       recipient: input.to,
       subject: input.subject,
@@ -119,6 +166,8 @@ export async function sendTrackedEmail(input: TrackedEmailInput) {
     },
     update: {
       provider: config.provider,
+      transferId: input.transferId,
+      portalSessionId: input.portalSessionId,
       sender: from,
       recipient: input.to,
       subject: input.subject,
@@ -131,42 +180,84 @@ export async function sendTrackedEmail(input: TrackedEmailInput) {
 
   try {
     let providerEmailId: string | null = null;
+    let deliveredProvider = config.provider;
+    let deliveredFrom = from;
+    const timeoutMs = options.testHooks?.timeoutMs ?? EMAIL_PROVIDER_TIMEOUT_MS;
 
     if (config.provider === "RESEND") {
-      const resend = new Resend(config.resendApiKey);
-      const { data, error } = await resend.emails.send(
-        {
+      const controller = new AbortController();
+      try {
+        providerEmailId = await withProviderTimeout(async () => {
+          if (options.testHooks?.resendSend) return options.testHooks.resendSend(input);
+          const resend = new Resend(config.resendApiKey);
+          const { data, error } = await resend.emails.send(
+            {
+              from,
+              to: input.to,
+              subject: input.subject,
+              text: input.text,
+              html: input.html,
+              replyTo,
+              tags: [
+                { name: "category", value: input.kind.toLowerCase() },
+                { name: "delivery_id", value: delivery.id },
+              ],
+            },
+            { idempotencyKey: input.idempotencyKey, signal: controller.signal } as never,
+          );
+          if (error) throw new Error(error.message);
+          if (!data?.id) throw new Error("O Resend aceitou a requisição sem retornar o identificador do e-mail.");
+          return data.id;
+        }, timeoutMs, () => controller.abort());
+      } catch (resendError) {
+        // A timeout is ambiguous: the provider may have accepted the message before
+        // the connection was interrupted. Retrying with SMTP here could duplicate it.
+        if (resendError instanceof EmailProviderTimeoutError || !config.smtpFallback) throw resendError;
+        deliveredProvider = "SMTP";
+        deliveredFrom = input.from ?? config.smtpFallback.from;
+        if (options.testHooks?.smtpSend) {
+          providerEmailId = await withProviderTimeout(() => options.testHooks!.smtpSend!(input), timeoutMs);
+        } else {
+          const transport = createSmtpTransport(config.smtpFallback, timeoutMs);
+          try {
+            const info = await withProviderTimeout(() => transport.sendMail({
+              from: deliveredFrom,
+              to: input.to,
+              subject: input.subject,
+              text: input.text,
+              html: input.html,
+              replyTo,
+            }), timeoutMs, () => transport.close());
+            providerEmailId = info.messageId || null;
+          } finally {
+            transport.close();
+          }
+        }
+      }
+    } else if (options.testHooks?.smtpSend) {
+      providerEmailId = await withProviderTimeout(() => options.testHooks!.smtpSend!(input), timeoutMs);
+    } else {
+      const transport = createSmtpTransport(config.smtp, timeoutMs);
+      try {
+        const info = await withProviderTimeout(() => transport.sendMail({
           from,
           to: input.to,
           subject: input.subject,
           text: input.text,
           html: input.html,
           replyTo,
-          tags: [
-            { name: "category", value: input.kind.toLowerCase() },
-            { name: "delivery_id", value: delivery.id },
-          ],
-        },
-        { idempotencyKey: input.idempotencyKey },
-      );
-      if (error) throw new Error(error.message);
-      if (!data?.id) throw new Error("O Resend aceitou a requisição sem retornar o identificador do e-mail.");
-      providerEmailId = data.id;
-    } else {
-      const info = await createSmtpTransport(config.smtp).sendMail({
-        from,
-        to: input.to,
-        subject: input.subject,
-        text: input.text,
-        html: input.html,
-        replyTo,
-      });
-      providerEmailId = info.messageId || null;
+        }), timeoutMs, () => transport.close());
+        providerEmailId = info.messageId || null;
+      } finally {
+        transport.close();
+      }
     }
 
     await prisma.emailDelivery.update({
       where: { id: delivery.id },
       data: {
+        provider: deliveredProvider,
+        sender: deliveredFrom,
         providerEmailId,
         status: EmailDeliveryStatus.SENT,
         sentAt: now,
@@ -174,6 +265,13 @@ export async function sendTrackedEmail(input: TrackedEmailInput) {
         lastError: null,
       },
     });
+    if (input.transferId || input.portalSessionId) {
+      logEventTicketOperation("email.sent", {
+        deliveryId: delivery.id,
+        transferId: input.transferId,
+        portalSessionId: input.portalSessionId,
+      });
+    }
 
     return {
       sent: true,
@@ -191,6 +289,13 @@ export async function sendTrackedEmail(input: TrackedEmailInput) {
         lastError: errorMessage(error),
       },
     });
+    if (input.transferId || input.portalSessionId) {
+      logEventTicketOperation("email.failed", {
+        deliveryId: delivery.id,
+        transferId: input.transferId,
+        portalSessionId: input.portalSessionId,
+      });
+    }
     throw error;
   }
 }

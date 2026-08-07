@@ -120,3 +120,7 @@ Abra `http://localhost:3000`.
 - Copiar a chave secreta do webhook para `MERCADO_PAGO_WEBHOOK_SECRET`.
 - Revisar estoque real e politica de entrega/retirada.
 - Trocar senha admin e `JWT_SECRET`.
+
+## Operacao de ingressos
+
+Antes de aplicar migrations, executar backfill ou ativar a central/transferencias, siga o runbook em `docs/event-ticket-operational-rollout.md`. O atendimento deve usar `docs/event-ticket-support.md`.

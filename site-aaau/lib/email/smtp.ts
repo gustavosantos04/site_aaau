@@ -21,11 +21,19 @@ export function getSmtpConfig() {
   };
 }
 
-export function createSmtpTransport(config: NonNullable<ReturnType<typeof getSmtpConfig>>) {
+export function createSmtpTransport(
+  config: NonNullable<ReturnType<typeof getSmtpConfig>>,
+  timeoutMs?: number,
+) {
   return nodemailer.createTransport({
     host: config.host,
     port: config.port,
     secure: config.secure,
     auth: config.auth,
+    ...(timeoutMs ? {
+      connectionTimeout: timeoutMs,
+      greetingTimeout: timeoutMs,
+      socketTimeout: timeoutMs,
+    } : {}),
   });
 }
