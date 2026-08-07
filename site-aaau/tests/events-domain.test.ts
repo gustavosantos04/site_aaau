@@ -3,6 +3,7 @@ import test from "node:test";
 import { Prisma } from "@prisma/client";
 
 import { getBaseUrl as getMercadoPagoBaseUrl } from "@/lib/checkout/mercado-pago";
+import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
 import { resendDeliveryStatus } from "@/lib/email/resend-webhook";
 import { buildMercadoPagoNotificationUrl } from "@/lib/site-url";
 
@@ -74,6 +75,32 @@ import { parseEventTicketQrPayload } from "@/lib/portaria-qr";
 import { buildAbsoluteUrl, normalizeBaseUrl } from "@/lib/site-url";
 
 const now = new Date("2026-07-07T18:00:00.000Z");
+
+test("template transacional compartilhado preserva identidade AAAU e escapa conteudo", () => {
+  const previousAppUrl = process.env.APP_URL;
+  process.env.APP_URL = "https://aaau.test";
+  try {
+    const html = buildAaauTransactionalEmailHtml({
+      title: "Acesso <seguro>",
+      eyebrow: "Meus ingressos",
+      headerLabel: "AAAU",
+      paragraphs: ["Não compartilhe este link."],
+      detailLines: ["Expira em 30 minutos."],
+      action: { label: "Acessar", url: "https://aaau.test/acesso?token=a&origem=email" },
+    });
+    assert.match(html, /background:#080607/);
+    assert.match(html, /background:#7b1023/);
+    assert.match(html, /Logo%20AAAU%20PNG\.png/);
+    assert.match(html, /bull_torcida\.png/);
+    assert.match(html, /border-radius:999px/);
+    assert.match(html, /token=a&amp;origem=email/);
+    assert.equal(html.includes("Acesso <seguro>"), false);
+    assert.match(html, /Acesso &lt;seguro&gt;/);
+  } finally {
+    if (previousAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previousAppUrl;
+  }
+});
 
 test("outbox de transferencia cifra payload autenticado e mascaramento nao expoe email", () => {
   const previous = process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET;

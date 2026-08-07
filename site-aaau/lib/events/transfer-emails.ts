@@ -1,14 +1,9 @@
 import { EmailDeliveryKind } from "@prisma/client";
 
+import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
 import { buildAbsoluteUrl } from "@/lib/site-url";
 import type { EventTx } from "@/lib/events/types";
 import { queueTransferEmail } from "@/lib/events/transfer-outbox";
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
-  })[character]!);
-}
 
 export function maskEmail(value: string) {
   const [local, domain = ""] = value.split("@");
@@ -23,12 +18,18 @@ function formatDate(value: Date) {
 }
 
 function message(title: string, paragraphs: string[], action?: { label: string; url: string }) {
-  const safeTitle = escapeHtml(title);
   const text = [title, ...paragraphs, action ? `${action.label}: ${action.url}` : null]
     .filter(Boolean).join("\n\n");
-  const html = `<!doctype html><html><body><h1>${safeTitle}</h1>${paragraphs
-    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}${action
-      ? `<p><a href="${escapeHtml(action.url)}">${escapeHtml(action.label)}</a></p>` : ""}</body></html>`;
+  const html = buildAaauTransactionalEmailHtml({
+    title,
+    eyebrow: "Ingressos AAAU",
+    headerLabel: "Transferência de ingresso",
+    paragraphs,
+    action,
+    footerNote: action
+      ? "Este link é pessoal. Não encaminhe este e-mail nem compartilhe o endereço de acesso."
+      : "Esta mensagem registra uma atualização no fluxo de transferência do seu ingresso.",
+  });
   return { subject: title, text, html };
 }
 

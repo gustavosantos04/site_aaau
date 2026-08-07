@@ -1,6 +1,7 @@
 import { EmailDeliveryKind, EventTicketPortalOutboxStatus } from "@prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
+import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
 import { sendTrackedEmail, type TrackedEmailInput } from "@/lib/email/delivery";
 import {
   decryptPortalEmailPayload,
@@ -20,17 +21,26 @@ export async function queuePortalAccessEmail(tx: EventTx, input: {
   now: Date;
 }) {
   const subject = "Acesse seus ingressos AAAU";
+  const expiresAt = input.expiresAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const text = [
     subject,
     "Recebemos uma solicitação para consultar seus ingressos.",
-    `O link pessoal expira em ${input.expiresAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`,
+    `O link pessoal expira em ${expiresAt}.`,
     `Acessar meus ingressos: ${input.accessUrl}`,
     "Se você não fez esta solicitação, ignore este e-mail.",
   ].join("\n\n");
   const payload: PortalEmailPayload = {
     subject,
     text,
-    html: `<!doctype html><html><body><h1>Acesse seus ingressos AAAU</h1><p>Recebemos uma solicitação para consultar seus ingressos.</p><p>Este link é pessoal e expira em ${input.expiresAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.</p><p><a href="${input.accessUrl.replace(/[&<>"']/g, "")}">Acessar meus ingressos</a></p><p>Se você não fez esta solicitação, ignore este e-mail.</p></body></html>`,
+    html: buildAaauTransactionalEmailHtml({
+      title: subject,
+      eyebrow: "Acesso seguro",
+      headerLabel: "Meus ingressos",
+      paragraphs: ["Recebemos uma solicitação para consultar seus ingressos."],
+      detailLines: [`Este link pessoal expira em ${expiresAt}.`],
+      action: { label: "Acessar meus ingressos", url: input.accessUrl },
+      footerNote: "Se você não fez esta solicitação, ignore este e-mail. Não encaminhe este link para outras pessoas.",
+    }),
   };
   const encrypted = encryptPortalEmailPayload(payload);
   return tx.eventTicketPortalOutbox.create({
