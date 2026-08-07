@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -43,15 +43,29 @@ function Check({
   label,
   helper,
   defaultChecked = false,
+  checked,
+  disabled = false,
+  onChange,
 }: {
   name: string;
   label: string;
   helper?: string;
   defaultChecked?: boolean;
+  checked?: boolean;
+  disabled?: boolean;
+  onChange?: (checked: boolean) => void;
 }) {
   return (
     <label className="flex items-start gap-3 rounded-[1rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/72">
-      <input name={name} type="checkbox" defaultChecked={defaultChecked} className="h-4 w-4 accent-aaau-ember" />
+      <input
+        name={name}
+        type="checkbox"
+        defaultChecked={checked === undefined ? defaultChecked : undefined}
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange ? (event) => onChange(event.target.checked) : undefined}
+        className="h-4 w-4 accent-aaau-ember"
+      />
       <span>
         <strong className="block font-semibold text-white/85">{label}</strong>
         {helper ? <span className="mt-1 block text-xs leading-5 text-white/45">{helper}</span> : null}
@@ -137,6 +151,9 @@ function decimalInput(value?: { toString(): string } | string | number | null) {
 export function EventAdminForm({ event }: { event?: EventFormValue }) {
   const editing = Boolean(event?.id);
   const [state, formAction] = useActionState(editing ? updateEventAction : createEventAction, initialState);
+  const [minimumAge, setMinimumAge] = useState(event?.minimumAge?.toString() ?? "");
+  const [requireBirthDate, setRequireBirthDate] = useState(event?.requireBirthDate ?? false);
+  const ageRequiresBirthDate = minimumAge.trim() !== "";
 
   return (
     <form action={formAction} className="space-y-6 rounded-[1.5rem] border border-white/10 bg-[#141010] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.28)] sm:p-6">
@@ -194,7 +211,14 @@ export function EventAdminForm({ event }: { event?: EventFormValue }) {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="Classificacao minima">
-          <input name="minimumAge" type="number" min="0" defaultValue={event?.minimumAge ?? ""} className={inputClass} />
+          <input
+            name="minimumAge"
+            type="number"
+            min="0"
+            value={minimumAge}
+            onChange={(inputEvent) => setMinimumAge(inputEvent.target.value)}
+            className={inputClass}
+          />
         </Field>
         <Field label="Max ingressos/pedido">
           <input name="maxTicketsPerOrder" type="number" min="1" defaultValue={event?.maxTicketsPerOrder ?? 4} className={inputClass} />
@@ -209,7 +233,17 @@ export function EventAdminForm({ event }: { event?: EventFormValue }) {
         <Check name="showRemainingTickets" label="Mostrar restantes" defaultChecked={event?.showRemainingTickets ?? false} />
         <Check name="requireParticipantEmail" label="Exigir e-mail participante" defaultChecked={event?.requireParticipantEmail ?? false} />
         <Check name="requireParticipantPhone" label="Exigir telefone participante" defaultChecked={event?.requireParticipantPhone ?? false} />
-        <Check name="requireBirthDate" label="Exigir nascimento" defaultChecked={event?.requireBirthDate ?? false} />
+        {ageRequiresBirthDate ? <input type="hidden" name="requireBirthDate" value="true" /> : null}
+        <Check
+          name="requireBirthDate"
+          label="Exigir nascimento"
+          helper={ageRequiresBirthDate
+            ? "Ativado automaticamente porque o evento possui classificacao minima."
+            : "Necessario para validar classificacao etaria quando ela for informada."}
+          checked={ageRequiresBirthDate || requireBirthDate}
+          disabled={ageRequiresBirthDate}
+          onChange={setRequireBirthDate}
+        />
         <Check name="requireInstitution" label="Exigir instituicao" defaultChecked={event?.requireInstitution ?? false} />
         <Check name="requireCourse" label="Exigir curso" defaultChecked={event?.requireCourse ?? false} />
         <Check name="requireCampus" label="Exigir campus" defaultChecked={event?.requireCampus ?? false} />

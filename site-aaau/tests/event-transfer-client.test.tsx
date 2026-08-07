@@ -69,3 +69,66 @@ test("controles do painel oferecem confirmacao, labels e feedback acessivel", as
   assert.ok(screen.getByText(/QR e o código anteriores deixam de funcionar/i));
   assert.ok(screen.getByText(/Ingressos utilizados não podem ser transferidos/i));
 });
+
+test("aceite exige nascimento por idade minima e mantem erro corrigivel no formulario", async () => {
+  const { TransferRecipientForm } = await import("@/components/events/transfer-recipient-form");
+  const event = {
+    name: "Evento 18+",
+    startAt: new Date("2026-08-22T02:00:00.000Z"),
+    venueName: "Arena",
+    venueAddress: null,
+    requireParticipantPhone: false,
+    requireBirthDate: false,
+    requireInstitution: false,
+    requireCourse: false,
+    requireCampus: false,
+    minimumAge: 18,
+  };
+  const rendered = render(
+    <TransferRecipientForm
+      event={event}
+      lotName="Lote"
+      recipientEmail="destino@event-test.local"
+      inputError
+      acceptAction={async () => undefined}
+      rejectAction={async () => undefined}
+    />,
+  );
+  const birthDate = screen.getByLabelText(/Nascimento \(idade mínima: 18 anos\)/i);
+  assert.equal(birthDate.getAttribute("required"), "");
+  assert.equal(birthDate.getAttribute("max"), "2008-08-22");
+  assert.ok(screen.getByRole("alert"));
+  assert.match(screen.getByRole("alert").textContent ?? "", /pode tentar novamente/i);
+
+  cleanup?.();
+  const unrestricted = render(
+    <TransferRecipientForm
+      event={{ ...event, name: "Evento livre", minimumAge: null }}
+      lotName="Lote"
+      recipientEmail="destino@event-test.local"
+      acceptAction={async () => undefined}
+      rejectAction={async () => undefined}
+    />,
+  );
+  assert.equal(unrestricted.container.querySelector('input[name="birthDate"]'), null);
+});
+
+test("links legados trocam token por cookie e actions nao carregam token no path", () => {
+  const acceptRoute = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/aceitar/[token]/route.ts"), "utf8");
+  const confirmRoute = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/confirmar/[token]/route.ts"), "utf8");
+  const actions = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/actions.ts"), "utf8");
+  assert.match(acceptRoute, /exchangeEventTicketTransferUrlToken\(request, token, "accept"\)/);
+  assert.match(confirmRoute, /exchangeEventTicketTransferUrlToken\(request, token, "confirm"\)/);
+  assert.match(actions, /cookies\(\)/);
+  assert.match(actions, /eventTicketTransferErrorDestination\(error, "\/transferencia-ingresso\/aceitar"\)/);
+  assert.doesNotMatch(actions, /acceptTransferAction\(token:/);
+  assert.doesNotMatch(actions, /confirmTransferAction\(token:/);
+});
+
+test("admin deixa explicita e ativa a exigencia de nascimento quando ha idade minima", () => {
+  const form = readFileSync(path.join(process.cwd(), "components/admin/event-admin-forms.tsx"), "utf8");
+  const action = readFileSync(path.join(process.cwd(), "app/admin/eventos/actions.ts"), "utf8");
+  assert.match(form, /ageRequiresBirthDate/);
+  assert.match(form, /Ativado automaticamente porque o evento possui classificacao minima/);
+  assert.match(action, /requireBirthDate: minimumAge !== null \|\| bool\(formData, "requireBirthDate"\)/);
+});

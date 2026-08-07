@@ -54,6 +54,14 @@ const eventInputSchema = z.object({
   requireInstitution: z.boolean().default(false),
   requireCourse: z.boolean().default(false),
   requireCampus: z.boolean().default(false),
+}).superRefine((event, context) => {
+  if (event.minimumAge !== null && event.minimumAge !== undefined && !event.requireBirthDate) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["requireBirthDate"],
+      message: "Eventos com classificacao minima precisam exigir data de nascimento.",
+    });
+  }
 });
 
 const lotInputSchema = z.object({
@@ -81,6 +89,14 @@ const partnerCodeInputSchema = z.object({
 });
 
 export type TicketEventAdminInput = z.input<typeof eventInputSchema>;
+
+export function parseTicketEventAdminInput(input: TicketEventAdminInput) {
+  const parsed = eventInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new EventAdminValidationError(parsed.error.issues[0]?.message ?? "Dados do evento invalidos.");
+  }
+  return parsed.data;
+}
 export type EventTicketLotAdminInput = z.input<typeof lotInputSchema>;
 export type EventPartnerCodeAdminInput = z.input<typeof partnerCodeInputSchema>;
 
@@ -609,7 +625,7 @@ export async function getAdminEventReport(eventId: string) {
 
 export async function createTicketEventAdmin(input: TicketEventAdminInput, actor: EventAdminActor) {
   assertSuperAdmin(actor);
-  const parsed = eventInputSchema.parse(input);
+  const parsed = parseTicketEventAdminInput(input);
   assertDateRange(parsed);
   const slug = normalizeEventSlug(parsed.slug || parsed.name);
   if (!slug) throw new EventAdminValidationError("Informe um slug valido.");
@@ -632,7 +648,7 @@ export async function createTicketEventAdmin(input: TicketEventAdminInput, actor
 
 export async function updateTicketEventAdmin(eventId: string, input: TicketEventAdminInput, actor: EventAdminActor) {
   assertSuperAdmin(actor);
-  const parsed = eventInputSchema.parse(input);
+  const parsed = parseTicketEventAdminInput(input);
   assertDateRange(parsed);
   const slug = normalizeEventSlug(parsed.slug || parsed.name);
   if (!slug) throw new EventAdminValidationError("Informe um slug valido.");

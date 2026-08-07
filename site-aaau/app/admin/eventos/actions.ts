@@ -45,6 +45,7 @@ function intValue(formData: FormData, name: string, fallback: number) {
 }
 
 function eventInput(formData: FormData): TicketEventAdminInput {
+  const minimumAge = formData.get("minimumAge") ? intValue(formData, "minimumAge", 0) : null;
   return {
     name: String(formData.get("name") ?? ""),
     slug: String(formData.get("slug") ?? ""),
@@ -58,14 +59,14 @@ function eventInput(formData: FormData): TicketEventAdminInput {
     salesEndAt: parseSaoPauloDateTime(String(formData.get("salesEndAt") ?? "")),
     venueName: String(formData.get("venueName") ?? ""),
     venueAddress: String(formData.get("venueAddress") ?? "") || null,
-    minimumAge: formData.get("minimumAge") ? intValue(formData, "minimumAge", 0) : null,
+    minimumAge,
     published: bool(formData, "published"),
     showRemainingTickets: bool(formData, "showRemainingTickets"),
     maxTicketsPerOrder: intValue(formData, "maxTicketsPerOrder", 4),
     lowStockThreshold: intValue(formData, "lowStockThreshold", 10),
     requireParticipantEmail: bool(formData, "requireParticipantEmail"),
     requireParticipantPhone: bool(formData, "requireParticipantPhone"),
-    requireBirthDate: bool(formData, "requireBirthDate"),
+    requireBirthDate: minimumAge !== null || bool(formData, "requireBirthDate"),
     requireInstitution: bool(formData, "requireInstitution"),
     requireCourse: bool(formData, "requireCourse"),
     requireCampus: bool(formData, "requireCampus"),

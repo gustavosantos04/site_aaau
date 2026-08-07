@@ -21,6 +21,13 @@ export type EventTicketTransferRecipientInput = {
 
 const emailSchema = z.string().email().max(160);
 
+export function eventTicketTransferRequiresBirthDate(event: {
+  requireBirthDate: boolean;
+  minimumAge?: number | null;
+}) {
+  return event.requireBirthDate || event.minimumAge !== null && event.minimumAge !== undefined;
+}
+
 function optionalText(value: string | null | undefined, maxLength: number) {
   if (!value) return null;
   const normalized = sanitizeText(value);
@@ -65,7 +72,9 @@ export function normalizeEventTicketTransferRecipient(
   }
   if (event.requireParticipantEmail && !email) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
   if (event.requireParticipantPhone && !phone) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
-  if (event.requireBirthDate && !birthDate) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
+  if (eventTicketTransferRequiresBirthDate(event) && !birthDate) {
+    throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
+  }
   if (event.requireInstitution && !institution) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
   if (event.requireCourse && !course) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
   if (event.requireCampus && !campus) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");

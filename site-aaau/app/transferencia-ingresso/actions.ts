@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 
@@ -13,6 +13,12 @@ import {
 import { assertEventTicketTransferCsrf, assertEventTicketTransferRateLimit } from "@/lib/events/transfer-http-security";
 import { deliverEventTicketOutboxImmediately } from "@/lib/events/immediate-outbox";
 import { logEventTicketOperation } from "@/lib/events/operations-log";
+import { eventTicketTransferErrorDestination } from "@/lib/events/transfer-action-errors";
+import {
+  eventTicketTransferCookieOptions,
+  getEventTicketTransferBrowserConfig,
+  type EventTicketTransferBrowserPurpose,
+} from "@/lib/events/transfer-browser-session";
 
 async function protect(action: string, token: string) {
   const headerStore = await headers();
@@ -24,10 +30,15 @@ async function protect(action: string, token: string) {
   });
 }
 
-function destinationFor(error: unknown) {
-  return error instanceof Error && error.message === "EVENT_TICKET_TRANSFER_EXPIRED"
-    ? "/transferencia-ingresso/expirada"
-    : "/transferencia-ingresso/cancelada";
+async function browserToken(purpose: EventTicketTransferBrowserPurpose) {
+  const cookieStore = await cookies();
+  return cookieStore.get(getEventTicketTransferBrowserConfig(purpose).cookieName)?.value ?? "";
+}
+
+async function clearBrowserToken(purpose: EventTicketTransferBrowserPurpose) {
+  const cookieStore = await cookies();
+  const config = getEventTicketTransferBrowserConfig(purpose);
+  cookieStore.set(config.cookieName, "", { ...eventTicketTransferCookieOptions(purpose), maxAge: 0 });
 }
 
 function scheduleTransferEmail(outboxIds: string[]) {
@@ -37,7 +48,9 @@ function scheduleTransferEmail(outboxIds: string[]) {
   });
 }
 
-export async function confirmTransferAction(token: string) {
+export async function confirmTransferAction() {
+  const token = await browserToken("confirm");
+  if (!token) redirect("/transferencia-ingresso/cancelada" as never);
   await protect("confirm", token);
   let destination = "/transferencia-ingresso/sucesso";
   try {
@@ -45,12 +58,15 @@ export async function confirmTransferAction(token: string) {
     logEventTicketOperation("transfer.holder_confirmed", { transferId: result.transferId });
     scheduleTransferEmail(result.outboxIds);
   } catch (error) {
-    destination = destinationFor(error);
+    destination = eventTicketTransferErrorDestination(error);
   }
+  await clearBrowserToken("confirm");
   redirect(destination as never);
 }
 
-export async function cancelTransferAction(token: string) {
+export async function cancelTransferAction() {
+  const token = await browserToken("confirm");
+  if (!token) redirect("/transferencia-ingresso/cancelada" as never);
   await protect("cancel", token);
   try {
     const result = await cancelEventTicketTransfer(token);
@@ -59,10 +75,13 @@ export async function cancelTransferAction(token: string) {
   } catch {
     // A resposta pública permanece neutra para tokens inválidos ou já consumidos.
   }
+  await clearBrowserToken("confirm");
   redirect("/transferencia-ingresso/cancelada" as never);
 }
 
-export async function acceptTransferAction(token: string, formData: FormData) {
+export async function acceptTransferAction(formData: FormData) {
+  const token = await browserToken("accept");
+  if (!token) redirect("/transferencia-ingresso/cancelada" as never);
   await protect("accept", token);
   let destination = "/transferencia-ingresso/sucesso";
   try {
@@ -76,13 +95,19 @@ export async function acceptTransferAction(token: string, formData: FormData) {
       campus: String(formData.get("campus") ?? "") || null,
     });
     scheduleTransferEmail(result.outboxIds);
+    await clearBrowserToken("accept");
   } catch (error) {
-    destination = destinationFor(error);
+    destination = eventTicketTransferErrorDestination(error, "/transferencia-ingresso/aceitar");
+    if (destination !== "/transferencia-ingresso/aceitar?erro=dados") {
+      await clearBrowserToken("accept");
+    }
   }
   redirect(destination as never);
 }
 
-export async function rejectTransferAction(token: string) {
+export async function rejectTransferAction() {
+  const token = await browserToken("accept");
+  if (!token) redirect("/transferencia-ingresso/cancelada" as never);
   await protect("reject", token);
   try {
     const result = await rejectEventTicketTransfer(token);
@@ -91,5 +116,6 @@ export async function rejectTransferAction(token: string) {
   } catch {
     // A resposta pública permanece neutra para tokens inválidos ou já consumidos.
   }
+  await clearBrowserToken("accept");
   redirect("/transferencia-ingresso/cancelada" as never);
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/db/prisma";
 import { completeEventTicketTransfer } from "@/lib/events/transfer-completion";
+import { safeEventTicketTransferErrorCode } from "@/lib/events/transfer-action-errors";
 import { logEventTicketOperation } from "@/lib/events/operations-log";
 import { assertEventTicketTransfersEnabled } from "@/lib/events/transfer-config";
 import {
@@ -198,7 +199,7 @@ const publicSelect = {
       event: { select: {
         name: true, startAt: true, venueName: true, venueAddress: true,
         requireParticipantEmail: true, requireParticipantPhone: true, requireBirthDate: true,
-        requireInstitution: true, requireCourse: true, requireCampus: true,
+        requireInstitution: true, requireCourse: true, requireCampus: true, minimumAge: true,
       } },
     },
   },
@@ -300,7 +301,16 @@ export async function acceptEventTicketTransfer(rawToken: string, recipient: Omi
   });
   if (prepared.expired) flowError("EVENT_TICKET_TRANSFER_EXPIRED");
   logEventTicketOperation("transfer.recipient_accepted", { transferId: prepared.transferId });
-  return completeEventTicketTransfer({ ...prepared, now, queueCompletionEmails: true });
+  try {
+    return await completeEventTicketTransfer({ ...prepared, now, queueCompletionEmails: true });
+  } catch (error) {
+    logEventTicketOperation("transfer.completion_failed", {
+      transferId: prepared.transferId,
+      stage: "completion",
+      code: safeEventTicketTransferErrorCode(error),
+    });
+    throw error;
+  }
 }
 
 export async function rejectEventTicketTransfer(rawToken: string, now = new Date()) {

@@ -8,6 +8,8 @@ type OperationFields = {
   exhausted?: number;
   pending?: number;
   expired?: number;
+  code?: string;
+  stage?: "accept" | "completion" | "confirm";
   reason?: "invalid" | "expired" | "rate_limited" | "busy" | "disabled";
 };
 

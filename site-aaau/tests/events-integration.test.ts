@@ -449,7 +449,7 @@ function adminEventInput(overrides: Partial<Parameters<typeof createTicketEventA
     lowStockThreshold: 5,
     requireParticipantEmail: false,
     requireParticipantPhone: false,
-    requireBirthDate: false,
+    requireBirthDate: true,
     requireInstitution: false,
     requireCourse: false,
     requireCampus: false,
@@ -2807,6 +2807,14 @@ test("admin despublica evento e helper publico deixa de listar", async () => {
 test("admin valida datas invalidas e lote gratuito", async () => {
   await assert.rejects(
     () => createTicketEventAdmin(adminEventInput({
+      minimumAge: 18,
+      requireBirthDate: false,
+    }), superAdminActor),
+    EventAdminValidationError,
+  );
+
+  await assert.rejects(
+    () => createTicketEventAdmin(adminEventInput({
       startAt: new Date("2026-01-02T00:00:00.000Z"),
       endAt: new Date("2026-01-01T00:00:00.000Z"),
     }), superAdminActor),
@@ -3122,6 +3130,74 @@ test("fase 3 transfere somente um de tres ingressos e recupera falha de email pe
     assert.equal(individual?.tickets.length, 1);
     assert.equal(individual?.tickets[0].ticketId, target.id);
     assert.equal(await getRecipientAcceptanceView(acceptanceToken).then((view) => view.state), "INVALID");
+  } finally {
+    restore();
+  }
+});
+
+test("idade minima exige nascimento antes de rotacionar credenciais e permite nova tentativa valida", async () => {
+  const restore = enableTransferTestEnvironment();
+  try {
+    const { event, order } = await createPaidOrderFixture(1);
+    await testPrisma.ticketEvent.update({
+      where: { id: event.id },
+      data: { minimumAge: 18, requireBirthDate: false },
+    });
+    const ticketBefore = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
+    await ensureInitialEventTicketQrVersion(ticketBefore.id, testPrisma);
+    const activeBefore = await testPrisma.eventTicketQrVersion.findFirstOrThrow({
+      where: { ticketId: ticketBefore.id, status: "ACTIVE" },
+    });
+    const request = await requestEventTicketTransfer({
+      ticketId: ticketBefore.id,
+      holderCredential: { kind: "ORIGINAL_ORDER", orderAccessToken: order.accessToken },
+      recipientEmail: transferRecipient.email,
+    });
+    await confirmEventTicketTransfer(request.rawConfirmationToken!);
+    const invitation = await testPrisma.eventTicketTransferOutbox.findFirstOrThrow({
+      where: { transferId: request.transferId, kind: "EVENT_TICKET_TRANSFER_RECIPIENT_INVITATION" },
+    });
+    const acceptanceToken = tokenFromOutboxPayload(decryptTransferEmailPayload({
+      encryptedPayload: invitation.encryptedPayload!,
+      initializationVector: invitation.initializationVector!,
+      authenticationTag: invitation.authenticationTag!,
+    }), "aceitar");
+
+    await assert.rejects(
+      () => acceptEventTicketTransfer(acceptanceToken, transferRecipient),
+      /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/,
+    );
+    const failedTransfer = await testPrisma.eventTicketTransfer.findUniqueOrThrow({ where: { id: request.transferId } });
+    assert.equal(failedTransfer.status, "PENDING_RECIPIENT_ACCEPTANCE");
+    assert.ok(failedTransfer.recipientConfirmedAt);
+    assert.equal(failedTransfer.completedAt, null);
+    assert.deepEqual(await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: ticketBefore.id } }), ticketBefore);
+    assert.deepEqual(
+      await testPrisma.eventTicketQrVersion.findFirstOrThrow({ where: { id: activeBefore.id } }),
+      activeBefore,
+    );
+    assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: ticketBefore.id } }), 0);
+    assert.equal(await testPrisma.eventTicketTransferOutbox.count({
+      where: {
+        transferId: request.transferId,
+        kind: { in: ["EVENT_TICKET_TRANSFER_RECIPIENT_COMPLETED", "EVENT_TICKET_TRANSFER_PREVIOUS_HOLDER_COMPLETED"] },
+      },
+    }), 0);
+
+    const completed = await acceptEventTicketTransfer(acceptanceToken, {
+      ...transferRecipient,
+      birthDate: "2000-01-02",
+    });
+    assert.equal(completed.alreadyCompleted, false);
+    const ticketAfter = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: ticketBefore.id } });
+    assert.equal(ticketAfter.ownershipVersion, ticketBefore.ownershipVersion + 1);
+    assert.equal(ticketAfter.qrVersion, ticketBefore.qrVersion + 1);
+    assert.notEqual(ticketAfter.qrToken, ticketBefore.qrToken);
+    assert.notEqual(ticketAfter.ticketCode, ticketBefore.ticketCode);
+    assert.equal((await testPrisma.eventTicketQrVersion.findUniqueOrThrow({ where: { id: activeBefore.id } })).status, "REVOKED");
+    assert.equal(await testPrisma.eventTicketAccessGrant.count({
+      where: { ticketId: ticketBefore.id, createdFromTransferId: request.transferId, revokedAt: null },
+    }), 1);
   } finally {
     restore();
   }

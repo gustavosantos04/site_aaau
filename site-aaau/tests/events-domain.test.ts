@@ -33,6 +33,7 @@ import {
   maskCpfLast4,
   normalizeEventSlug,
   normalizePartnerCodeAdmin,
+  parseTicketEventAdminInput,
 } from "@/lib/events/admin";
 import { adminStatusLabel, emailDeliveryStatusLabel } from "@/lib/events/admin-labels";
 import { normalizeEventImagePath } from "@/lib/events/images";
@@ -49,7 +50,20 @@ import {
   hashEventTicketHolderEmail,
   normalizeEventTicketHolderEmail,
 } from "@/lib/events/transfer-security";
-import { normalizeEventTicketTransferRecipient } from "@/lib/events/transfer-validation";
+import {
+  eventTicketTransferRequiresBirthDate,
+  normalizeEventTicketTransferRecipient,
+} from "@/lib/events/transfer-validation";
+import {
+  eventTicketTransferErrorDestination,
+  safeEventTicketTransferErrorCode,
+} from "@/lib/events/transfer-action-errors";
+import {
+  eventTicketTransferCookieOptions,
+  getEventTicketTransferBrowserConfig,
+  isValidEventTicketTransferBrowserToken,
+} from "@/lib/events/transfer-browser-session";
+import { logEventTicketOperation } from "@/lib/events/operations-log";
 import { decryptTransferEmailPayload, encryptTransferEmailPayload } from "@/lib/events/transfer-outbox";
 import { maskEmail } from "@/lib/events/transfer-emails";
 import { assertEventTicketTransferCsrf, assertEventTicketTransferRateLimit } from "@/lib/events/transfer-http-security";
@@ -933,4 +947,102 @@ test("transfer recipient normalization validates CPF, email and event requiremen
     course: "Direito",
     campus: "Centro",
   }, requirements), /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
+});
+
+test("idade minima exige nascimento mesmo sem requireBirthDate e preserva eventos sem classificacao", () => {
+  const event = {
+    requireParticipantEmail: true,
+    requireParticipantPhone: false,
+    requireBirthDate: false,
+    requireInstitution: false,
+    requireCourse: false,
+    requireCampus: false,
+    minimumAge: 18,
+    startAt: new Date("2026-08-22T02:00:00.000Z"),
+  };
+  const baseRecipient = {
+    name: "Nova Titular",
+    cpf: "52998224725",
+    email: "nova@event-test.local",
+  };
+
+  assert.equal(eventTicketTransferRequiresBirthDate(event), true);
+  assert.throws(
+    () => normalizeEventTicketTransferRecipient(baseRecipient, event),
+    /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/,
+  );
+  assert.doesNotThrow(() => normalizeEventTicketTransferRecipient({
+    ...baseRecipient,
+    birthDate: "2000-01-02",
+  }, event));
+  assert.throws(() => normalizeEventTicketTransferRecipient({
+    ...baseRecipient,
+    birthDate: "2010-01-01",
+  }, event), /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
+
+  const unrestricted = { ...event, minimumAge: null };
+  assert.equal(eventTicketTransferRequiresBirthDate(unrestricted), false);
+  assert.doesNotThrow(() => normalizeEventTicketTransferRecipient(baseRecipient, unrestricted));
+});
+
+test("admin rejeita classificacao minima sem coleta de nascimento", () => {
+  const input = {
+    name: "Evento coerente",
+    shortDescription: "Descricao curta valida",
+    description: "Descricao completa valida",
+    startAt: new Date("2026-08-22T02:00:00.000Z"),
+    venueName: "Arena AAAU",
+    minimumAge: 18,
+    published: false,
+    showRemainingTickets: false,
+    maxTicketsPerOrder: 4,
+    lowStockThreshold: 10,
+    requireParticipantEmail: true,
+    requireParticipantPhone: false,
+    requireBirthDate: false,
+    requireInstitution: false,
+    requireCourse: false,
+    requireCampus: false,
+  };
+  assert.throws(() => parseTicketEventAdminInput(input), /classificacao minima/);
+  assert.equal(parseTicketEventAdminInput({ ...input, requireBirthDate: true }).requireBirthDate, true);
+});
+
+test("erro recuperavel, log e sessao de navegador nunca incluem dados sensiveis", () => {
+  assert.equal(
+    eventTicketTransferErrorDestination(
+      new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID"),
+      "/transferencia-ingresso/aceitar",
+    ),
+    "/transferencia-ingresso/aceitar?erro=dados",
+  );
+  assert.equal(
+    safeEventTicketTransferErrorCode(new Error("falha cpf=52998224725 token=segredo nome=Pessoa")),
+    "EVENT_TICKET_TRANSFER_INTERNAL_ERROR",
+  );
+
+  const originalInfo = console.info;
+  const messages: string[] = [];
+  console.info = (...values: unknown[]) => messages.push(values.join(" "));
+  try {
+    logEventTicketOperation("transfer.completion_failed", {
+      transferId: "transfer-safe-id",
+      stage: "completion",
+      code: safeEventTicketTransferErrorCode(new Error("falha cpf=52998224725 token=segredo nome=Pessoa")),
+    });
+  } finally {
+    console.info = originalInfo;
+  }
+  const output = messages.join("\n");
+  assert.match(output, /transfer-safe-id/);
+  assert.match(output, /EVENT_TICKET_TRANSFER_INTERNAL_ERROR/);
+  assert.doesNotMatch(output, /52998224725|segredo|Pessoa/);
+
+  const token = "a".repeat(43);
+  assert.equal(isValidEventTicketTransferBrowserToken(token), true);
+  assert.equal(getEventTicketTransferBrowserConfig("accept").path, "/transferencia-ingresso/aceitar");
+  assert.deepEqual(
+    { httpOnly: eventTicketTransferCookieOptions("accept").httpOnly, sameSite: eventTicketTransferCookieOptions("accept").sameSite },
+    { httpOnly: true, sameSite: "lax" },
+  );
 });
