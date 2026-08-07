@@ -20,6 +20,7 @@ import {
   createTicketEventAdmin,
   createTicketLotAdmin,
   getAdminEventCockpit,
+  getAdminEventReport,
   getAdminEventsDashboard,
   publishTicketEventAdmin,
   resendTicketConfirmationEmailAdmin,
@@ -40,6 +41,7 @@ import {
   EventSalesNotStartedError,
   IdempotencyConflictError,
   InsufficientTicketAvailabilityError,
+  InvalidTicketQuantityError,
   LateApprovedPaymentError,
   PartnerCodeLimitReachedError,
   PaymentIdConflictError,
@@ -221,8 +223,13 @@ async function reserveOrder(input: {
   buyerIndex?: number;
   participantOffset?: number;
   partnerCode?: string;
+  ticketLotId?: string;
+  commercialUnitQuantity?: number;
+  participantCount?: number;
+  now?: Date;
 }) {
   const quantity = input.quantity ?? 1;
+  const participantCount = input.participantCount ?? quantity;
   const participantOffset = input.participantOffset ?? 0;
 
   return createEventOrderReservation({
@@ -230,7 +237,10 @@ async function reserveOrder(input: {
     idempotencyKey: input.idempotencyKey,
     buyer: buyer(input.buyerIndex ?? 0),
     partnerCode: input.partnerCode,
-    participants: Array.from({ length: quantity }, (_, index) =>
+    ticketLotId: input.ticketLotId,
+    commercialUnitQuantity: input.commercialUnitQuantity,
+    now: input.now,
+    participants: Array.from({ length: participantCount }, (_, index) =>
       participant(index + participantOffset),
     ),
   });
@@ -249,6 +259,40 @@ async function createPaidOrderFixture(quantity = 1) {
     paidAmount: order.total,
   });
   return { event, lot, order };
+}
+
+const PROMO_START = new Date("2026-08-07T12:00:00-03:00");
+const PROMO_END = new Date("2026-08-08T12:00:00-03:00");
+const PROMO_NOW = new Date("2026-08-07T18:00:00-03:00");
+
+async function createPromotionalEvent(overrides: { quantity?: number; soldQuantity?: number } = {}) {
+  const event = await createTestTicketEvent({
+    maxTicketsPerOrder: 4,
+    salesStartAt: new Date("2026-08-01T00:00:00-03:00"),
+    salesEndAt: new Date("2026-08-10T00:00:00-03:00"),
+    startAt: new Date("2026-08-15T20:00:00-03:00"),
+  });
+  const regular = await createTestTicketLot(event.id, {
+    name: "Terceiro lote",
+    position: 1,
+    price: new Prisma.Decimal("150.00"),
+    quantity: 300,
+    salesStartAt: new Date("2026-08-01T00:00:00-03:00"),
+    salesEndAt: new Date("2026-08-10T00:00:00-03:00"),
+  });
+  const promotion = await createTestTicketLot(event.id, {
+    name: "Lote Promocional - 2 por 1",
+    position: 2,
+    price: new Prisma.Decimal("130.00"),
+    quantity: overrides.quantity ?? 100,
+    soldQuantity: overrides.soldQuantity ?? 0,
+    ticketsPerUnit: 2,
+    maxUnitsPerOrder: 2,
+    exclusiveWindow: true,
+    salesStartAt: PROMO_START,
+    salesEndAt: PROMO_END,
+  });
+  return { event, regular, promotion };
 }
 
 const transferRecipient = {
@@ -641,6 +685,202 @@ test("confirmacao de pagamento duplicada concorrente confirma contadores e ticke
   assert.equal(await testPrisma.eventTicket.count({ where: { eventOrderId: order.orderId } }), 2);
 });
 
+test("promocao 2 por 1 cobra por pacote, emite ingressos individuais e reporta unidades separadamente", async () => {
+  const { event, promotion } = await createPromotionalEvent();
+  const first = await reserveOrder({
+    eventId: event.id,
+    idempotencyKey: "promo-one-package",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 1,
+    participantCount: 2,
+    now: PROMO_NOW,
+  });
+  assert.equal(first.total.toFixed(2), "130.00");
+
+  const persistedFirst = await testPrisma.eventOrder.findUniqueOrThrow({ where: { id: first.orderId } });
+  assert.equal(persistedFirst.ticketLotId, promotion.id);
+  assert.equal(persistedFirst.commercialUnitQuantity, 1);
+  assert.equal(persistedFirst.ticketsPerUnit, 2);
+  assert.equal(persistedFirst.commercialUnitPrice.toFixed(2), "130.00");
+
+  const previousFetch = global.fetch;
+  const previousAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+  const payloads: Array<Record<string, unknown>> = [];
+  try {
+    process.env.MERCADO_PAGO_ACCESS_TOKEN = "TEST-promo-token";
+    global.fetch = (async (_url, init) => {
+      payloads.push(JSON.parse(String(init?.body)));
+      return Response.json({
+        id: "pref-promo-one",
+        init_point: "https://www.mercadopago.com/promo",
+        sandbox_init_point: "https://sandbox.mercadopago.com/promo",
+      });
+    }) as typeof fetch;
+    await createEventPaymentPreference({ eventOrderId: first.orderId, baseUrl: "https://aaau.test", now: PROMO_NOW });
+  } finally {
+    global.fetch = previousFetch;
+    if (previousAccessToken === undefined) delete process.env.MERCADO_PAGO_ACCESS_TOKEN;
+    else process.env.MERCADO_PAGO_ACCESS_TOKEN = previousAccessToken;
+  }
+  const mercadoPagoPayload = payloads[0] as {
+    items?: Array<{ id?: string; quantity?: number; unit_price?: number; title?: string }>;
+    metadata?: Record<string, unknown>;
+  };
+  assert.deepEqual(mercadoPagoPayload.items?.[0], {
+    id: promotion.id,
+    title: "Lote Promocional - 2 por 1",
+    description: "1 unidade(s), 2 ingresso(s)",
+    currency_id: "BRL",
+    quantity: 1,
+    unit_price: 130,
+  });
+  assert.equal(mercadoPagoPayload.metadata?.commercial_unit_quantity, 1);
+  assert.equal(mercadoPagoPayload.metadata?.tickets_per_unit, 2);
+  assert.equal(mercadoPagoPayload.metadata?.ticket_count, 2);
+
+  await confirmEventOrderPayment({
+    eventOrderId: first.orderId,
+    paymentId: "PAY-PROMO-ONE",
+    paidAmount: first.total,
+    now: PROMO_NOW,
+  });
+  const repeatedConfirmation = await confirmEventOrderPayment({
+    eventOrderId: first.orderId,
+    paymentId: "PAY-PROMO-ONE",
+    paidAmount: first.total,
+    now: PROMO_NOW,
+  });
+  assert.equal(repeatedConfirmation.alreadyProcessed, true);
+  const firstTickets = await testPrisma.eventTicket.findMany({ where: { eventOrderId: first.orderId } });
+  assert.equal(firstTickets.length, 2);
+  assert.equal(new Set(firstTickets.map((ticket) => ticket.qrToken)).size, 2);
+  assert.equal(new Set(firstTickets.map((ticket) => ticket.ticketCode)).size, 2);
+
+  const second = await reserveOrder({
+    eventId: event.id,
+    idempotencyKey: "promo-two-packages",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 2,
+    participantCount: 4,
+    participantOffset: 1,
+    buyerIndex: 1,
+    now: PROMO_NOW,
+  });
+  assert.equal(second.total.toFixed(2), "260.00");
+  await confirmEventOrderPayment({
+    eventOrderId: second.orderId,
+    paymentId: "PAY-PROMO-TWO",
+    paidAmount: second.total,
+    now: PROMO_NOW,
+  });
+  assert.equal(await testPrisma.eventTicket.count({ where: { eventOrderId: second.orderId } }), 4);
+
+  const sentMessages: Array<{ text?: string; html?: string }> = [];
+  await ensureEventTicketConfirmationEmail(second.orderId, {
+    baseUrl: "https://aaau.test",
+    from: "AAAU <ingressos@aaau.test>",
+    sender: { async sendMail(message) { sentMessages.push(message); } },
+  });
+  assert.equal(sentMessages.length, 1);
+  assert.match(sentMessages[0].text ?? "", /Quantidade de ingressos: 4/);
+  assert.match(sentMessages[0].html ?? "", /Quantidade:<\/strong> 4 ingressos/);
+
+  const updatedLot = await assertLotInvariant(promotion.id);
+  assert.equal(updatedLot.soldQuantity, 3);
+  assert.equal(updatedLot.reservedQuantity, 0);
+  const report = await getAdminEventReport(event.id);
+  const promoReport = report?.lots.find((lot) => lot.id === promotion.id);
+  assert.equal(promoReport?.paidCommercialUnits, 3);
+  assert.equal(promoReport?.paidTickets, 6);
+  assert.equal(promoReport?.revenue.toFixed(2), "390.00");
+});
+
+test("promocao rejeita pacote parcial, terceiro pacote, lote suspenso e janela adulterada", async () => {
+  const { event, regular, promotion } = await createPromotionalEvent();
+  await assert.rejects(() => reserveOrder({
+    eventId: event.id,
+    idempotencyKey: "promo-partial",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 1,
+    participantCount: 1,
+    now: PROMO_NOW,
+  }), InvalidTicketQuantityError);
+  await assert.rejects(() => reserveOrder({
+    eventId: event.id,
+    idempotencyKey: "promo-three-packages",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 3,
+    participantCount: 6,
+    now: PROMO_NOW,
+  }), InvalidTicketQuantityError);
+  await assert.rejects(() => reserveOrder({
+    eventId: event.id,
+    idempotencyKey: "regular-during-promo",
+    ticketLotId: regular.id,
+    commercialUnitQuantity: 1,
+    participantCount: 1,
+    now: PROMO_NOW,
+  }), InsufficientTicketAvailabilityError);
+  await assert.rejects(() => createEventOrderReservation({
+    eventId: event.id,
+    idempotencyKey: "promo-before-window",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 1,
+    buyer: buyer(0),
+    participants: [participant(0), participant(1)],
+    now: new Date(PROMO_START.getTime() - 1),
+  }), InsufficientTicketAvailabilityError);
+  await assert.rejects(() => createEventOrderReservation({
+    eventId: event.id,
+    idempotencyKey: "promo-at-end",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 1,
+    buyer: buyer(0),
+    participants: [participant(0), participant(1)],
+    now: PROMO_END,
+  }), InsufficientTicketAvailabilityError);
+  assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
+});
+
+test("estoque promocional residual e concorrente nunca ultrapassa 100 pacotes", async () => {
+  const { event, promotion } = await createPromotionalEvent({ soldQuantity: 99 });
+  await assert.rejects(() => createEventOrderReservation({
+    eventId: event.id,
+    idempotencyKey: "promo-residual-two",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 2,
+    buyer: buyer(0),
+    participants: [participant(0), participant(1), participant(2), participant(3)],
+    now: PROMO_NOW,
+  }), InsufficientTicketAvailabilityError);
+
+  const results = await Promise.allSettled([
+    createEventOrderReservation({
+      eventId: event.id,
+      idempotencyKey: "promo-final-a",
+      ticketLotId: promotion.id,
+      commercialUnitQuantity: 1,
+      buyer: buyer(0),
+      participants: [participant(0), participant(1)],
+      now: PROMO_NOW,
+    }),
+    createEventOrderReservation({
+      eventId: event.id,
+      idempotencyKey: "promo-final-b",
+      ticketLotId: promotion.id,
+      commercialUnitQuantity: 1,
+      buyer: buyer(1),
+      participants: [participant(2), participant(3)],
+      now: PROMO_NOW,
+    }),
+  ]);
+  expectOneSuccessOneFailure(results);
+  const updated = await assertLotInvariant(promotion.id);
+  assert.equal(updated.soldQuantity, 99);
+  assert.equal(updated.reservedQuantity, 1);
+  assert.equal(updated.soldQuantity + updated.reservedQuantity, 100);
+});
+
 test("paymentId duplicado nao confirma segundo pedido nem altera contadores", async () => {
   const { event, lot } = await createEventWithLot(10);
   const first = await reserveOrder({ eventId: event.id, idempotencyKey: "payment-first", participantOffset: 0 });
@@ -844,6 +1084,7 @@ test("criacao de preferencia de evento usa total e externalReference persistidos
     expiration_date_to?: unknown;
     notification_url?: unknown;
     items?: Array<Record<string, unknown>>;
+    metadata?: Record<string, unknown>;
   }> = [];
   let calls = 0;
   const previousVercelEnv = process.env.VERCEL_ENV;
@@ -891,7 +1132,11 @@ test("criacao de preferencia de evento usa total e externalReference persistidos
     assert.equal(JSON.stringify(await testPrisma.eventOrder.findUniqueOrThrow({
       where: { id: order.orderId },
     })).includes("integration-server-only-secret"), false);
-    assert.equal(item.unit_price, Number(persistedOrder.total.toString()));
+    assert.equal(item.quantity, persistedOrder.commercialUnitQuantity);
+    assert.equal(item.unit_price, Number(persistedOrder.commercialUnitPrice.toString()));
+    assert.equal(capturedPayload.metadata?.commercial_unit_quantity, persistedOrder.commercialUnitQuantity);
+    assert.equal(capturedPayload.metadata?.tickets_per_unit, persistedOrder.ticketsPerUnit);
+    assert.equal(capturedPayload.metadata?.ticket_count, 2);
     assert.ok(new Date(String(capturedPayload?.expiration_date_to)) <= persistedOrder.expiresAt);
   } finally {
     global.fetch = previousFetch;
@@ -3019,6 +3264,49 @@ test("admin cancelamento bloqueia novas vendas publicamente sem apagar historico
   const listed = dashboard.events.find((item) => item.id === event.id);
   assert.equal(listed?.adminStatus, "CANCELED");
   assert.equal(listed?.publicStatus, "Cancelado");
+});
+
+test("admin configura pacote promocional generico e protege multiplicador depois de reserva", async () => {
+  const event = await createTestTicketEvent({
+    maxTicketsPerOrder: 4,
+    salesStartAt: new Date("2026-08-01T00:00:00-03:00"),
+    salesEndAt: new Date("2026-08-10T00:00:00-03:00"),
+  });
+  const promotion = await createTicketLotAdmin(event.id, adminLotInput({
+    name: "Lote Promocional - 2 por 1",
+    price: new Prisma.Decimal("130.00"),
+    quantity: 100,
+    ticketsPerUnit: 2,
+    maxUnitsPerOrder: 2,
+    exclusiveWindow: true,
+    salesStartAt: PROMO_START,
+    salesEndAt: PROMO_END,
+  }), superAdminActor);
+  assert.equal(promotion.ticketsPerUnit, 2);
+  assert.equal(promotion.maxUnitsPerOrder, 2);
+  assert.equal(promotion.exclusiveWindow, true);
+  assert.equal(promotion.salesStartAt?.toISOString(), "2026-08-07T15:00:00.000Z");
+  assert.equal(promotion.salesEndAt?.toISOString(), "2026-08-08T15:00:00.000Z");
+
+  await reserveOrder({
+    eventId: event.id,
+    idempotencyKey: "admin-promo-reservation",
+    ticketLotId: promotion.id,
+    commercialUnitQuantity: 1,
+    participantCount: 2,
+    now: PROMO_NOW,
+  });
+  await assert.rejects(() => updateTicketLotAdmin(promotion.id, adminLotInput({
+    name: promotion.name,
+    position: promotion.position,
+    quantity: 100,
+    price: promotion.price,
+    ticketsPerUnit: 1,
+    maxUnitsPerOrder: 2,
+    exclusiveWindow: true,
+    salesStartAt: PROMO_START,
+    salesEndAt: PROMO_END,
+  }), superAdminActor), EventAdminValidationError);
 });
 
 function tokenFromOutboxPayload(payload: { text: string }, segment: "confirmar" | "aceitar") {

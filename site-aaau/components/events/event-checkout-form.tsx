@@ -12,9 +12,11 @@ type CheckoutEvent = {
   name: string;
   startAt: string;
   venueName: string;
-  maxTicketsPerOrder: number;
+  currentLotId: string;
   currentLotName: string;
   currentLotPrice: string;
+  ticketsPerUnit: number;
+  maxUnitsPerOrder: number;
   requireParticipantEmail: boolean;
   requireParticipantPhone: boolean;
   requireBirthDate: boolean;
@@ -73,7 +75,9 @@ export function EventCheckoutForm({
 }) {
   const [quantity, setQuantity] = useState(1);
   const [buyer, setBuyer] = useState<Buyer>({ name: "", cpf: "", email: "", phone: "" });
-  const [participants, setParticipants] = useState<Participant[]>([{ ...emptyParticipant }]);
+  const [participants, setParticipants] = useState<Participant[]>(() =>
+    Array.from({ length: event.ticketsPerUnit }, () => ({ ...emptyParticipant })),
+  );
   const [partnerCode, setPartnerCode] = useState(initialPartnerCode);
   const [partnerPreview, setPartnerPreview] = useState<PartnerPreview | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -87,11 +91,11 @@ export function EventCheckoutForm({
   const subtotal = useMemo(() => Number(event.currentLotPrice) * quantity, [event.currentLotPrice, quantity]);
   const total = partnerPreview?.valid ? Number(partnerPreview.total) : subtotal;
 
-  function setParticipantCount(next: number) {
-    const clamped = Math.min(event.maxTicketsPerOrder, Math.max(1, next));
+  function setCommercialUnitCount(next: number) {
+    const clamped = Math.min(event.maxUnitsPerOrder, Math.max(1, next));
     setQuantity(clamped);
     setParticipants((current) =>
-      Array.from({ length: clamped }, (_, index) => current[index] ?? { ...emptyParticipant }),
+      Array.from({ length: clamped * event.ticketsPerUnit }, (_, index) => current[index] ?? { ...emptyParticipant }),
     );
     setPartnerPreview(null);
   }
@@ -145,13 +149,13 @@ export function EventCheckoutForm({
       const response = await fetch("/api/eventos/partner-code/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventSlug: event.slug, code, quantity }),
+        body: JSON.stringify({ eventSlug: event.slug, ticketLotId: event.currentLotId, code, quantity }),
       });
       setPartnerPreview(await response.json());
     } finally {
       setValidatingCode(false);
     }
-  }, [event.slug, quantity]);
+  }, [event.currentLotId, event.slug, quantity]);
 
   useEffect(() => {
     if (initialPartnerCode.trim()) void validatePartnerCode(initialPartnerCode);
@@ -160,10 +164,11 @@ export function EventCheckoutForm({
   function payloadSignature() {
     return JSON.stringify({
       eventSlug: event.slug,
+      ticketLotId: event.currentLotId,
+      commercialUnitQuantity: quantity,
       buyer,
       participants,
       partnerCode: partnerPreview?.valid ? partnerCode.trim() : undefined,
-      quantity,
     });
   }
 
@@ -182,6 +187,8 @@ export function EventCheckoutForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         eventSlug: event.slug,
+        ticketLotId: event.currentLotId,
+        commercialUnitQuantity: quantity,
         buyer,
         participants: participants.map(buildEventCheckoutParticipantPayload),
         partnerCode: partnerPreview?.valid ? partnerCode.trim() : undefined,
@@ -229,12 +236,12 @@ export function EventCheckoutForm({
           <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold text-white">{event.currentLotName}</p>
-              <p className="text-sm text-white/60">{formatMoney(event.currentLotPrice)} por ingresso</p>
+              <p className="text-sm text-white/60">{formatMoney(event.currentLotPrice)} por {event.ticketsPerUnit > 1 ? `pacote com ${event.ticketsPerUnit} ingressos` : "ingresso"}</p>
             </div>
             <div className="flex h-12 w-fit items-center rounded-full border border-white/10 bg-aaau-night">
-              <button type="button" className="h-12 w-12 disabled:cursor-not-allowed disabled:opacity-35" disabled={quantity <= 1} onClick={() => setParticipantCount(quantity - 1)} aria-label="Diminuir quantidade"><Minus className="mx-auto h-4 w-4" /></button>
+              <button type="button" className="h-12 w-12 disabled:cursor-not-allowed disabled:opacity-35" disabled={quantity <= 1} onClick={() => setCommercialUnitCount(quantity - 1)} aria-label="Diminuir quantidade"><Minus className="mx-auto h-4 w-4" /></button>
               <span className="w-10 text-center font-semibold">{quantity}</span>
-              <button type="button" className="h-12 w-12 disabled:cursor-not-allowed disabled:opacity-35" disabled={quantity >= event.maxTicketsPerOrder} onClick={() => setParticipantCount(quantity + 1)} aria-label="Aumentar quantidade"><Plus className="mx-auto h-4 w-4" /></button>
+              <button type="button" className="h-12 w-12 disabled:cursor-not-allowed disabled:opacity-35" disabled={quantity >= event.maxUnitsPerOrder} onClick={() => setCommercialUnitCount(quantity + 1)} aria-label="Aumentar quantidade"><Plus className="mx-auto h-4 w-4" /></button>
             </div>
           </div>
         </section>
@@ -292,8 +299,9 @@ export function EventCheckoutForm({
         <h2 className="font-display text-2xl uppercase tracking-[0.08em] text-white">Resumo</h2>
         <div className="mt-5 space-y-3 text-sm text-white/70">
           <Row label="Evento" value={event.name} />
-          <Row label="Quantidade" value={`${quantity} ingresso(s)`} />
-          <Row label="Preço unitário" value={formatMoney(event.currentLotPrice)} />
+          <Row label="Quantidade" value={event.ticketsPerUnit > 1 ? `${quantity} pacote(s)` : `${quantity} ingresso(s)`} />
+          {event.ticketsPerUnit > 1 ? <Row label="Ingressos emitidos" value={`${participants.length}`} /> : null}
+          <Row label={event.ticketsPerUnit > 1 ? "Preço por pacote" : "Preço unitário"} value={formatMoney(event.currentLotPrice)} />
           <Row label="Subtotal" value={formatMoney(subtotal)} />
           {partnerPreview?.valid ? <Row label={partnerPreview.code} value={`- ${partnerPreview.formattedDiscount}`} /> : null}
           <div className="border-t border-white/10 pt-4">

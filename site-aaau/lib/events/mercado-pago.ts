@@ -140,6 +140,7 @@ async function loadEventOrderForPreference(eventOrderId: string) {
     where: { id: eventOrderId },
     include: {
       event: true,
+      ticketLot: true,
       participants: true,
     },
   });
@@ -327,6 +328,7 @@ async function persistPreference(input: {
     },
     include: {
       event: true,
+      ticketLot: true,
       participants: true,
     },
   });
@@ -407,16 +409,23 @@ function buildEventPreferencePayload(input: {
   baseUrl: string;
   now: Date;
 }) {
+  const hasDiscount = !input.order.discountAmount.equals(0);
+  // BRL accepts cent precision. A discount divided across multiple units can
+  // produce a repeating cent and make Mercado Pago charge one cent too much or
+  // too little, so discounted orders remain one financial line with snapshots
+  // in metadata preserving the commercial-unit semantics.
+  const mercadoPagoQuantity = hasDiscount ? 1 : input.order.commercialUnitQuantity;
+  const mercadoPagoUnitPrice = hasDiscount ? input.order.total : input.order.commercialUnitPrice;
   return {
     external_reference: input.order.externalReference,
     items: [
       {
-        id: input.order.event.id,
-        title: `Ingresso - ${input.order.event.name}`,
-        description: `${input.order.participants.length} ingresso(s)`,
+        id: input.order.ticketLotId ?? input.order.event.id,
+        title: input.order.ticketLot?.name ?? `Ingresso - ${input.order.event.name}`,
+        description: `${input.order.commercialUnitQuantity} unidade(s), ${input.order.participants.length} ingresso(s)`,
         currency_id: "BRL",
-        quantity: 1,
-        unit_price: decimalToMercadoPagoNumber(input.order.total),
+        quantity: mercadoPagoQuantity,
+        unit_price: decimalToMercadoPagoNumber(mercadoPagoUnitPrice),
       },
     ],
     payer: {
@@ -442,6 +451,10 @@ function buildEventPreferencePayload(input: {
     metadata: {
       event_order_id: input.order.id,
       ticket_event_id: input.order.eventId,
+      ticket_lot_id: input.order.ticketLotId,
+      commercial_unit_quantity: input.order.commercialUnitQuantity,
+      tickets_per_unit: input.order.ticketsPerUnit,
+      ticket_count: input.order.participants.length,
     },
   };
 }

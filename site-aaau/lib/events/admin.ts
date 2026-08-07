@@ -9,7 +9,7 @@ import {
   type EventTicketEmailSender,
   ensureEventTicketConfirmationEmail,
 } from "@/lib/events/email";
-import { getTicketLotAvailability } from "@/lib/events/availability";
+import { getExclusiveTicketLot, getTicketLotAvailability, selectActiveTicketLot } from "@/lib/events/availability";
 import { normalizeEventImagePath } from "@/lib/events/images";
 import { formatMoney, getPublicEventStatus, publicStatusLabel } from "@/lib/events/public";
 
@@ -74,6 +74,9 @@ const lotInputSchema = z.object({
   position: z.number().int().min(1),
   active: z.boolean().default(true),
   autoActivate: z.boolean().default(true),
+  ticketsPerUnit: z.number().int().min(1).max(10).default(1),
+  maxUnitsPerOrder: z.number().int().min(1).max(20).optional().nullable(),
+  exclusiveWindow: z.boolean().default(false),
 });
 
 const partnerCodeInputSchema = z.object({
@@ -182,17 +185,19 @@ function publicStatus(event: Parameters<typeof getPublicEventStatus>[0]) {
 }
 
 function lotStatus(lot: {
+  id: string;
   active: boolean;
   quantity: number;
   reservedQuantity: number;
   soldQuantity: number;
   salesStartAt: Date | null;
   salesEndAt: Date | null;
-}, now = new Date()) {
+}, now = new Date(), exclusiveLotId: string | null = null) {
   if (!lot.active) return "INATIVO";
   if (getTicketLotAvailability(lot) <= 0) return "ESGOTADO";
   if (lot.salesStartAt && lot.salesStartAt > now) return "FUTURO";
   if (lot.salesEndAt && lot.salesEndAt <= now) return "ENCERRADO";
+  if (exclusiveLotId && lot.id !== exclusiveLotId) return "SUSPENSO";
   return "ATIVO";
 }
 
@@ -235,7 +240,12 @@ export async function getAdminEventsDashboard() {
         }),
         prisma.eventTicket.count({ where: { eventId: event.id, status: "USED" } }),
       ]);
-      const currentLot = event.lots.find((lot) => lotStatus(lot) === "ATIVO") ?? event.lots[0] ?? null;
+      let currentLot = event.lots[0] ?? null;
+      try {
+        currentLot = selectActiveTicketLot(event.lots);
+      } catch {
+        // Dashboard still displays the first configured lot when none is currently sellable.
+      }
       return {
         id: event.id,
         name: event.name,
@@ -268,6 +278,7 @@ async function loadAdminEventOrders(eventId: string) {
   return prisma.eventOrder.findMany({
     where: { eventId },
     include: {
+      ticketLot: true,
       partnerCode: true,
       participants: { include: { ticketLot: true, ticket: true } },
       emailDeliveries: {
@@ -355,6 +366,7 @@ export async function getAdminEventCockpit(eventId: string, section: AdminEventS
   ]);
 
   const checkInRate = totalIssuedTickets === 0 ? 0 : Math.round((checkIns / totalIssuedTickets) * 100);
+  const exclusiveLotId = getExclusiveTicketLot(event.lots)?.id ?? null;
 
   return {
     event,
@@ -369,7 +381,7 @@ export async function getAdminEventCockpit(eventId: string, section: AdminEventS
     lots: event.lots.map((lot) => ({
       ...lot,
       available: getTicketLotAvailability(lot),
-      computedStatus: lotStatus(lot),
+      computedStatus: lotStatus(lot, new Date(), exclusiveLotId),
     })),
     orders: orders.map((order) => ({
       id: order.id,
@@ -383,6 +395,10 @@ export async function getAdminEventCockpit(eventId: string, section: AdminEventS
       discountAmount: order.discountAmount,
       total: order.total,
       partnerCode: order.partnerCode?.code ?? null,
+      ticketLotName: order.ticketLot?.name ?? order.participants[0]?.ticketLot.name ?? "Lote não identificado",
+      commercialUnitQuantity: order.commercialUnitQuantity,
+      ticketsPerUnit: order.ticketsPerUnit,
+      commercialUnitPrice: order.commercialUnitPrice,
       participantCount: order.participants.length,
       createdAt: order.createdAt,
       expiresAt: order.expiresAt,
@@ -426,11 +442,14 @@ export async function getAdminEventReport(eventId: string) {
 
   if (!event) return null;
 
+  const exclusiveLotId = getExclusiveTicketLot(event.lots)?.id ?? null;
+
   const [
     ordersByStatus,
     paidFinancials,
     paidTickets,
     ticketsByStatus,
+    paidUnitsByLot,
     paidTicketsByLot,
     emailStatuses,
     paymentPreferenceStatuses,
@@ -456,6 +475,11 @@ export async function getAdminEventReport(eventId: string) {
       by: ["status"],
       where: { eventId, eventOrder: { status: "PAID" } },
       _count: { _all: true },
+    }),
+    prisma.eventOrder.groupBy({
+      by: ["ticketLotId"],
+      where: { eventId, status: "PAID", ticketLotId: { not: null } },
+      _sum: { commercialUnitQuantity: true, total: true },
     }),
     prisma.eventTicket.groupBy({
       by: ["lotId"],
@@ -517,6 +541,7 @@ export async function getAdminEventReport(eventId: string) {
   ]);
 
   const lotTicketCount = new Map(paidTicketsByLot.map((row) => [row.lotId, row._count._all]));
+  const lotUnitMetrics = new Map(paidUnitsByLot.map((row) => [row.ticketLotId, row._sum]));
   const operatorIds = checkInByOperator.map((row) => row.adminUserId).filter((id): id is string => Boolean(id));
   const operators = operatorIds.length
     ? await prisma.adminUser.findMany({
@@ -573,9 +598,14 @@ export async function getAdminEventReport(eventId: string) {
       quantity: lot.quantity,
       soldQuantity: lot.soldQuantity,
       reservedQuantity: lot.reservedQuantity,
+      ticketsPerUnit: lot.ticketsPerUnit,
+      maxUnitsPerOrder: lot.maxUnitsPerOrder,
+      exclusiveWindow: lot.exclusiveWindow,
+      paidCommercialUnits: lotUnitMetrics.get(lot.id)?.commercialUnitQuantity ?? 0,
+      revenue: lotUnitMetrics.get(lot.id)?.total ?? new Prisma.Decimal(0),
       paidTickets: lotTicketCount.get(lot.id) ?? 0,
       available: getTicketLotAvailability(lot),
-      status: lotStatus(lot),
+      status: lotStatus(lot, new Date(), exclusiveLotId),
     })),
     partnerCodes: partnerCodeRows.sort((left, right) => right.paidTickets - left.paidTickets || left.code.localeCompare(right.code)),
     email: emailStatuses.map((row) => ({ status: row.ticketConfirmationEmailStatus, count: row._count._all })),
@@ -732,6 +762,9 @@ export async function updateTicketLotAdmin(lotId: string, input: EventTicketLotA
   if (!current) throw new EventAdminValidationError("Lote nao encontrado.");
   if (parsed.quantity < current.soldQuantity + current.reservedQuantity) {
     throw new EventAdminValidationError("Este lote possui ingressos vendidos ou reservados acima da nova capacidade informada.");
+  }
+  if (parsed.ticketsPerUnit !== current.ticketsPerUnit && current.soldQuantity + current.reservedQuantity > 0) {
+    throw new EventAdminValidationError("Ingressos por pacote nao podem mudar depois de reservas ou vendas.");
   }
   const duplicate = await prisma.eventTicketLot.findFirst({
     where: { eventId: current.eventId, position: parsed.position, NOT: { id: lotId } },

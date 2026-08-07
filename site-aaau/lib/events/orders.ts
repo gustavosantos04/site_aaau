@@ -10,6 +10,8 @@ import {
 } from "@/lib/checkout/mercado-pago";
 import {
   assertTicketEventSalesOpen,
+  getTicketCountForCommercialUnits,
+  getTicketLotMaxUnitsPerOrder,
   selectActiveTicketLot,
 } from "@/lib/events/availability";
 import {
@@ -102,6 +104,8 @@ function assertRequiredParticipantFields(
     requireInstitution: boolean;
     requireCourse: boolean;
     requireCampus: boolean;
+    minimumAge: number | null;
+    startAt: Date;
   },
   participant: ReturnType<typeof normalizeParticipant>,
 ) {
@@ -111,13 +115,68 @@ function assertRequiredParticipantFields(
 
   if (event.requireParticipantEmail && !participant.email) throw new InvalidTicketQuantityError();
   if (event.requireParticipantPhone && !participant.phone) throw new InvalidTicketQuantityError();
-  if (event.requireBirthDate && !participant.birthDate) throw new InvalidTicketQuantityError();
+  if ((event.requireBirthDate || event.minimumAge !== null) && !participant.birthDate) {
+    throw new InvalidTicketQuantityError();
+  }
   if (event.requireInstitution && !participant.institution) throw new InvalidTicketQuantityError();
   if (event.requireCourse && !participant.course) throw new InvalidTicketQuantityError();
   if (event.requireCampus && !participant.campus) throw new InvalidTicketQuantityError();
+  if (event.minimumAge !== null && participant.birthDate) {
+    let age = event.startAt.getUTCFullYear() - participant.birthDate.getUTCFullYear();
+    const birthdayNotReached = event.startAt.getUTCMonth() < participant.birthDate.getUTCMonth() ||
+      (event.startAt.getUTCMonth() === participant.birthDate.getUTCMonth() &&
+        event.startAt.getUTCDate() < participant.birthDate.getUTCDate());
+    if (birthdayNotReached) age -= 1;
+    if (age < event.minimumAge) throw new InvalidTicketQuantityError();
+  }
 }
 
 function buildReservationFingerprint(input: {
+  eventId: string;
+  buyerCpfHash: string | null;
+  buyerEmail: string;
+  buyerPhone: string;
+  participantCpfHashes: string[];
+  partnerCode: string | null;
+  ticketLotId: string;
+  commercialUnitQuantity: number;
+  ticketsPerUnit: number;
+}) {
+  return hashCanonical({
+    eventId: input.eventId,
+    buyerCpfHash: input.buyerCpfHash,
+    buyerEmail: input.buyerEmail,
+    buyerPhone: input.buyerPhone,
+    participantCpfHashes: [...input.participantCpfHashes].sort(),
+    partnerCode: input.partnerCode,
+    ticketLotId: input.ticketLotId,
+    commercialUnitQuantity: input.commercialUnitQuantity,
+    ticketsPerUnit: input.ticketsPerUnit,
+  });
+}
+
+function expiresAtFrom(now: Date) {
+  return new Date(now.getTime() + EVENT_TICKET_RESERVATION_MINUTES * 60_000);
+}
+
+function groupParticipantsByLot(participants: Array<{ ticketLotId: string }>) {
+  return participants.reduce((map, participant) => {
+    map.set(participant.ticketLotId, (map.get(participant.ticketLotId) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+}
+
+function commercialUnitsByLot(order: {
+  ticketLotId: string | null;
+  commercialUnitQuantity: number;
+  participants: Array<{ ticketLotId: string }>;
+}) {
+  return order.ticketLotId
+    ? new Map([[order.ticketLotId, order.commercialUnitQuantity]])
+    : groupParticipantsByLot(order.participants);
+}
+
+function buildLegacyReservationFingerprint(input: {
   eventId: string;
   buyerCpfHash: string | null;
   buyerEmail: string;
@@ -133,17 +192,6 @@ function buildReservationFingerprint(input: {
     participantCpfHashes: [...input.participantCpfHashes].sort(),
     partnerCode: input.partnerCode,
   });
-}
-
-function expiresAtFrom(now: Date) {
-  return new Date(now.getTime() + EVENT_TICKET_RESERVATION_MINUTES * 60_000);
-}
-
-function groupParticipantsByLot(participants: Array<{ ticketLotId: string }>) {
-  return participants.reduce((map, participant) => {
-    map.set(participant.ticketLotId, (map.get(participant.ticketLotId) ?? 0) + 1);
-    return map;
-  }, new Map<string, number>());
 }
 
 async function createEventOrderReservationOnce(
@@ -162,10 +210,6 @@ async function createEventOrderReservationOnce(
 
     assertTicketEventSalesOpen(event, now);
 
-    if (input.participants.length < 1 || input.participants.length > event.maxTicketsPerOrder) {
-      throw new InvalidTicketQuantityError();
-    }
-
     let lot: ReturnType<typeof selectActiveTicketLot>;
 
     try {
@@ -176,6 +220,20 @@ async function createEventOrderReservationOnce(
       }
 
       throw error;
+    }
+
+    if (input.ticketLotId && input.ticketLotId !== lot.id) {
+      throw new InsufficientTicketAvailabilityError();
+    }
+
+    const ticketsPerUnit = lot.ticketsPerUnit ?? 1;
+    const commercialUnitQuantity = input.commercialUnitQuantity ??
+      (input.participants.length / ticketsPerUnit);
+    const ticketCount = getTicketCountForCommercialUnits(lot, commercialUnitQuantity);
+    const maxUnitsPerOrder = getTicketLotMaxUnitsPerOrder(event, lot);
+    if (!Number.isInteger(commercialUnitQuantity) || commercialUnitQuantity < 1 ||
+      commercialUnitQuantity > maxUnitsPerOrder || input.participants.length !== ticketCount) {
+      throw new InvalidTicketQuantityError();
     }
 
     const participants = input.participants.map(normalizeParticipant);
@@ -209,6 +267,17 @@ async function createEventOrderReservationOnce(
       buyerPhone,
       participantCpfHashes,
       partnerCode: normalizedPartnerCode,
+      ticketLotId: lot.id,
+      commercialUnitQuantity,
+      ticketsPerUnit,
+    });
+    const legacyFingerprint = buildLegacyReservationFingerprint({
+      eventId: event.id,
+      buyerCpfHash: buyerCpf ? cpfHash(buyerCpf) : null,
+      buyerEmail,
+      buyerPhone,
+      participantCpfHashes,
+      partnerCode: normalizedPartnerCode,
     });
 
     if (input.idempotencyKey) {
@@ -217,7 +286,7 @@ async function createEventOrderReservationOnce(
       });
 
       if (existing) {
-        if (existing.payloadFingerprint !== fingerprint) {
+        if (existing.payloadFingerprint !== fingerprint && existing.payloadFingerprint !== legacyFingerprint) {
           throw new IdempotencyConflictError();
         }
 
@@ -246,13 +315,13 @@ async function createEventOrderReservationOnce(
       validatePartnerCode(partnerCode, event.id, now);
     }
 
-    await reserveLotTickets(tx, lot.id, participants.length);
+    await reserveLotTickets(tx, lot.id, commercialUnitQuantity);
 
     if (partnerCode) {
       await reservePartnerCodeUse(tx, partnerCode.id);
     }
 
-    const subtotal = multiplyMoney(lot.price, participants.length);
+    const subtotal = multiplyMoney(lot.price, commercialUnitQuantity);
     const discountAmount = calculatePartnerDiscount(partnerCode, subtotal);
     const total = toMoney(subtotal.minus(discountAmount));
     const orderId = crypto.randomUUID();
@@ -263,6 +332,10 @@ async function createEventOrderReservationOnce(
       data: {
         id: orderId,
         eventId: event.id,
+        ticketLotId: lot.id,
+        commercialUnitQuantity,
+        ticketsPerUnit,
+        commercialUnitPrice: lot.price,
         buyerName: sanitizeText(input.buyer.name),
         buyerCpf,
         buyerCpfHash: buyerCpf ? cpfHash(buyerCpf) : null,
@@ -343,7 +416,7 @@ async function expireEventOrderReservationTx(tx: EventTx, orderId: string, now: 
     return { expired: false, alreadyFinal: false };
   }
 
-  for (const [lotId, quantity] of groupParticipantsByLot(order.participants)) {
+  for (const [lotId, quantity] of commercialUnitsByLot(order)) {
     await releaseLotReservation(tx, lotId, quantity);
   }
 
@@ -384,7 +457,7 @@ export async function cancelEventOrderReservationAfterCheckoutFailure(
       return { canceled: false, alreadyFinal: true };
     }
 
-    for (const [lotId, quantity] of groupParticipantsByLot(order.participants)) {
+    for (const [lotId, quantity] of commercialUnitsByLot(order)) {
       await releaseLotReservation(tx, lotId, quantity);
     }
 
@@ -473,7 +546,7 @@ export async function confirmEventOrderPayment(
       throw new PaymentIdConflictError();
     }
 
-    for (const [lotId, quantity] of groupParticipantsByLot(order.participants)) {
+    for (const [lotId, quantity] of commercialUnitsByLot(order)) {
       await confirmLotSale(tx, lotId, quantity);
     }
 

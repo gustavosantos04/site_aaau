@@ -133,7 +133,12 @@ export default async function EventDetailPage({
             <h2 className="break-words font-display text-3xl uppercase tracking-[0.06em] text-white sm:tracking-[0.08em]">Ingressos e lotes</h2>
             <div className="mt-5 grid gap-3">
               {event.lots.map((lot) => {
-                const status = getPublicLotStatus(lot, event.currentLot?.id ?? null, serverNow);
+                const status = getPublicLotStatus(
+                  lot,
+                  event.currentLot?.id ?? null,
+                  serverNow,
+                  event.currentLot?.exclusiveWindow ? event.currentLot.id : null,
+                );
                 const available = getTicketLotAvailability(lot);
                 return (
                   <div key={lot.id} className="rounded-[0.5rem] border border-white/10 bg-aaau-night/45 p-4">
@@ -151,7 +156,10 @@ export default async function EventDetailPage({
                       </div>
                       <div className="text-left sm:text-right">
                         <p className="font-display text-2xl text-aaau-sand">{formatMoney(lot.price)}</p>
-                        {event.showRemainingTickets && available > 0 ? <p className="text-xs text-white/50">{available} disponíveis</p> : null}
+                        {lot.ticketsPerUnit > 1 ? <p className="text-xs text-white/50">por pacote com {lot.ticketsPerUnit} ingressos</p> : null}
+                        {event.showRemainingTickets && available > 0 ? (
+                          <p className="text-xs text-white/50">{available} {lot.ticketsPerUnit > 1 ? "pacote(s)" : "ingresso(s)"} disponível(is)</p>
+                        ) : null}
                       </div>
                     </div>
                   </div>

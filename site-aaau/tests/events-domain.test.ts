@@ -9,6 +9,9 @@ import { buildMercadoPagoNotificationUrl } from "@/lib/site-url";
 
 import {
   assertTicketEventSalesOpen,
+  getExclusiveTicketLot,
+  getTicketCountForCommercialUnits,
+  getTicketLotMaxUnitsPerOrder,
   getTicketLotAvailability,
   selectActiveTicketLot,
 } from "@/lib/events/availability";
@@ -600,6 +603,42 @@ test("public event status covers soon, open, low stock, sold out and ended", () 
   assert.equal(getPublicEventStatus({ ...base, lots: [lot({ quantity: 2, reservedQuantity: 1 })] }, now), "LOW_STOCK");
   assert.equal(getPublicEventStatus({ ...base, lots: [lot({ quantity: 1, soldQuantity: 1 })] }, now), "SOLD_OUT");
   assert.equal(getPublicEventStatus({ ...base, startAt: new Date("2026-07-08T20:00:00.000Z") }, now), "ENDED");
+});
+
+test("lote exclusivo 2 por 1 respeita a janela de Sao Paulo e retoma lote normal ao esgotar", () => {
+  const start = new Date("2026-08-07T12:00:00-03:00");
+  const end = new Date("2026-08-08T12:00:00-03:00");
+  const regular = lot({ id: "third-lot", position: 1 });
+  const promotion = lot({
+    id: "promo-2-for-1",
+    position: 2,
+    price: new Prisma.Decimal("130.00"),
+    quantity: 100,
+    ticketsPerUnit: 2,
+    maxUnitsPerOrder: 2,
+    exclusiveWindow: true,
+    salesStartAt: start,
+    salesEndAt: end,
+  });
+
+  assert.equal(selectActiveTicketLot([regular, promotion], new Date(start.getTime() - 1)).id, regular.id);
+  assert.equal(selectActiveTicketLot([regular, promotion], start).id, promotion.id);
+  assert.equal(selectActiveTicketLot([regular, promotion], new Date("2026-08-08T11:59:59-03:00")).id, promotion.id);
+  assert.equal(selectActiveTicketLot([regular, promotion], end).id, regular.id);
+  assert.equal(selectActiveTicketLot([regular, promotion], new Date(end.getTime() + 1)).id, regular.id);
+  assert.equal(getExclusiveTicketLot([regular, promotion], start)?.id, promotion.id);
+  assert.equal(selectActiveTicketLot([regular, { ...promotion, soldQuantity: 100 }], start).id, regular.id);
+});
+
+test("unidade comercial limita pacotes e materializa ingressos sem dividir o preco", () => {
+  const promotion = lot({ ticketsPerUnit: 2, maxUnitsPerOrder: 2, price: new Prisma.Decimal("130.00") });
+  assert.equal(getTicketLotMaxUnitsPerOrder({ maxTicketsPerOrder: 4 }, promotion), 2);
+  assert.equal(getTicketCountForCommercialUnits(promotion, 1), 2);
+  assert.equal(getTicketCountForCommercialUnits(promotion, 2), 4);
+  assert.equal(getTicketCountForCommercialUnits(promotion, 100), 200);
+  assert.equal(toMoney(promotion.price.mul(1)).toFixed(2), "130.00");
+  assert.equal(toMoney(promotion.price.mul(2)).toFixed(2), "260.00");
+  assert.equal(getTicketLotMaxUnitsPerOrder({ maxTicketsPerOrder: 3 }, promotion), 1);
 });
 
 test("public lot status distinguishes future, waiting and sold out lots", () => {

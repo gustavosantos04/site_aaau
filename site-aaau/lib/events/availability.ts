@@ -11,7 +11,7 @@ import {
 } from "@/lib/events/errors";
 import type { EventTx } from "@/lib/events/types";
 
-type LotLike = Pick<
+export type LotLike = Pick<
   EventTicketLot,
   | "id"
   | "active"
@@ -22,7 +22,7 @@ type LotLike = Pick<
   | "salesStartAt"
   | "salesEndAt"
   | "position"
->;
+> & Partial<Pick<EventTicketLot, "ticketsPerUnit" | "maxUnitsPerOrder" | "exclusiveWindow">>;
 
 type EventSaleLike = Pick<
   TicketEvent,
@@ -63,7 +63,7 @@ export function assertTicketEventSalesOpen(event: EventSaleLike, now = new Date(
   }
 }
 
-function isLotTemporallyEligible(lot: LotLike, now: Date) {
+export function isLotTemporallyEligible(lot: LotLike, now: Date) {
   return (
     lot.active &&
     (!lot.salesStartAt || lot.salesStartAt <= now) &&
@@ -71,16 +71,37 @@ function isLotTemporallyEligible(lot: LotLike, now: Date) {
   );
 }
 
-export function selectActiveTicketLot(lots: LotLike[], now = new Date()) {
-  const sortedLots = [...lots].sort((left, right) => {
-    if (left.position !== right.position) {
-      return left.position - right.position;
-    }
+function sortedLots<T extends LotLike>(lots: T[]): T[] {
+  return [...lots].sort((left, right) =>
+    left.position - right.position || left.id.localeCompare(right.id));
+}
 
-    return left.id.localeCompare(right.id);
-  });
+export function getExclusiveTicketLot<T extends LotLike>(lots: T[], now = new Date()): T | null {
+  return sortedLots(lots).find((lot) =>
+    lot.exclusiveWindow === true && isLotTemporallyEligible(lot, now) && getTicketLotAvailability(lot) > 0) ?? null;
+}
 
-  for (const lot of sortedLots) {
+export function getTicketLotMaxUnitsPerOrder(
+  event: Pick<TicketEvent, "maxTicketsPerOrder">,
+  lot: Pick<LotLike, "ticketsPerUnit" | "maxUnitsPerOrder">,
+) {
+  const ticketsPerUnit = lot.ticketsPerUnit ?? 1;
+  const eventLimit = Math.floor(event.maxTicketsPerOrder / ticketsPerUnit);
+  return Math.max(0, lot.maxUnitsPerOrder == null ? eventLimit : Math.min(eventLimit, lot.maxUnitsPerOrder));
+}
+
+export function getTicketCountForCommercialUnits(
+  lot: Pick<LotLike, "ticketsPerUnit">,
+  commercialUnitQuantity: number,
+) {
+  return (lot.ticketsPerUnit ?? 1) * commercialUnitQuantity;
+}
+
+export function selectActiveTicketLot<T extends LotLike>(lots: T[], now = new Date()): T {
+  const exclusiveLot = getExclusiveTicketLot(lots, now);
+  if (exclusiveLot) return exclusiveLot;
+
+  for (const lot of sortedLots(lots)) {
     if (!isLotTemporallyEligible(lot, now)) {
       continue;
     }

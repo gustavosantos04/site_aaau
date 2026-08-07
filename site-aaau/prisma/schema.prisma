@@ -421,11 +421,15 @@ model EventTicketLot {
   position         Int                     @default(0)
   active           Boolean                 @default(true)
   autoActivate     Boolean                 @default(true)
+  ticketsPerUnit   Int                     @default(1)
+  maxUnitsPerOrder Int?
+  exclusiveWindow  Boolean                 @default(false)
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   event            TicketEvent             @relation(fields: [eventId], references: [id], onDelete: Restrict)
   participants     EventOrderParticipant[]
   tickets          EventTicket[]
+  orders           EventOrder[]
 
   @@index([eventId, position])
   @@index([eventId, active, salesStartAt, salesEndAt])
@@ -458,6 +462,10 @@ model EventPartnerCode {
 model EventOrder {
   id                                 String                             @id @default(cuid())
   eventId                            String
+  ticketLotId                        String?
+  commercialUnitQuantity             Int                                @default(1)
+  ticketsPerUnit                     Int                                @default(1)
+  commercialUnitPrice                Decimal                            @default(0) @db.Decimal(10, 2)
   buyerName                          String
   buyerCpf                           String?
   buyerCpfHash                       String?
@@ -493,6 +501,7 @@ model EventOrder {
   createdAt                          DateTime                           @default(now())
   updatedAt                          DateTime                           @updatedAt
   event                              TicketEvent                        @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  ticketLot                          EventTicketLot?                    @relation(fields: [ticketLotId], references: [id], onDelete: Restrict)
   partnerCode                        EventPartnerCode?                  @relation(fields: [partnerCodeId], references: [id], onDelete: SetNull)
   participants                       EventOrderParticipant[]
   tickets                            EventTicket[]
@@ -501,6 +510,7 @@ model EventOrder {
 
   @@unique([mercadoPagoPaymentId])
   @@index([eventId, status, createdAt])
+  @@index([ticketLotId, status])
   @@index([status, expiresAt])
   @@index([mercadoPagoPreferenceId])
   @@index([partnerCodeId])

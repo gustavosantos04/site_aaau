@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
-import { getTicketLotAvailability } from "@/lib/events/availability";
+import { getTicketLotAvailability, selectActiveTicketLot } from "@/lib/events/availability";
 import { toMoney } from "@/lib/events/money";
 
 export type PublicLot = {
@@ -16,6 +16,9 @@ export type PublicLot = {
   salesEndAt: Date | null;
   position: number;
   active: boolean;
+  ticketsPerUnit?: number;
+  maxUnitsPerOrder?: number | null;
+  exclusiveWindow?: boolean;
 };
 
 type PublicEvent = {
@@ -43,6 +46,7 @@ export type PublicLotStatus =
   | "WAITING"
   | "SOLD_OUT"
   | "ENDED"
+  | "SUSPENDED"
   | "INACTIVE";
 
 export function formatMoney(value: Prisma.Decimal | string | number) {
@@ -94,21 +98,25 @@ function isLotInSalesWindow(lot: Pick<PublicLot, "active" | "salesStartAt" | "sa
 }
 
 export function getCurrentPublicLot(event: Pick<PublicEvent, "lots">, now = new Date()) {
-  return [...event.lots]
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
-    .find((lot) => isLotInSalesWindow(lot, now) && getTicketLotAvailability(lot) > 0) ?? null;
+  try {
+    return selectActiveTicketLot(event.lots, now);
+  } catch {
+    return null;
+  }
 }
 
 export function getPublicLotStatus(
   lot: PublicLot,
   currentLotId: string | null,
   now = new Date(),
+  exclusiveLotId: string | null = null,
 ): PublicLotStatus {
   if (!lot.active) return "INACTIVE";
   if (lot.id === currentLotId) return "CURRENT";
   if (lot.salesStartAt && lot.salesStartAt > now) return "UPCOMING";
   if (lot.salesEndAt && lot.salesEndAt <= now) return "ENDED";
   if (getTicketLotAvailability(lot) <= 0) return "SOLD_OUT";
+  if (exclusiveLotId && lot.id !== exclusiveLotId && isLotInSalesWindow(lot, now)) return "SUSPENDED";
   return "WAITING";
 }
 
@@ -119,6 +127,7 @@ export function publicLotStatusLabel(status: PublicLotStatus) {
     WAITING: "Próximo lote",
     SOLD_OUT: "Esgotado",
     ENDED: "Vendas encerradas",
+    SUSPENDED: "Pausado durante a promoção",
     INACTIVE: "Indisponível",
   }[status];
 }

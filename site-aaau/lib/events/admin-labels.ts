@@ -34,6 +34,7 @@ const labels: Record<string, string> = {
   FUTURO: "Abre futuramente",
   ENCERRADO: "Vendas encerradas",
   ATIVO: "Disponível agora",
+  SUSPENSO: "Suspenso durante a promoção",
 };
 
 export function adminStatusLabel(status?: string | null) {

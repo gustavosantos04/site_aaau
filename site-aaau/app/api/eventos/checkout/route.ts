@@ -26,6 +26,8 @@ const participantSchema = z.object({
 const eventCheckoutSchema = z.object({
   eventId: z.string().trim().min(1).max(160).optional(),
   eventSlug: z.string().trim().min(1).max(180).optional(),
+  ticketLotId: z.string().trim().min(1).max(160).optional(),
+  commercialUnitQuantity: z.number().int().min(1).max(20).optional(),
   buyer: z.object({
     name: z.string().trim().min(2).max(120),
     cpf: z.string().trim().min(11).max(18).optional(),
@@ -92,6 +94,8 @@ export async function POST(request: Request) {
     const reservation = await createEventOrderReservation({
       eventId: parsed.data.eventId,
       slug: parsed.data.eventSlug,
+      ticketLotId: parsed.data.ticketLotId,
+      commercialUnitQuantity: parsed.data.commercialUnitQuantity,
       buyer: parsed.data.buyer,
       participants: parsed.data.participants,
       partnerCode: parsed.data.partnerCode,

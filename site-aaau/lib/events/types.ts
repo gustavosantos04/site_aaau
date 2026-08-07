@@ -23,6 +23,8 @@ export type EventParticipantInput = {
 export type CreateEventOrderReservationInput = {
   eventId?: string;
   slug?: string;
+  ticketLotId?: string;
+  commercialUnitQuantity?: number;
   buyer: EventBuyerInput;
   participants: EventParticipantInput[];
   partnerCode?: string | null;

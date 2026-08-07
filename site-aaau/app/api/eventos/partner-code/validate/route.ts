@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { checkRateLimit } from "@/lib/checkout/mercado-pago";
-import { selectActiveTicketLot } from "@/lib/events/availability";
+import { getTicketLotMaxUnitsPerOrder, selectActiveTicketLot } from "@/lib/events/availability";
 import { calculatePartnerDiscount, normalizePartnerCode, validatePartnerCode } from "@/lib/events/partner-codes";
 import { formatMoney } from "@/lib/events/public";
 import { multiplyMoney, toMoney } from "@/lib/events/money";
@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 const schema = z.object({
   eventSlug: z.string().trim().min(1).max(180).optional(),
   eventId: z.string().trim().min(1).max(160).optional(),
+  ticketLotId: z.string().trim().min(1).max(160).optional(),
   code: z.string().trim().min(1).max(80),
   quantity: z.coerce.number().int().min(1).max(20),
 }).refine((value) => value.eventSlug || value.eventId, {
@@ -34,13 +35,17 @@ export async function POST(request: Request) {
     include: { lots: true },
   });
 
-  if (!event || parsed.data.quantity > event.maxTicketsPerOrder) {
+  if (!event) {
     return NextResponse.json({ valid: false, message: "Este código não é válido para este evento." }, { status: 200 });
   }
 
   try {
     const now = new Date();
     const lot = selectActiveTicketLot(event.lots, now);
+    if ((parsed.data.ticketLotId && parsed.data.ticketLotId !== lot.id) ||
+      parsed.data.quantity > getTicketLotMaxUnitsPerOrder(event, lot)) {
+      return NextResponse.json({ valid: false, message: "Este código não é válido para este evento." });
+    }
     const code = await prisma.eventPartnerCode.findUnique({
       where: {
         eventId_code: {

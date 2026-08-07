@@ -129,6 +129,9 @@ type LotFormValue = {
   position?: number;
   active?: boolean;
   autoActivate?: boolean;
+  ticketsPerUnit?: number;
+  maxUnitsPerOrder?: number | null;
+  exclusiveWindow?: boolean;
 };
 
 type PartnerCodeFormValue = {
@@ -273,8 +276,10 @@ export function EventLotForm({ eventId, lot }: { eventId: string; lot?: LotFormV
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="Lote"><input name="name" required defaultValue={lot?.name ?? ""} className={inputClass} /></Field>
-        <Field label="Preco"><input name="price" required defaultValue={decimalInput(lot?.price)} className={inputClass} placeholder="49,90" /></Field>
-        <Field label="Quantidade"><input name="quantity" type="number" min="1" required defaultValue={lot?.quantity ?? ""} className={inputClass} /></Field>
+        <Field label="Preço por unidade/pacote"><input name="price" required defaultValue={decimalInput(lot?.price)} className={inputClass} placeholder="49,90" /></Field>
+        <Field label="Capacidade comercial"><input name="quantity" type="number" min="1" required defaultValue={lot?.quantity ?? ""} className={inputClass} /></Field>
+        <Field label="Ingressos por pacote"><input name="ticketsPerUnit" type="number" min="1" max="10" required defaultValue={lot?.ticketsPerUnit ?? 1} className={inputClass} /></Field>
+        <Field label="Máximo de pacotes por pedido"><input name="maxUnitsPerOrder" type="number" min="1" max="20" defaultValue={lot?.maxUnitsPerOrder ?? ""} className={inputClass} /></Field>
         <Field label="Ordem do lote"><input name="position" type="number" min="1" defaultValue={lot?.position ?? 1} required className={inputClass} /></Field>
         <Field label="Abre para vendas em"><input name="salesStartAt" type="datetime-local" defaultValue={toLocalInput(lot?.salesStartAt)} className={inputClass} /></Field>
         <Field label="Encerra as vendas em"><input name="salesEndAt" type="datetime-local" defaultValue={toLocalInput(lot?.salesEndAt)} className={inputClass} /></Field>
@@ -285,6 +290,12 @@ export function EventLotForm({ eventId, lot }: { eventId: string; lot?: LotFormV
         label="Disponibilizar este lote no site"
         helper="Deixe marcado mesmo que a abertura seja futura. A data acima controla quando as vendas começam."
         defaultChecked={lot?.active ?? true}
+      />
+      <Check
+        name="exclusiveWindow"
+        label="Suspender outros lotes durante este período"
+        helper="Enquanto este lote estiver dentro da janela e tiver estoque, somente ele será vendido. Os demais retornam automaticamente no encerramento ou esgotamento."
+        defaultChecked={lot?.exclusiveWindow ?? false}
       />
       <SubmitButton label={editing ? "Salvar lote" : "Criar lote"} />
     </form>

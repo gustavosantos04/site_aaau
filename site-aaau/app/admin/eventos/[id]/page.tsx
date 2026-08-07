@@ -202,7 +202,7 @@ export default async function AdminEventCockpitPage({
               </div>
               <div className="mt-5 space-y-4">
                 {report.lots.map((lot) => {
-                  const percent = lot.quantity === 0 ? 0 : Math.round((lot.paidTickets / lot.quantity) * 100);
+                  const percent = lot.quantity === 0 ? 0 : Math.round((lot.paidCommercialUnits / lot.quantity) * 100);
                   return (
                     <div key={lot.id} className="rounded-[0.75rem] border border-white/10 bg-white/[0.035] p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -211,8 +211,9 @@ export default async function AdminEventCockpitPage({
                           <p className="mt-1 text-sm text-white/55">{formatAdminMoney(lot.price)} - {adminStatusLabel(lot.status)}</p>
                         </div>
                         <div className="text-sm text-white/70 sm:text-right">
-                          <p><strong className="text-white">{lot.paidTickets}</strong> pagos de {lot.quantity}</p>
-                          <p>{lot.available} disponiveis / {lot.reservedQuantity} reservados</p>
+                          <p><strong className="text-white">{lot.paidCommercialUnits}</strong> unidade(s) paga(s) de {lot.quantity}</p>
+                          <p>{lot.paidTickets} ingresso(s) emitido(s) / {formatAdminMoney(lot.revenue)}</p>
+                          <p>{lot.available} unidade(s) disponiveis / {lot.reservedQuantity} reservada(s)</p>
                         </div>
                       </div>
                       <div className="mt-4 space-y-2">
@@ -360,13 +361,13 @@ export default async function AdminEventCockpitPage({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left text-sm [&_td]:pr-6 [&_th]:pr-6">
               <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
-                <tr><th>Lote</th><th>Posicao</th><th>Preco</th><th>Qtd</th><th>Vendidos</th><th>Reservados</th><th>Disponiveis</th><th>Inicio</th><th>Fim</th><th>Status</th></tr>
+                <tr><th>Lote</th><th>Posicao</th><th>Preco/unidade</th><th>Unidades</th><th>Ingressos/unidade</th><th>Vendidos</th><th>Reservados</th><th>Disponiveis</th><th>Inicio</th><th>Fim</th><th>Status</th></tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-white/70">
                 {cockpit.lots.map((lot) => (
                   <tr key={lot.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{lot.name}</td>
-                    <td>{lot.position}</td><td>{formatAdminMoney(lot.price)}</td><td>{lot.quantity}</td><td>{lot.soldQuantity}</td><td>{lot.reservedQuantity}</td><td>{lot.available}</td><td>{formatDate(lot.salesStartAt)}</td><td>{formatDate(lot.salesEndAt)}</td><td>{adminStatusLabel(lot.computedStatus)}</td>
+                    <td>{lot.position}</td><td>{formatAdminMoney(lot.price)}</td><td>{lot.quantity}</td><td>{lot.ticketsPerUnit}</td><td>{lot.soldQuantity}</td><td>{lot.reservedQuantity}</td><td>{lot.available}</td><td>{formatDate(lot.salesStartAt)}</td><td>{formatDate(lot.salesEndAt)}</td><td>{adminStatusLabel(lot.computedStatus)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -394,6 +395,9 @@ export default async function AdminEventCockpitPage({
                         position: lot.position,
                         active: lot.active,
                         autoActivate: lot.autoActivate,
+                        ticketsPerUnit: lot.ticketsPerUnit,
+                        maxUnitsPerOrder: lot.maxUnitsPerOrder,
+                        exclusiveWindow: lot.exclusiveWindow,
                       }}
                     />
                   </div>
@@ -429,13 +433,14 @@ export default async function AdminEventCockpitPage({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-sm [&_td]:pr-3 [&_th]:pr-3">
               <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
-                <tr><th>Pedido</th><th>Comprador</th><th>Ingressos</th><th>Subtotal</th><th>Desconto</th><th>Total</th><th>Codigo</th><th>Status</th><th>Email</th><th>Data</th><th>Acao</th></tr>
+                <tr><th>Pedido</th><th>Comprador</th><th>Compra</th><th>Ingressos</th><th>Subtotal</th><th>Desconto</th><th>Total</th><th>Codigo</th><th>Status</th><th>Email</th><th>Data</th><th>Acao</th></tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-white/70">
                 {cockpit.orders.map((order) => (
                   <tr key={order.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{order.code}</td>
                     <td>{order.buyerName}<br /><span className="text-xs text-white/45">{order.buyerEmail} - {order.buyerCpfMasked}</span></td>
+                    <td>{order.commercialUnitQuantity} {order.ticketsPerUnit > 1 ? "pacote(s)" : "unidade(s)"}<br /><span className="text-xs text-white/45">{order.ticketLotName} · {formatAdminMoney(order.commercialUnitPrice)} cada</span></td>
                     <td>{order.participantCount}</td><td>{formatAdminMoney(order.subtotal)}</td><td>{formatAdminMoney(order.discountAmount)}</td><td className="font-semibold text-aaau-sand">{formatAdminMoney(order.total)}</td><td>{order.partnerCode ?? "-"}</td><td>{adminStatusLabel(order.status)}</td><td>{emailDeliveryStatusLabel(order.emailStatus)}</td><td>{formatDate(order.createdAt)}</td>
                     <td>
                       {order.emailStatus !== "SENDING" && order.status === "PAID" ? (

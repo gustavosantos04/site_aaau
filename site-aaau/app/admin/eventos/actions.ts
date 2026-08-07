@@ -84,6 +84,9 @@ function lotInput(formData: FormData): EventTicketLotAdminInput {
     position: intValue(formData, "position", 1),
     active: bool(formData, "active"),
     autoActivate: bool(formData, "autoActivate"),
+    ticketsPerUnit: intValue(formData, "ticketsPerUnit", 1),
+    maxUnitsPerOrder: formData.get("maxUnitsPerOrder") ? intValue(formData, "maxUnitsPerOrder", 1) : null,
+    exclusiveWindow: bool(formData, "exclusiveWindow"),
   };
 }
 
