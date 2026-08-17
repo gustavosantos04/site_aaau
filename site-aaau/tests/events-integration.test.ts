@@ -90,6 +90,10 @@ import {
 } from "@/lib/events/transfer-foundation";
 import { hashEventTicketCode, hashEventTicketQrToken } from "@/lib/events/transfer-security";
 import {
+  repairLegacyEventTicketCredentialHashes,
+  verifyEventTicketCredentialHashes,
+} from "@/lib/events/transfer-hash-repair";
+import {
   completeEventTicketTransfer,
   type CompleteEventTicketTransferInput,
 } from "@/lib/events/transfer-completion";
@@ -1992,6 +1996,97 @@ test("conclusao de transferencia rotaciona somente o segundo de tres ingressos e
   }
 });
 
+test("secret divergente reproduz a falha e reparo legacy e idempotente libera a conclusao", async () => {
+  const restore = enableTransferTestEnvironment();
+  const secretA = "integration-backfill-secret-a-with-at-least-32-characters";
+  const secretB = "integration-runtime-secret-b-with-at-least-32-characters";
+  try {
+    const { order } = await createPaidOrderFixture(1);
+    const ticket = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
+    process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = secretA;
+    await ensureInitialEventTicketQrVersion(ticket.id, testPrisma);
+    const versionWithSecretA = await testPrisma.eventTicketQrVersion.findFirstOrThrow({ where: { ticketId: ticket.id } });
+
+    process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = secretB;
+    const transfer = await createReadyTransfer(ticket.id);
+    await assert.rejects(() => completeEventTicketTransfer({
+      transferId: transfer.id,
+      ticketId: ticket.id,
+      expectedOwnershipVersion: 1,
+      recipient: transferRecipient,
+    }), /EVENT_TICKET_TRANSFER_QR_VERSION_INCONSISTENT/);
+    assert.deepEqual(await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: ticket.id } }), ticket);
+    assert.deepEqual(
+      await testPrisma.eventTicketQrVersion.findFirstOrThrow({ where: { ticketId: ticket.id } }),
+      versionWithSecretA,
+    );
+
+    const verifyBefore = await verifyEventTicketCredentialHashes({ db: testPrisma, secret: secretB, batchSize: 1 });
+    assert.equal(verifyBefore.metrics.credentialHashMismatches, 1);
+    assert.equal(verifyBefore.metrics.legacyEligibleForRepair, 1);
+    assert.equal(verifyBefore.metrics.inconsistentVersions, 0);
+    const dryRun = await repairLegacyEventTicketCredentialHashes({ db: testPrisma, secret: secretB, batchSize: 1 });
+    assert.deepEqual({ repaired: dryRun.repaired, wouldRepair: dryRun.wouldRepair }, { repaired: 0, wouldRepair: 1 });
+    assert.deepEqual(
+      await testPrisma.eventTicketQrVersion.findFirstOrThrow({ where: { ticketId: ticket.id } }),
+      versionWithSecretA,
+    );
+
+    const firstRepair = await repairLegacyEventTicketCredentialHashes({
+      db: testPrisma, secret: secretB, batchSize: 1, write: true,
+    });
+    assert.equal(firstRepair.repaired, 1);
+    assert.equal(firstRepair.after.metrics.credentialHashMismatches, 0);
+    const secondRepair = await repairLegacyEventTicketCredentialHashes({
+      db: testPrisma, secret: secretB, batchSize: 1, write: true,
+    });
+    assert.equal(secondRepair.repaired, 0);
+    assert.equal(secondRepair.after.metrics.credentialHashMismatches, 0);
+
+    const completed = await completeEventTicketTransfer({
+      transferId: transfer.id,
+      ticketId: ticket.id,
+      expectedOwnershipVersion: 1,
+      recipient: transferRecipient,
+    });
+    assert.equal(completed.ownershipVersion, 2);
+    assert.equal(completed.qrVersion, 2);
+  } finally {
+    restore();
+  }
+});
+
+test("reparo recusa estado estrutural inconsistente e nunca altera ingresso transferido", async () => {
+  const restore = enableTransferTestEnvironment();
+  const legacySecret = "integration-legacy-secret-with-at-least-32-characters";
+  const runtimeSecret = "integration-current-secret-with-at-least-32-characters";
+  try {
+    const { order } = await createPaidOrderFixture(2);
+    const tickets = await testPrisma.eventTicket.findMany({ where: { eventOrderId: order.orderId }, orderBy: { id: "asc" } });
+    process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = legacySecret;
+    await Promise.all(tickets.map((ticket) => ensureInitialEventTicketQrVersion(ticket.id, testPrisma)));
+    await testPrisma.eventTicket.update({
+      where: { id: tickets[0].id },
+      data: { ownershipVersion: 2, transferredAt: new Date(), originalOrderAccessRevokedAt: new Date() },
+    });
+    await testPrisma.eventTicketQrVersion.update({
+      where: { ticketId_version: { ticketId: tickets[1].id, version: 1 } },
+      data: { status: "REVOKED", revokedAt: new Date() },
+    });
+    const before = await testPrisma.eventTicketQrVersion.findMany({ orderBy: { id: "asc" } });
+    const verify = await verifyEventTicketCredentialHashes({ db: testPrisma, secret: runtimeSecret });
+    assert.equal(verify.metrics.transferredTickets, 1);
+    assert.equal(verify.metrics.notAutomaticallyRepairable, 2);
+    assert.equal(verify.metrics.inconsistentVersions, 1);
+    await assert.rejects(() => repairLegacyEventTicketCredentialHashes({
+      db: testPrisma, secret: runtimeSecret, write: true,
+    }), /EVENT_TICKET_HASH_REPAIR_STRUCTURAL_INCONSISTENCY/);
+    assert.deepEqual(await testPrisma.eventTicketQrVersion.findMany({ orderBy: { id: "asc" } }), before);
+  } finally {
+    restore();
+  }
+});
+
 test("conclusao rejeita flag, versao, estado, expiracao, pedido e ticket divergente sem mutacao", async () => {
   const restore = enableTransferTestEnvironment();
   try {
@@ -3811,6 +3906,90 @@ test("fase 4 limita grant ao ingresso recebido e permite nova transferencia indi
       recipientEmail: "intruso@event-test.local",
     }), /EVENT_TICKET_TRANSFER_UNAUTHORIZED/);
     assert.deepEqual(await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: sibling.id } }), sibling);
+  } finally {
+    restore();
+  }
+});
+
+test("cadeia A para B para C rotaciona ownership, QR e grant em cada conclusao", async () => {
+  const restore = enablePortalTestEnvironment();
+  const recipientC = {
+    name: "Terceira Titular",
+    cpf: "11144477735",
+    email: "terceira.titular@event-test.local",
+    phone: "51988880000",
+  };
+  try {
+    const { event, order } = await createPaidOrderFixture(1);
+    const original = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
+    await ensureInitialEventTicketQrVersion(original.id, testPrisma);
+    const transferAB = await createReadyTransfer(original.id, transferRecipient);
+    const completedAB = await completeEventTicketTransfer({
+      transferId: transferAB.id, ticketId: original.id, expectedOwnershipVersion: 1, recipient: transferRecipient,
+    });
+    const afterB = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
+    const transferBC = await createReadyTransfer(original.id, recipientC);
+    const completedBC = await completeEventTicketTransfer({
+      transferId: transferBC.id, ticketId: original.id, expectedOwnershipVersion: 2, recipient: recipientC,
+    });
+    const afterC = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
+
+    assert.deepEqual(
+      { ownership: [original.ownershipVersion, afterB.ownershipVersion, afterC.ownershipVersion], qr: [original.qrVersion, afterB.qrVersion, afterC.qrVersion] },
+      { ownership: [1, 2, 3], qr: [1, 2, 3] },
+    );
+    assert.notEqual(afterB.qrToken, original.qrToken);
+    assert.notEqual(afterC.qrToken, afterB.qrToken);
+    assert.notEqual(afterC.ticketCode, afterB.ticketCode);
+    assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, original.qrToken)).status, "INVALID");
+    assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, afterB.qrToken)).status, "INVALID");
+    assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, afterC.qrToken)).status, "VALID");
+    assert.deepEqual(
+      (await testPrisma.eventTicketQrVersion.findMany({ where: { ticketId: original.id }, orderBy: { version: "asc" } }))
+        .map(({ version, status }) => ({ version, status })),
+      [{ version: 1, status: "REVOKED" }, { version: 2, status: "REVOKED" }, { version: 3, status: "ACTIVE" }],
+    );
+    const grants = await testPrisma.eventTicketAccessGrant.findMany({ where: { ticketId: original.id }, orderBy: { ownershipVersion: "asc" } });
+    assert.deepEqual(grants.map(({ ownershipVersion, revokedAt }) => ({ ownershipVersion, active: revokedAt === null })), [
+      { ownershipVersion: 2, active: false },
+      { ownershipVersion: 3, active: true },
+    ]);
+    assert.equal((await resolveEventTicketAccessGrant(completedAB.rawAccessToken!, new Date(), testPrisma)), null);
+    assert.equal((await resolveEventTicketAccessGrant(completedBC.rawAccessToken!, new Date(), testPrisma))?.ticket.id, original.id);
+  } finally {
+    restore();
+  }
+});
+
+test("retorno A para B para A prioriza grant atual no portal do comprador original", async () => {
+  const restore = enablePortalTestEnvironment();
+  try {
+    const { order } = await createPaidOrderFixture(1);
+    const original = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
+    await ensureInitialEventTicketQrVersion(original.id, testPrisma);
+    const transferAB = await createReadyTransfer(original.id, transferRecipient);
+    await completeEventTicketTransfer({
+      transferId: transferAB.id, ticketId: original.id, expectedOwnershipVersion: 1, recipient: transferRecipient,
+    });
+    const recipientA = {
+      name: original.participantName,
+      cpf: original.participantCpf!,
+      email: buyer(0).email,
+      phone: original.participantPhone,
+    };
+    const transferBA = await createReadyTransfer(original.id, recipientA);
+    await completeEventTicketTransfer({
+      transferId: transferBA.id, ticketId: original.id, expectedOwnershipVersion: 2, recipient: recipientA,
+    });
+    const current = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
+    const portalA = await getEventTicketPortalView({ email: buyer(0).email, emailHash: hashPortalEmail(buyer(0).email) });
+    const projected = portalA.groups.flatMap((group) => group.tickets).filter((ticket) => ticket.ticketId === original.id);
+    assert.equal(projected.length, 1);
+    assert.equal(projected[0].state, "ACTIVE");
+    assert.ok("qrToken" in projected[0] && projected[0].qrToken === current.qrToken);
+    assert.ok("ticketCode" in projected[0] && projected[0].ticketCode === current.ticketCode);
+    assert.equal(JSON.stringify(portalA).includes(transferRecipient.name), false);
+    assert.equal(JSON.stringify(portalA).includes(transferRecipient.email), false);
   } finally {
     restore();
   }

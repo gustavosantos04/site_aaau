@@ -48,6 +48,7 @@ import {
 import { isRetryableTransactionConflict } from "@/lib/events/transaction";
 import { eventTicketTransfersEnabled } from "@/lib/events/transfer-config";
 import {
+  eventTicketTransferSecretFingerprint,
   generateEventTicketTransferToken,
   hashEventTicketAccessToken,
   hashEventTicketHolderEmail,
@@ -934,6 +935,17 @@ test("transfer security rejects missing and short HMAC secrets", () => {
     if (previousSecret === undefined) delete process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
     else process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = previousSecret;
   }
+});
+
+test("fingerprint operacional do secret e deterministica, nao reversivel e distingue secrets", () => {
+  const firstSecret = "domain-fingerprint-first-secret-with-at-least-32-characters";
+  const secondSecret = "domain-fingerprint-second-secret-with-at-least-32-characters";
+  const first = eventTicketTransferSecretFingerprint(firstSecret);
+  assert.match(first, /^[a-f0-9]{16}$/);
+  assert.equal(first, eventTicketTransferSecretFingerprint(firstSecret));
+  assert.notEqual(first, eventTicketTransferSecretFingerprint(secondSecret));
+  assert.equal(first.includes(firstSecret), false);
+  assert.throws(() => eventTicketTransferSecretFingerprint("curto"), /pelo menos 32 caracteres/);
 });
 
 test("transfer recipient normalization validates CPF, email and event requirements", () => {

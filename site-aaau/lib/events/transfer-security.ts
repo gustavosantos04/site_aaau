@@ -10,12 +10,25 @@ export type EventTicketTransferHashPurpose =
   | "qr-token"
   | "ticket-code";
 
-function transferSecret() {
-  const secret = process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET?.trim();
+function assertTransferSecret(value: string | undefined) {
+  const secret = value?.trim();
   if (!secret || secret.length < 32) {
     throw new Error("EVENT_TICKET_TRANSFER_TOKEN_SECRET precisa ter pelo menos 32 caracteres.");
   }
   return secret;
+}
+
+function transferSecret() {
+  return assertTransferSecret(process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET);
+}
+
+export function eventTicketTransferSecretFingerprint(secret: string) {
+  return crypto
+    .createHash("sha256")
+    .update("aaau:event-ticket-transfer-secret-fingerprint:v1\0")
+    .update(assertTransferSecret(secret))
+    .digest("hex")
+    .slice(0, 16);
 }
 
 export function normalizeEventTicketHolderEmail(value: string) {
@@ -26,8 +39,16 @@ export function hashEventTicketTransferValue(
   purpose: EventTicketTransferHashPurpose,
   value: string,
 ) {
+  return hashEventTicketTransferValueWithSecret(purpose, value, transferSecret());
+}
+
+export function hashEventTicketTransferValueWithSecret(
+  purpose: EventTicketTransferHashPurpose,
+  value: string,
+  secret: string,
+) {
   return crypto
-    .createHmac("sha256", transferSecret())
+    .createHmac("sha256", assertTransferSecret(secret))
     .update(purpose)
     .update("\0")
     .update(value)
@@ -52,4 +73,12 @@ export function hashEventTicketQrToken(token: string) {
 
 export function hashEventTicketCode(code: string) {
   return hashEventTicketTransferValue("ticket-code", code.trim().toUpperCase());
+}
+
+export function hashEventTicketQrTokenWithSecret(token: string, secret: string) {
+  return hashEventTicketTransferValueWithSecret("qr-token", token.trim(), secret);
+}
+
+export function hashEventTicketCodeWithSecret(code: string, secret: string) {
+  return hashEventTicketTransferValueWithSecret("ticket-code", code.trim().toUpperCase(), secret);
 }

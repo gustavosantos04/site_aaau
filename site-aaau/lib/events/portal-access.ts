@@ -142,10 +142,15 @@ export async function getEventTicketPortalView(session: { email: string; emailHa
 
   const groups: EventTicketPortalGroup[] = [];
   const representedTickets = new Set<string>();
+  const currentGrantByTicketId = new Map(grants
+    .filter((grant) => grant.ownershipVersion === grant.ticket.ownershipVersion)
+    .map((grant) => [grant.ticket.id, grant]));
   for (const order of orders) {
     const tickets = order.tickets.map((ticket) => {
       representedTickets.add(ticket.id);
       if (ticket.originalOrderAccessRevokedAt) {
+        const returnedGrant = currentGrantByTicketId.get(ticket.id);
+        if (returnedGrant) return visibleTicket(returnedGrant.ticket, now);
         return {
           ticketId: ticket.id,
           state: "TRANSFERRED" as const,
