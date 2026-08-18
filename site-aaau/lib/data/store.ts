@@ -54,16 +54,21 @@ function normalizeProduct(product: {
   const savedMetadata = parseProductMetadata(product.metadata);
   const basePrice = Number(product.price);
   const variants = savedMetadata?.variants ?? seedVariantsWithBasePrice(seedMetadata, basePrice);
+  const stockItems = product.stockItems ?? [];
+  const effectiveStock = stockItems.length
+    ? stockItems.reduce((sum, item) => sum + Math.max(0, item.stock), 0)
+    : product.stock;
 
   return {
     ...product,
     price: basePrice,
+    stock: effectiveStock,
     requiresCustomization:
       product.requiresCustomization ?? seedMetadata?.requiresCustomization ?? false,
     variants,
     options: savedMetadata?.options ?? seedMetadata?.options,
     measurementGuide: savedMetadata?.measurementGuide ?? seedMetadata?.measurementGuide,
-    stockItems: product.stockItems ?? [],
+    stockItems,
   };
 }
 

@@ -190,6 +190,10 @@ test("contrato do checkout classifica todos os erros recuperaveis sem expor deta
 });
 
 test("estoque detalhado controla variantes e produto esgotado sem desativar catalogo", () => {
+  const generalOnly = { stock: 10, stockItems: [] };
+  assert.equal(productSelectionStock(generalOnly, undefined, "M"), 10);
+  assert.equal(productAvailableStock(generalOnly), 10);
+
   const product = {
     stock: 99,
     stockItems: [
@@ -203,6 +207,8 @@ test("estoque detalhado controla variantes e produto esgotado sem desativar cata
   assert.equal(isProductSoldOut(product), false);
   assert.equal(isProductSoldOut({ ...product, stockItems: product.stockItems.map((item) => ({ ...item, stock: 0 })) }), true);
   assert.equal(isProductSoldOut({ stock: 0, stockItems: [] }), true);
+  assert.equal(productSelectionStock({ stock: 0, stockItems: [{ id: "g", variantId: "camiseta", size: "G", stock: 5 }] }, "camiseta", "G"), 5);
+  assert.equal(isProductSoldOut({ stock: 0, stockItems: [{ id: "g", variantId: "camiseta", size: "G", stock: 5 }] }), false);
 });
 
 test("api de versao informa somente o build e proibe cache", async () => {

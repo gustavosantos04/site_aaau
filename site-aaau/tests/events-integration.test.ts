@@ -4644,7 +4644,7 @@ test("estoque de produto por tamanho e concorrencia bloqueiam overselling sem oc
     const product = await testPrisma.product.create({
       data: {
         name: "Camiseta Estoque", slug, price: new Prisma.Decimal("50"), description: "Produto para teste de concorrencia",
-        category: "APPAREL", sizes: ["P", "M"], stock: 1, isActive: true,
+        category: "APPAREL", sizes: ["P", "M"], stock: 10, isActive: true,
         stockItems: { create: [{ variantId: "", size: "P", stock: 0 }, { variantId: "", size: "M", stock: 1 }] },
       },
     });
@@ -4659,7 +4659,9 @@ test("estoque de produto por tamanho e concorrencia bloqueiam overselling sem oc
     const inventory = await testPrisma.productStockItem.findUniqueOrThrow({ where: { productId_variantId_size: { productId: product.id, variantId: "", size: "M" } } });
     assert.equal(inventory.stock, 0);
     assert.equal(await testPrisma.order.count({ where: { items: { some: { productId: product.id } } } }), 1);
-    assert.ok(await testPrisma.product.findFirst({ where: { id: product.id, isActive: true } }));
+    const soldOutProduct = await getProductBySlug(slug);
+    assert.equal(soldOutProduct?.stock, 0);
+    assert.equal(soldOutProduct?.stockItems?.reduce((sum, item) => sum + item.stock, 0), 0);
     await testPrisma.product.update({ where: { id: product.id }, data: { isActive: false } });
     assert.equal(await getProductBySlug(slug), null);
   } finally {
