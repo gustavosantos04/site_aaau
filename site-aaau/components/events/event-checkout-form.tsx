@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AlertCircle, BadgeCheck, Minus, Plus, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/shared/button";
 import { buildEventCheckoutParticipantPayload } from "@/lib/events/checkout-payload";
+import { checkoutFieldErrorKey } from "@/lib/events/checkout-validation";
 import { formatEventDateTime, formatMoney } from "@/lib/events/public";
 
 type CheckoutEvent = {
@@ -64,6 +65,14 @@ function digits(value: string) {
 
 function randomKey() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function focusCheckoutField(field: string) {
+  window.setTimeout(() => {
+    const input = document.querySelector<HTMLElement>(`[name="${field}"]`);
+    input?.focus();
+    input?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, 0);
 }
 
 export function EventCheckoutForm({
@@ -202,15 +211,12 @@ export function EventCheckoutForm({
       return submit(attempt + 1);
     }
 
-    if (body.code === "EVENT_CHECKOUT_STALE") {
-      setFeedback(body.message);
-      window.location.reload();
-      return;
-    }
-
     if (!response.ok || !body.initPoint) {
-      if (body.fieldErrors && typeof body.fieldErrors === "object") {
-        setFieldErrors(body.fieldErrors as Record<string, string>);
+      const field = typeof body.field === "string" ? body.field : null;
+      const fieldKey = field ? checkoutFieldErrorKey(field) : null;
+      if (field && fieldKey) {
+        setFieldErrors({ [fieldKey]: body.message ?? "Revise este campo." });
+        focusCheckoutField(field);
       }
       setFeedback(body.message ?? "Não conseguimos preparar o pagamento agora. Tente novamente em alguns instantes.");
       setSubmitting(false);
@@ -258,10 +264,10 @@ export function EventCheckoutForm({
         <section className="grid gap-4 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5 sm:grid-cols-2">
           <h2 className="font-display text-2xl uppercase tracking-[0.08em] text-white sm:col-span-2">Comprador</h2>
           <p className="text-sm leading-6 text-white/60 sm:col-span-2">Usaremos estes dados para identificar a compra e enviar o acesso aos ingressos.</p>
-          <Input label="Nome completo" required autoComplete="name" value={buyer.name} onChange={(value) => setBuyer({ ...buyer, name: value })} error={fieldErrors.buyerName} />
-          <Input label="CPF" required autoComplete="off" inputMode="numeric" value={buyer.cpf} onChange={(value) => setBuyer({ ...buyer, cpf: value })} error={fieldErrors.buyerCpf} />
-          <Input label="E-mail" required autoComplete="email" type="email" value={buyer.email} onChange={(value) => setBuyer({ ...buyer, email: value })} error={fieldErrors.buyerEmail} />
-          <Input label="WhatsApp" required autoComplete="tel" inputMode="numeric" value={buyer.phone} onChange={(value) => setBuyer({ ...buyer, phone: value })} error={fieldErrors.buyerPhone} />
+          <Input name="buyer.name" label="Nome completo" required autoComplete="name" value={buyer.name} onChange={(value) => setBuyer({ ...buyer, name: value })} error={fieldErrors.buyerName} />
+          <Input name="buyer.cpf" label="CPF" required autoComplete="off" inputMode="numeric" value={buyer.cpf} onChange={(value) => setBuyer({ ...buyer, cpf: value })} error={fieldErrors.buyerCpf} />
+          <Input name="buyer.email" label="E-mail" required autoComplete="email" type="email" value={buyer.email} onChange={(value) => setBuyer({ ...buyer, email: value })} error={fieldErrors.buyerEmail} />
+          <Input name="buyer.phone" label="WhatsApp" required autoComplete="tel" inputMode="numeric" value={buyer.phone} onChange={(value) => setBuyer({ ...buyer, phone: value })} error={fieldErrors.buyerPhone} />
         </section>
 
         <section className="space-y-4 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-5">
@@ -276,14 +282,14 @@ export function EventCheckoutForm({
           {participants.map((participant, index) => (
             <div key={index} className="grid gap-3 rounded-[0.5rem] border border-white/10 bg-aaau-night/45 p-4 sm:grid-cols-2">
               <h3 className="font-semibold uppercase tracking-[0.16em] text-white sm:col-span-2">Participante {index + 1}</h3>
-              <Input label="Nome completo" required autoComplete="name" value={participant.name} onChange={(value) => updateParticipant(index, "name", value)} error={fieldErrors[`participant-${index}-name`]} />
-              <Input label="CPF" required autoComplete="off" inputMode="numeric" value={participant.cpf} onChange={(value) => updateParticipant(index, "cpf", value)} error={fieldErrors[`participant-${index}-cpf`]} />
-              {event.requireParticipantEmail ? <Input label="E-mail" type="email" value={participant.email} onChange={(value) => updateParticipant(index, "email", value)} error={fieldErrors[`participant-${index}-email`]} /> : null}
-              {event.requireParticipantPhone ? <Input label="Telefone" inputMode="numeric" value={participant.phone} onChange={(value) => updateParticipant(index, "phone", value)} error={fieldErrors[`participant-${index}-phone`]} /> : null}
-              {event.requireBirthDate ? <Input label="Data de nascimento" type="date" value={participant.birthDate} onChange={(value) => updateParticipant(index, "birthDate", value)} error={fieldErrors[`participant-${index}-birthDate`]} /> : null}
-              {event.requireInstitution ? <Input label="Instituição" value={participant.institution} onChange={(value) => updateParticipant(index, "institution", value)} error={fieldErrors[`participant-${index}-institution`]} /> : null}
-              {event.requireCourse ? <Input label="Curso" value={participant.course} onChange={(value) => updateParticipant(index, "course", value)} error={fieldErrors[`participant-${index}-course`]} /> : null}
-              {event.requireCampus ? <Input label="Campus" value={participant.campus} onChange={(value) => updateParticipant(index, "campus", value)} error={fieldErrors[`participant-${index}-campus`]} /> : null}
+              <Input name={`participants.${index}.name`} label="Nome completo" required autoComplete="name" value={participant.name} onChange={(value) => updateParticipant(index, "name", value)} error={fieldErrors[`participant-${index}-name`]} />
+              <Input name={`participants.${index}.cpf`} label="CPF" required autoComplete="off" inputMode="numeric" value={participant.cpf} onChange={(value) => updateParticipant(index, "cpf", value)} error={fieldErrors[`participant-${index}-cpf`]} />
+              {event.requireParticipantEmail ? <Input name={`participants.${index}.email`} label="E-mail" type="email" value={participant.email} onChange={(value) => updateParticipant(index, "email", value)} error={fieldErrors[`participant-${index}-email`]} /> : null}
+              {event.requireParticipantPhone ? <Input name={`participants.${index}.phone`} label="Telefone" inputMode="numeric" value={participant.phone} onChange={(value) => updateParticipant(index, "phone", value)} error={fieldErrors[`participant-${index}-phone`]} /> : null}
+              {event.requireBirthDate ? <Input name={`participants.${index}.birthDate`} label="Data de nascimento" type="date" value={participant.birthDate} onChange={(value) => updateParticipant(index, "birthDate", value)} error={fieldErrors[`participant-${index}-birthDate`]} /> : null}
+              {event.requireInstitution ? <Input name={`participants.${index}.institution`} label="Instituição" value={participant.institution} onChange={(value) => updateParticipant(index, "institution", value)} error={fieldErrors[`participant-${index}-institution`]} /> : null}
+              {event.requireCourse ? <Input name={`participants.${index}.course`} label="Curso" value={participant.course} onChange={(value) => updateParticipant(index, "course", value)} error={fieldErrors[`participant-${index}-course`]} /> : null}
+              {event.requireCampus ? <Input name={`participants.${index}.campus`} label="Campus" value={participant.campus} onChange={(value) => updateParticipant(index, "campus", value)} error={fieldErrors[`participant-${index}-campus`]} /> : null}
             </div>
           ))}
         </section>
@@ -329,6 +335,7 @@ export function EventCheckoutForm({
 }
 
 function Input({
+  name,
   label,
   value,
   onChange,
@@ -339,6 +346,7 @@ function Input({
   autoComplete,
   required = false,
 }: {
+  name?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -349,11 +357,13 @@ function Input({
   autoComplete?: string;
   required?: boolean;
 }) {
+  const errorId = useId();
   return (
     <label className="block">
       <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55">{label}{required ? <span className="text-aaau-sand"> *</span> : null}</span>
       <input
         type={type}
+        name={name}
         inputMode={inputMode}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -362,8 +372,9 @@ function Input({
         required={required}
         className="mt-2 h-12 w-full rounded-[0.5rem] border border-white/10 bg-aaau-night px-3 text-sm text-white outline-none transition focus:border-aaau-sand/60"
         aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
       />
-      {error ? <span className="mt-1 block text-xs text-red-200">{error}</span> : null}
+      {error ? <span id={errorId} className="mt-1 block text-xs text-red-200">{error}</span> : null}
     </label>
   );
 }

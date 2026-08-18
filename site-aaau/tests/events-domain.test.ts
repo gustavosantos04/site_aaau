@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 import { Prisma } from "@prisma/client";
 import { POST as mercadoPagoWebhookPost } from "@/app/api/mercado-pago/webhook/route";
+import { GET as appVersionGet } from "@/app/api/version/route";
 
 import { getBaseUrl as getMercadoPagoBaseUrl } from "@/lib/checkout/mercado-pago";
 import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
@@ -25,6 +26,8 @@ import {
   InconsistentTicketCountersError,
   NoActiveTicketLotError,
 } from "@/lib/events/errors";
+import * as EventErrors from "@/lib/events/errors";
+import { checkoutDomainErrorResponse } from "@/lib/events/checkout-validation";
 import { toMoney } from "@/lib/events/money";
 import {
   calculatePartnerDiscount,
@@ -99,6 +102,105 @@ import { parseEventTicketQrPayload } from "@/lib/portaria-qr";
 import { buildAbsoluteUrl, normalizeBaseUrl } from "@/lib/site-url";
 
 const now = new Date("2026-07-07T18:00:00.000Z");
+
+test("contrato do checkout classifica todos os erros recuperaveis sem expor detalhes internos", () => {
+  const cases: Array<{
+    error: EventErrors.EventDomainError;
+    status: number;
+    publicCode?: string;
+    message: RegExp;
+    field?: string;
+    participantIndex?: number;
+  }> = [
+    { error: new EventErrors.EventNotFoundError(), status: 404, message: /não está disponível/ },
+    { error: new EventErrors.EventNotPublishedError(), status: 404, message: /não está disponível/ },
+    { error: new EventErrors.EventSalesNotStartedError(), status: 409, message: /ainda não começaram/ },
+    { error: new EventErrors.EventSalesEndedError(), status: 410, message: /já foram encerradas/ },
+    { error: new EventErrors.NoActiveTicketLotError(), status: 409, message: /lote disponível/ },
+    { error: new EventErrors.InconsistentTicketCountersError(), status: 500, publicCode: "CHECKOUT_INTERNAL_ERROR", message: /validar o estoque/ },
+    { error: new EventErrors.InsufficientTicketAvailabilityError(), status: 409, message: /esgotar|quantidade solicitada/ },
+    {
+      error: new EventErrors.InvalidTicketQuantityError("MAX_UNITS_PER_ORDER_EXCEEDED", { maxUnitsPerOrder: 2, ticketsPerUnit: 2 }),
+      status: 400,
+      message: /no máximo 2 pacote/,
+    },
+    {
+      error: new EventErrors.InvalidTicketQuantityError("PARTICIPANT_COUNT_MISMATCH", { expectedParticipantsCount: 4 }),
+      status: 400,
+      message: /dados de 4 participante/,
+    },
+    {
+      error: new EventErrors.InvalidParticipantDataError(1, "email", "PARTICIPANT_EMAIL_INVALID"),
+      status: 400,
+      message: /e-mail do Participante 2 é inválido/,
+      field: "participants.1.email",
+      participantIndex: 1,
+    },
+    {
+      error: new EventErrors.InvalidParticipantDataError(1, "birthDate", "PARTICIPANT_BIRTH_DATE_INVALID"),
+      status: 400,
+      message: /data de nascimento válida.*Participante 2/,
+      field: "participants.1.birthDate",
+      participantIndex: 1,
+    },
+    {
+      error: new EventErrors.InvalidParticipantDataError(1, "birthDate", "PARTICIPANT_MINIMUM_AGE_NOT_MET", { minimumAge: 18 }),
+      status: 400,
+      message: /Participante 2 precisa ter pelo menos 18 anos/,
+      field: "participants.1.birthDate",
+      participantIndex: 1,
+    },
+    {
+      error: new EventErrors.InvalidParticipantDataError(2, "institution", "PARTICIPANT_INSTITUTION_REQUIRED"),
+      status: 400,
+      message: /instituição.*Participante 3/,
+      field: "participants.2.institution",
+      participantIndex: 2,
+    },
+    { error: new EventErrors.InvalidBuyerDataError("cpf", "BUYER_CPF_INVALID"), status: 400, message: /CPF do comprador/, field: "buyer.cpf" },
+    { error: new EventErrors.EventCheckoutStaleError(), status: 409, message: /lote foi atualizado/ },
+    { error: new EventErrors.InvalidPartnerCodeError(), status: 400, message: /não é válido/ },
+    { error: new EventErrors.PartnerCodeExpiredError(), status: 410, message: /expirou/ },
+    { error: new EventErrors.PartnerCodeLimitReachedError(), status: 409, message: /limite/ },
+    { error: new EventErrors.EventOrderNotFoundError(), status: 404, message: /localizar este pedido/ },
+    { error: new EventErrors.EventOrderExpiredError(), status: 410, message: /reserva.*expirou/ },
+    { error: new EventErrors.EventOrderInvalidStatusError(), status: 409, message: /não pode mais/ },
+    { error: new EventErrors.IdempotencyConflictError(), status: 409, message: /dados da compra mudaram/ },
+    { error: new EventErrors.FreeEventOrderUnsupportedError(), status: 422, message: /checkout atual/ },
+    {
+      error: new EventErrors.EventPaymentPreferenceError("provider secret raw response"),
+      status: 502,
+      message: /Não foi possível iniciar o pagamento/,
+    },
+    { error: new EventErrors.EventPaymentPreferenceCreatingError(), status: 202, message: /preparando seu pagamento/ },
+    { error: new EventErrors.EventPaymentPreferenceAmbiguousError(), status: 409, message: /sendo reconciliado/ },
+    { error: new EventErrors.ReservationInconsistencyError(), status: 409, message: /reserva mudou/ },
+  ];
+
+  for (const entry of cases) {
+    const response = checkoutDomainErrorResponse(entry.error);
+    assert.equal(response.status, entry.status, entry.error.code);
+    assert.equal(response.body.code, entry.publicCode ?? entry.error.code, entry.error.code);
+    assert.match(response.body.message, entry.message, entry.error.code);
+    assert.equal(response.body.field, entry.field, entry.error.code);
+    assert.equal(response.body.participantIndex, entry.participantIndex, entry.error.code);
+    assert.doesNotMatch(JSON.stringify(response.body), /provider secret raw response/);
+  }
+});
+
+test("api de versao informa somente o build e proibe cache", async () => {
+  const previous = process.env.VERCEL_GIT_COMMIT_SHA;
+  process.env.VERCEL_GIT_COMMIT_SHA = "build-test-safe-id";
+  try {
+    const response = appVersionGet();
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store, max-age=0");
+    assert.deepEqual(await response.json(), { version: "build-test-safe-id" });
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL_GIT_COMMIT_SHA;
+    else process.env.VERCEL_GIT_COMMIT_SHA = previous;
+  }
+});
 
 function signedMercadoPagoRequest(input: {
   url: string;

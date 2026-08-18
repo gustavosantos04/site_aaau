@@ -8,6 +8,7 @@ export type EventDomainErrorCode =
   | "INSUFFICIENT_TICKET_AVAILABILITY"
   | "INVALID_TICKET_QUANTITY"
   | "INVALID_PARTICIPANT_DATA"
+  | "INVALID_BUYER_DATA"
   | "EVENT_CHECKOUT_STALE"
   | "INVALID_PARTNER_CODE"
   | "PARTNER_CODE_EXPIRED"
@@ -89,13 +90,83 @@ export class InvalidTicketQuantityError extends EventDomainError {
   }
 }
 
+export type CheckoutParticipantField =
+  | "name"
+  | "cpf"
+  | "email"
+  | "phone"
+  | "birthDate"
+  | "institution"
+  | "course"
+  | "campus";
+
+const participantFieldLabels: Record<CheckoutParticipantField, string> = {
+  name: "nome",
+  cpf: "CPF",
+  email: "e-mail",
+  phone: "telefone",
+  birthDate: "data de nascimento",
+  institution: "instituição",
+  course: "curso",
+  campus: "campus",
+};
+
+function participantErrorMessage(
+  participantIndex: number,
+  field: CheckoutParticipantField,
+  reason: string,
+  minimumAge?: number,
+) {
+  const participant = `Participante ${participantIndex + 1}`;
+  if (reason === "PARTICIPANT_CPF_INVALID") return `O CPF do ${participant} é inválido.`;
+  if (reason === "PARTICIPANT_EMAIL_INVALID") return `O e-mail do ${participant} é inválido.`;
+  if (reason === "PARTICIPANT_PHONE_INVALID") return `O telefone do ${participant} é inválido.`;
+  if (reason === "PARTICIPANT_BIRTH_DATE_INVALID") {
+    return `Informe uma data de nascimento válida para o ${participant}.`;
+  }
+  if (reason === "PARTICIPANT_BIRTH_DATE_REQUIRED") {
+    return `Informe a data de nascimento do ${participant}.`;
+  }
+  if (reason === "PARTICIPANT_MINIMUM_AGE_NOT_MET") {
+    return minimumAge
+      ? `O ${participant} precisa ter pelo menos ${minimumAge} anos para participar deste evento.`
+      : `O ${participant} não atende à idade mínima exigida para este evento.`;
+  }
+  if (reason === "DUPLICATE_PARTICIPANT_CPF") {
+    return `O CPF do ${participant} também foi informado para outro participante.`;
+  }
+  return `Informe ${participantFieldLabels[field]} para o ${participant}.`;
+}
+
 export class InvalidParticipantDataError extends EventDomainError {
-  constructor(participantIndex: number, field: "cpf", reason = "PARTICIPANT_CPF_INVALID") {
+  constructor(
+    participantIndex: number,
+    field: CheckoutParticipantField,
+    reason: string,
+    options: { minimumAge?: number } = {},
+  ) {
     super(
       "INVALID_PARTICIPANT_DATA",
-      `O CPF do Participante ${participantIndex + 1} é inválido.`,
-      { participantIndex, field, reason },
+      participantErrorMessage(participantIndex, field, reason, options.minimumAge),
+      {
+        participantIndex,
+        field,
+        reason,
+        ...(options.minimumAge === undefined ? {} : { minimumAge: options.minimumAge }),
+      },
     );
+  }
+}
+
+export class InvalidBuyerDataError extends EventDomainError {
+  constructor(field: "name" | "cpf" | "email" | "phone", reason: string) {
+    const messages = {
+      name: "Informe o nome completo do comprador.",
+      cpf: "O CPF do comprador é inválido.",
+      email: "O e-mail do comprador é inválido.",
+      phone: "O WhatsApp do comprador é inválido.",
+    };
+    super("INVALID_BUYER_DATA", messages[field], { field, reason });
   }
 }
 

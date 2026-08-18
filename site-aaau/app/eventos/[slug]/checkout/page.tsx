@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { EventCheckoutForm } from "@/components/events/event-checkout-form";
 import { EventSaleCountdownRefresh } from "@/components/events/event-sale-countdown";
 import { buttonVariants } from "@/components/shared/button";
+import { getTicketLotAvailability, getTicketLotMaxUnitsPerOrder } from "@/lib/events/availability";
 import { canBuyPublicStatus, getPublishedTicketEventBySlug } from "@/lib/events/public";
 
 export const dynamic = "force-dynamic";
@@ -61,8 +62,10 @@ export default async function EventCheckoutPage({
           currentLotName: event.currentLot.name,
           currentLotPrice: event.currentLot.price.toFixed(2),
           ticketsPerUnit: event.currentLot.ticketsPerUnit ?? 1,
-          maxUnitsPerOrder: event.currentLot.maxUnitsPerOrder ??
-            Math.floor(event.maxTicketsPerOrder / (event.currentLot.ticketsPerUnit ?? 1)),
+          maxUnitsPerOrder: Math.min(
+            getTicketLotMaxUnitsPerOrder(event, event.currentLot),
+            getTicketLotAvailability(event.currentLot),
+          ),
           requireParticipantEmail: event.requireParticipantEmail,
           requireParticipantPhone: event.requireParticipantPhone,
           requireBirthDate: event.requireBirthDate || event.minimumAge !== null,

@@ -845,7 +845,7 @@ test("promocao rejeita pacote parcial, terceiro pacote, lote suspenso e janela a
     commercialUnitQuantity: 1,
     participantCount: 1,
     now: PROMO_NOW,
-  }), InsufficientTicketAvailabilityError);
+  }), EventCheckoutStaleError);
   await assert.rejects(() => createEventOrderReservation({
     eventId: event.id,
     idempotencyKey: "promo-before-window",
@@ -854,7 +854,7 @@ test("promocao rejeita pacote parcial, terceiro pacote, lote suspenso e janela a
     buyer: buyer(0),
     participants: [participant(0), participant(1)],
     now: new Date(PROMO_START.getTime() - 1),
-  }), InsufficientTicketAvailabilityError);
+  }), EventCheckoutStaleError);
   await assert.rejects(() => createEventOrderReservation({
     eventId: event.id,
     idempotencyKey: "promo-at-end",
@@ -863,7 +863,7 @@ test("promocao rejeita pacote parcial, terceiro pacote, lote suspenso e janela a
     buyer: buyer(0),
     participants: [participant(0), participant(1)],
     now: PROMO_END,
-  }), InsufficientTicketAvailabilityError);
+  }), EventCheckoutStaleError);
   assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
 });
 
@@ -1537,6 +1537,38 @@ test("emissao oficial e idempotente cria um ticket por participante", async () =
     assert.equal(version?.qrTokenHash, hashEventTicketQrToken(ticket.qrToken));
     assert.equal(version?.ticketCodeHash, hashEventTicketCode(ticket.ticketCode));
   }
+});
+
+test("checkout HTTP associa idade minima ao nascimento do participante correto", async () => {
+  const event = await createTestTicketEvent({
+    minimumAge: 18,
+    requireBirthDate: true,
+    startAt: new Date("2026-12-20T20:00:00.000Z"),
+    salesEndAt: new Date("2026-12-19T20:00:00.000Z"),
+  });
+  const lot = await createTestTicketLot(event.id, {
+    salesEndAt: new Date("2026-12-19T20:00:00.000Z"),
+  });
+  const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.210" },
+    body: JSON.stringify({
+      eventSlug: event.slug,
+      ticketLotId: lot.id,
+      commercialUnitQuantity: 1,
+      buyer: buyer(),
+      participants: [{ ...participant(), birthDate: "2012-01-01" }],
+      idempotencyKey: "minimum-age-http-client-key",
+    }),
+  }));
+
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(body.code, "INVALID_PARTICIPANT_DATA");
+  assert.equal(body.field, "participants.0.birthDate");
+  assert.equal(body.participantIndex, 0);
+  assert.match(body.message, /Participante 1 precisa ter pelo menos 18 anos/);
+  assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
 });
 
 test("emissao reverte ticket e versao no savepoint antes de repetir colisao", async () => {
@@ -2863,7 +2895,7 @@ test("POST direto antes da abertura nao cria pedido, participantes, reservas ou 
         idempotencyKey: "direct-presale-post-key",
       }),
     }));
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 409);
     assert.equal((await response.json()).code, "EVENT_SALES_NOT_STARTED");
   } finally {
     if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
@@ -2971,12 +3003,50 @@ test("checkout HTTP rejeita opcionais vazios exigidos pelo evento sem criar rese
       }));
 
       assert.equal(response.status, 400, scenario.field);
+      const body = await response.json();
+      assert.equal(body.code, "INVALID_PARTICIPANT_DATA", scenario.field);
+      assert.equal(body.field, `participants.0.${scenario.field}`, scenario.field);
+      assert.equal(body.participantIndex, 0, scenario.field);
       assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
       assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: lot.id } })).reservedQuantity, 0);
     }
   } finally {
     if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = previousDatabaseUrl;
+  }
+});
+
+test("checkout HTTP mapeia CPF, e-mail e nascimento invalidos no segundo participante", async () => {
+  const scenarios = [
+    { field: "cpf", value: "12345678901", message: /CPF do Participante 2 é inválido/ },
+    { field: "email", value: "email-invalido", message: /e-mail do Participante 2 é inválido/ },
+    { field: "birthDate", value: "2026-02-31", message: /data de nascimento válida.*Participante 2/ },
+  ] as const;
+
+  for (const [index, scenario] of scenarios.entries()) {
+    const event = await createTestTicketEvent({ maxTicketsPerOrder: 2 });
+    const lot = await createTestTicketLot(event.id, { ticketsPerUnit: 2, maxUnitsPerOrder: 1 });
+    const secondParticipant = { ...participant(index + 1), [scenario.field]: scenario.value };
+    const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": `198.51.100.${220 + index}` },
+      body: JSON.stringify({
+        eventSlug: event.slug,
+        ticketLotId: lot.id,
+        commercialUnitQuantity: 1,
+        buyer: buyer(index),
+        participants: [participant(index), secondParticipant],
+        idempotencyKey: `invalid-second-participant-${scenario.field}`,
+      }),
+    }));
+
+    assert.equal(response.status, 400, scenario.field);
+    const body = await response.json();
+    assert.equal(body.code, "INVALID_PARTICIPANT_DATA", scenario.field);
+    assert.equal(body.field, `participants.1.${scenario.field}`, scenario.field);
+    assert.equal(body.participantIndex, 1, scenario.field);
+    assert.match(body.message, scenario.message, scenario.field);
+    assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
   }
 });
 

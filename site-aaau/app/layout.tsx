@@ -6,10 +6,12 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ClarityScript } from "@/components/analytics/clarity-script";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { AppVersionGuard } from "@/components/layout/app-version-guard";
 import { ScrollProgressIndicator } from "@/components/layout/scroll-progress-indicator";
 import { CartSheet } from "@/components/store/cart-sheet";
 import { Providers } from "@/app/providers";
 import { siteConfig } from "@/lib/site";
+import { getAppVersion } from "@/lib/app-version";
 
 import "./globals.css";
 
@@ -57,6 +59,7 @@ export default function RootLayout({
         className={`${displayFont.variable} ${bodyFont.variable} bg-aaau-night text-white`}
       >
         <Providers>
+          <AppVersionGuard loadedVersion={getAppVersion()} />
           <div className="relative flex min-h-screen flex-col">
             <SiteHeader />
             <ScrollProgressIndicator />

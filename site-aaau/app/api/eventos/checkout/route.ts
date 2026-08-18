@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { checkRateLimit } from "@/lib/checkout/mercado-pago";
 import {
-  checkoutDomainFieldErrors,
+  checkoutDomainErrorResponse,
   checkoutSchemaValidationResponse,
 } from "@/lib/events/checkout-validation";
 import { EventDomainError } from "@/lib/events/errors";
@@ -21,7 +21,10 @@ const participantSchema = z.object({
   cpf: z.string().trim().min(11).max(18),
   email: z.preprocess(emptyOptionalToUndefined, z.string().trim().email().max(160).optional()),
   phone: z.preprocess(emptyOptionalToUndefined, z.string().trim().min(10).max(24).optional()),
-  birthDate: z.preprocess(emptyOptionalToUndefined, z.coerce.date().optional()),
+  birthDate: z.preprocess(
+    emptyOptionalToUndefined,
+    z.string().date().transform((value) => new Date(`${value}T00:00:00.000Z`)).optional(),
+  ),
   institution: z.preprocess(emptyOptionalToUndefined, z.string().trim().max(120).optional()),
   course: z.preprocess(emptyOptionalToUndefined, z.string().trim().max(120).optional()),
   campus: z.preprocess(emptyOptionalToUndefined, z.string().trim().max(120).optional()),
@@ -46,30 +49,6 @@ const eventCheckoutSchema = z.object({
   path: ["eventId"],
 });
 
-function statusFromDomainError(error: EventDomainError) {
-  switch (error.code) {
-    case "EVENT_NOT_FOUND":
-      return 404;
-    case "IDEMPOTENCY_CONFLICT":
-    case "EVENT_CHECKOUT_STALE":
-      return 409;
-    case "INSUFFICIENT_TICKET_AVAILABILITY":
-    case "NO_ACTIVE_TICKET_LOT":
-    case "PARTNER_CODE_LIMIT_REACHED":
-    case "EVENT_ORDER_EXPIRED":
-    case "EVENT_ORDER_INVALID_STATUS":
-      return 409;
-    case "FREE_EVENT_ORDER_UNSUPPORTED":
-      return 422;
-    case "EVENT_PAYMENT_PREFERENCE_CREATING":
-      return 202;
-    case "EVENT_PAYMENT_PREFERENCE_AMBIGUOUS":
-      return 409;
-    default:
-      return 400;
-  }
-}
-
 function checkoutLogContext(body: unknown) {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
   return {
@@ -78,7 +57,7 @@ function checkoutLogContext(body: unknown) {
     lotId: typeof value.ticketLotId === "string" ? value.ticketLotId : undefined,
     quantity: typeof value.commercialUnitQuantity === "number" ? value.commercialUnitQuantity : undefined,
     participantsCount: Array.isArray(value.participants) ? value.participants.length : undefined,
-    partnerCode: typeof value.partnerCode === "string" ? value.partnerCode.slice(0, 80) : undefined,
+    hasPartnerCode: typeof value.partnerCode === "string" && value.partnerCode.trim().length > 0,
   };
 }
 
@@ -91,13 +70,20 @@ function logCheckoutRejected(body: unknown, reason: string, details?: unknown) {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ message: "Banco de dados nao configurado." }, { status: 503 });
+  const databaseConfigured = Boolean(
+    process.env.DATABASE_URL ||
+    (process.env.NODE_ENV === "test" && process.env.TEST_DATABASE_URL),
+  );
+  if (!databaseConfigured) {
+    return NextResponse.json(
+      { code: "CHECKOUT_UNAVAILABLE", message: "O checkout está indisponível agora. Tente novamente em alguns instantes." },
+      { status: 503 },
+    );
   }
 
   if (!checkRateLimit(request)) {
     return NextResponse.json(
-      { message: "Muitas tentativas de checkout. Aguarde um instante." },
+      { code: "CHECKOUT_RATE_LIMITED", message: "Muitas tentativas de checkout. Aguarde um instante." },
       { status: 429 },
     );
   }
@@ -110,7 +96,8 @@ export async function POST(request: Request) {
       path: issue.path.join("."),
       code: issue.code,
     })));
-    return NextResponse.json(checkoutSchemaValidationResponse(parsed.error.issues), { status: 400 });
+    const response = checkoutSchemaValidationResponse(parsed.error.issues);
+    return NextResponse.json(response.body, { status: response.status });
   }
 
   try {
@@ -142,22 +129,18 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof EventDomainError) {
-      if (statusFromDomainError(error) === 400 || error.code === "EVENT_CHECKOUT_STALE") {
+      const response = checkoutDomainErrorResponse(error);
+      if (response.status < 500) {
         logCheckoutRejected(body, error.code, error.details);
+      } else {
+        console.error("[EVENT_CHECKOUT_FAILED]", { reason: error.code, ...checkoutLogContext(body) });
       }
-      return NextResponse.json(
-        {
-          message: error.message,
-          code: error.code,
-          retryable: error.code === "EVENT_PAYMENT_PREFERENCE_CREATING",
-          fieldErrors: checkoutDomainFieldErrors(error),
-        },
-        { status: statusFromDomainError(error) },
-      );
+      return NextResponse.json(response.body, { status: response.status });
     }
 
+    console.error("[EVENT_CHECKOUT_FAILED]", { reason: "UNEXPECTED_ERROR", ...checkoutLogContext(body) });
     return NextResponse.json(
-      { message: "Nao foi possivel iniciar o pagamento do evento agora." },
+      { code: "CHECKOUT_INTERNAL_ERROR", message: "Não foi possível iniciar o pagamento agora. Tente novamente em alguns instantes." },
       { status: 500 },
     );
   }

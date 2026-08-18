@@ -5,10 +5,11 @@ import React from "react";
 
 import { buildEventCheckoutParticipantPayload } from "@/lib/events/checkout-payload";
 import {
-  checkoutDomainFieldErrors,
+  checkoutDomainErrorResponse,
   checkoutSchemaValidationResponse,
 } from "@/lib/events/checkout-validation";
 import { InvalidParticipantDataError } from "@/lib/events/errors";
+import { versionUpdateAction } from "@/lib/app-version";
 
 let cleanup: (() => void) | undefined;
 let fireEvent: typeof import("@testing-library/react").fireEvent;
@@ -131,24 +132,56 @@ test("checkout 2 por 1 cria dois participantes por pacote e limita a dois pacote
 test("erro de e-mail identifica o segundo participante e o campo correto", () => {
   assert.deepEqual(checkoutSchemaValidationResponse([{
     path: ["participants", 1, "email"],
+    code: "invalid_string",
   }]), {
-    message: "O e-mail do Participante 2 é inválido.",
-    code: "INVALID_PARTICIPANT_DATA",
-    fieldErrors: { "participant-1-email": "Informe um e-mail válido." },
-    details: {
+    status: 400,
+    body: {
+      message: "O e-mail do Participante 2 é inválido.",
+      code: "INVALID_PARTICIPANT_DATA",
+      field: "participants.1.email",
       participantIndex: 1,
-      field: "email",
-      reason: "PARTICIPANT_EMAIL_INVALID",
+    },
+  });
+});
+
+test("schema associa nascimento invalido e dados do comprador aos campos corretos", () => {
+  assert.deepEqual(checkoutSchemaValidationResponse([{
+    path: ["participants", 2, "birthDate"],
+    code: "invalid_string",
+  }]), {
+    status: 400,
+    body: {
+      code: "INVALID_PARTICIPANT_DATA",
+      message: "Informe uma data de nascimento válida para o Participante 3.",
+      field: "participants.2.birthDate",
+      participantIndex: 2,
+    },
+  });
+  assert.deepEqual(checkoutSchemaValidationResponse([{
+    path: ["buyer", "email"],
+    code: "invalid_string",
+  }]), {
+    status: 400,
+    body: {
+      code: "INVALID_BUYER_DATA",
+      message: "O e-mail do comprador é inválido.",
+      field: "buyer.email",
     },
   });
 });
 
 test("erro de CPF usa classificacao de participante e o campo correto", () => {
-  const error = new InvalidParticipantDataError(1, "cpf");
+  const error = new InvalidParticipantDataError(1, "cpf", "PARTICIPANT_CPF_INVALID");
   assert.equal(error.code, "INVALID_PARTICIPANT_DATA");
   assert.equal(error.message, "O CPF do Participante 2 é inválido.");
-  assert.deepEqual(checkoutDomainFieldErrors(error), {
-    "participant-1-cpf": "Informe um CPF válido.",
+  assert.deepEqual(checkoutDomainErrorResponse(error), {
+    status: 400,
+    body: {
+      code: "INVALID_PARTICIPANT_DATA",
+      message: "O CPF do Participante 2 é inválido.",
+      field: "participants.1.cpf",
+      participantIndex: 1,
+    },
   });
 });
 
@@ -157,7 +190,8 @@ test("checkout apresenta no formulario o CPF invalido do segundo participante", 
   globalThis.fetch = async () => new Response(JSON.stringify({
     message: "O CPF do Participante 2 é inválido.",
     code: "INVALID_PARTICIPANT_DATA",
-    fieldErrors: { "participant-1-cpf": "Informe um CPF válido." },
+    field: "participants.1.cpf",
+    participantIndex: 1,
   }), {
     status: 400,
     headers: { "Content-Type": "application/json" },
@@ -193,6 +227,43 @@ test("checkout apresenta no formulario o CPF invalido do segundo participante", 
   fireEvent.change(cpfs[2], { target: { value: "12345678901" } });
   fireEvent.click(screen.getByRole("button", { name: "Ir para pagamento" }));
 
-  await waitFor(() => assert.ok(screen.getByText("O CPF do Participante 2 é inválido.")));
-  assert.ok(screen.getByText("Informe um CPF válido."));
+  await waitFor(() => assert.equal(screen.getAllByText("O CPF do Participante 2 é inválido.").length, 2));
+  await waitFor(() => assert.equal(document.activeElement, cpfs[2]));
+});
+
+test("versao igual nao atualiza e versao nova recarrega pagina comum uma vez", () => {
+  assert.equal(versionUpdateAction({
+    loadedVersion: "build-a",
+    currentVersion: "build-a",
+    pathname: "/eventos",
+    refreshAlreadyAttempted: false,
+  }), "none");
+  assert.equal(versionUpdateAction({
+    loadedVersion: "build-a",
+    currentVersion: "build-b",
+    pathname: "/eventos",
+    refreshAlreadyAttempted: false,
+  }), "reload");
+  assert.equal(versionUpdateAction({
+    loadedVersion: "build-a",
+    currentVersion: "build-b",
+    pathname: "/eventos",
+    refreshAlreadyAttempted: true,
+  }), "prompt");
+});
+
+test("versao nova apenas avisa em checkout, retorno de pagamento e transferencia", () => {
+  for (const pathname of [
+    "/eventos/operacao-cachorrada/checkout",
+    "/eventos/pagamento/sucesso",
+    "/transferencia-ingresso/aceitar",
+    "/admin/eventos",
+  ]) {
+    assert.equal(versionUpdateAction({
+      loadedVersion: "build-a",
+      currentVersion: "build-b",
+      pathname,
+      refreshAlreadyAttempted: false,
+    }), "prompt", pathname);
+  }
 });
