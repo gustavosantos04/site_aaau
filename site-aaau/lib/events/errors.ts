@@ -7,6 +7,7 @@ export type EventDomainErrorCode =
   | "INCONSISTENT_TICKET_COUNTERS"
   | "INSUFFICIENT_TICKET_AVAILABILITY"
   | "INVALID_TICKET_QUANTITY"
+  | "INVALID_PARTICIPANT_DATA"
   | "EVENT_CHECKOUT_STALE"
   | "INVALID_PARTNER_CODE"
   | "PARTNER_CODE_EXPIRED"
@@ -85,6 +86,16 @@ export class InsufficientTicketAvailabilityError extends EventDomainError {
 export class InvalidTicketQuantityError extends EventDomainError {
   constructor(reason = "UNSPECIFIED", details?: Record<string, string | number | boolean | null>) {
     super("INVALID_TICKET_QUANTITY", "Quantidade de ingressos invalida.", { reason, ...details });
+  }
+}
+
+export class InvalidParticipantDataError extends EventDomainError {
+  constructor(participantIndex: number, field: "cpf", reason = "PARTICIPANT_CPF_INVALID") {
+    super(
+      "INVALID_PARTICIPANT_DATA",
+      `O CPF do Participante ${participantIndex + 1} é inválido.`,
+      { participantIndex, field, reason },
+    );
   }
 }
 

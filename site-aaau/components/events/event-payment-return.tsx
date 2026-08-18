@@ -40,14 +40,12 @@ export function EventPaymentReturn({ variant }: { variant: keyof typeof copy }) 
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [missingToken, setMissingToken] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const content = copy[variant];
   const Icon = content.icon;
 
   useEffect(() => {
     let canceled = false;
     const accessToken = sessionStorage.getItem("aaau:eventOrderAccessToken");
-    setAccessToken(accessToken);
 
     if (!accessToken) {
       setMissingToken(true);
@@ -85,7 +83,6 @@ export function EventPaymentReturn({ variant }: { variant: keyof typeof copy }) 
   }, []);
 
   const paid = status?.status === "PAID";
-  const canOpenTickets = paid && status?.ticketsReady && accessToken;
   const title = paid ? "Pagamento confirmado" : variant === "erro" && status && status.status !== "PENDING" ? content.title : content.pending;
 
   return (
@@ -101,16 +98,12 @@ export function EventPaymentReturn({ variant }: { variant: keyof typeof copy }) 
           <p className="mt-4 text-sm text-white/65">Consultando status interno do pedido...</p>
         ) : paid ? (
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/70">
-            Seu ingresso está garantido para {status.eventName}. Acesse seus ingressos para apresentar o QR Code individual na entrada.
+            Seu ingresso está garantido para {status.eventName}. Os dados de acesso serão enviados ao e-mail informado na compra.
           </p>
         ) : (
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/65">{content.fallback}</p>
         )}
-        {canOpenTickets ? (
-          <Link href={`/meus-ingressos/${accessToken}` as Route} className={buttonVariants({ variant: "primary", size: "md", className: "mt-6" })}>
-            Ver meus ingressos
-          </Link>
-        ) : status?.eventSlug ? (
+        {status?.eventSlug ? (
           <Link href={`/eventos/${status.eventSlug}` as Route} className={buttonVariants({ variant: "secondary", size: "md", className: "mt-6" })}>
             Voltar ao evento
           </Link>

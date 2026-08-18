@@ -209,6 +209,9 @@ export function EventCheckoutForm({
     }
 
     if (!response.ok || !body.initPoint) {
+      if (body.fieldErrors && typeof body.fieldErrors === "object") {
+        setFieldErrors(body.fieldErrors as Record<string, string>);
+      }
       setFeedback(body.message ?? "Não conseguimos preparar o pagamento agora. Tente novamente em alguns instantes.");
       setSubmitting(false);
       return;

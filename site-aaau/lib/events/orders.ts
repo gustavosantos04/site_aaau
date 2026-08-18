@@ -27,6 +27,7 @@ import {
   EventOrderNotFoundError,
   IdempotencyConflictError,
   InvalidPartnerCodeError,
+  InvalidParticipantDataError,
   InvalidTicketQuantityError,
   LateApprovedPaymentError,
   NoActiveTicketLotError,
@@ -76,11 +77,11 @@ function normalizePhone(value?: string | null) {
   return digits || null;
 }
 
-function normalizeParticipant(participant: EventParticipantInput) {
+function normalizeParticipant(participant: EventParticipantInput, participantIndex: number) {
   const cpf = onlyDigits(participant.cpf);
 
   if (!isValidCpf(cpf)) {
-    throw new InvalidTicketQuantityError("PARTICIPANT_CPF_INVALID");
+    throw new InvalidParticipantDataError(participantIndex, "cpf");
   }
 
   return {

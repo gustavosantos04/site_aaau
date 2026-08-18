@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { checkRateLimit } from "@/lib/checkout/mercado-pago";
+import {
+  checkoutDomainFieldErrors,
+  checkoutSchemaValidationResponse,
+} from "@/lib/events/checkout-validation";
 import { EventDomainError } from "@/lib/events/errors";
 import { createEventPaymentPreference } from "@/lib/events/mercado-pago";
 import { createEventOrderReservation } from "@/lib/events/orders";
@@ -106,7 +110,7 @@ export async function POST(request: Request) {
       path: issue.path.join("."),
       code: issue.code,
     })));
-    return NextResponse.json({ message: "Revise os dados obrigatorios do checkout." }, { status: 400 });
+    return NextResponse.json(checkoutSchemaValidationResponse(parsed.error.issues), { status: 400 });
   }
 
   try {
@@ -146,6 +150,7 @@ export async function POST(request: Request) {
           message: error.message,
           code: error.code,
           retryable: error.code === "EVENT_PAYMENT_PREFERENCE_CREATING",
+          fieldErrors: checkoutDomainFieldErrors(error),
         },
         { status: statusFromDomainError(error) },
       );
