@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { after, before, beforeEach, test } from "node:test";
 import { EmailDeliveryKind, Prisma } from "@prisma/client";
 import { POST as eventCheckoutPost } from "@/app/api/eventos/checkout/route";
+import { createCheckout as createStoreCheckout } from "@/lib/checkout/mercado-pago";
 import { GET as portalAccessGet } from "@/app/meus-ingressos/acesso/[token]/route";
 
 import {
@@ -12,6 +14,7 @@ import {
 } from "@/lib/auth";
 
 import { prisma } from "@/lib/db/prisma";
+import { getProductBySlug } from "@/lib/data/store";
 import { EmailProviderTimeoutError, sendTrackedEmail } from "@/lib/email/delivery";
 import {
   EventAdminForbiddenError,
@@ -22,6 +25,7 @@ import {
   createTicketLotAdmin,
   getAdminEventCockpit,
   getAdminEventReport,
+  archivedEventOrderWhere,
   getAdminEventsDashboard,
   publishTicketEventAdmin,
   resendTicketConfirmationEmailAdmin,
@@ -29,6 +33,7 @@ import {
   updatePartnerCodeAdmin,
   updateTicketLotAdmin,
 } from "@/lib/events/admin";
+import { issueManualEventTicket } from "@/lib/events/manual-issuance";
 import { confirmEventTicketCheckIn } from "@/lib/events/check-in";
 import {
   AmbiguousEventTicketEmailError,
@@ -4518,5 +4523,152 @@ test("lease persistente impede duas execucoes operacionais concorrentes", async 
     assert.equal(await testPrisma.eventTicketPortalRateLimit.count({ where: { action: "event-ticket-outbox-lease" } }), 0);
   } finally {
     restore();
+  }
+});
+
+test("emissao manual PIX e cortesia criam pedido, lote administrativo, QR v1, auditoria e sao idempotentes", async () => {
+  const { event, lot: publicLot } = await createEventWithLot(10);
+  const emailMessages: unknown[] = [];
+  const actor = { role: "super_admin" as const, adminUserId: null };
+  const pixInput = {
+    eventId: event.id,
+    idempotencyKey: crypto.randomUUID(),
+    type: "ADMIN_PIX" as const,
+    amountReceived: new Prisma.Decimal("60.00"),
+    participant: participant(20),
+  };
+  const first = await issueManualEventTicket(pixInput, actor, {
+    emailSender: { sendMail: async (message) => { emailMessages.push(message); return {}; } },
+    emailFrom: "AAAU <eventos@test.local>", baseUrl: "https://aaau.test",
+  });
+  const duplicate = await issueManualEventTicket(pixInput, actor);
+  assert.equal(first.alreadyCreated, false);
+  assert.equal(duplicate.alreadyCreated, true);
+  assert.equal(emailMessages.length, 1);
+
+  const ticket = await testPrisma.eventTicket.findUniqueOrThrow({
+    where: { id: first.ticketId! }, include: { qrVersions: true, lot: true, eventOrder: true },
+  });
+  assert.equal(ticket.eventOrder.source, "ADMIN_PIX");
+  assert.equal(ticket.eventOrder.paymentMethodId, "EXTERNAL_PIX");
+  assert.equal(ticket.eventOrder.total.toString(), "60");
+  assert.equal(ticket.lot.publicSaleEnabled, false);
+  assert.equal(ticket.ownershipVersion, 1);
+  assert.equal(ticket.qrVersion, 1);
+  assert.equal(ticket.qrVersions.length, 1);
+  assert.equal(ticket.qrVersions[0].version, 1);
+  assert.equal(ticket.qrVersions[0].status, "ACTIVE");
+  assert.equal(ticket.qrVersions[0].qrTokenHash, hashEventTicketQrToken(ticket.qrToken));
+  assert.equal(ticket.qrVersions[0].ticketCodeHash, hashEventTicketCode(ticket.ticketCode));
+  assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: publicLot.id } })).soldQuantity, 0);
+  assert.equal(await testPrisma.eventAdminAuditLog.count({ where: { action: "MANUAL_TICKET_ISSUED", targetId: ticket.id } }), 1);
+
+  const courtesy = await issueManualEventTicket({
+    ...pixInput, idempotencyKey: crypto.randomUUID(), type: "COMPLIMENTARY",
+    amountReceived: new Prisma.Decimal(0), participant: participant(21),
+  }, actor, { emailSender: { sendMail: async () => ({}) }, emailFrom: "AAAU <eventos@test.local>", baseUrl: "https://aaau.test" });
+  const courtesyOrder = await testPrisma.eventOrder.findUniqueOrThrow({ where: { id: courtesy.orderId } });
+  assert.equal(courtesyOrder.source, "COMPLIMENTARY");
+  assert.equal(courtesyOrder.total.toString(), "0");
+  assert.equal(await testPrisma.eventTicketLot.count({ where: { eventId: event.id, publicSaleEnabled: false } }), 1);
+  await assert.rejects(
+    issueManualEventTicket({ ...pixInput, idempotencyKey: crypto.randomUUID() }, { role: "event_staff", adminUserId: null }),
+    EventAdminForbiddenError,
+  );
+
+  const emailFailure = await issueManualEventTicket({ ...pixInput, idempotencyKey: crypto.randomUUID(), participant: participant(22) }, actor, {
+    emailSender: { sendMail: async () => { throw new Error("falha simulada"); } },
+    emailFrom: "AAAU <eventos@test.local>", baseUrl: "https://aaau.test",
+  });
+  assert.equal(emailFailure.email.reason, "smtp_failed");
+  const ticketCountBeforeRetry = await testPrisma.eventTicket.count({ where: { eventOrderId: emailFailure.orderId } });
+  const retryEmail = await ensureEventTicketConfirmationEmail(emailFailure.orderId, {
+    sender: { sendMail: async () => ({}) }, from: "AAAU <eventos@test.local>", baseUrl: "https://aaau.test",
+  });
+  assert.equal(retryEmail.sent, true);
+  assert.equal(await testPrisma.eventTicket.count({ where: { eventOrderId: emailFailure.orderId } }), ticketCountBeforeRetry);
+});
+
+test("pedidos de evento expirados ha mais de 24h sao arquivados apenas na visao administrativa", async () => {
+  const { event } = await createEventWithLot(10);
+  const recent = await reserveOrder({ eventId: event.id, idempotencyKey: "archive-recent", quantity: 1 });
+  const old = await reserveOrder({ eventId: event.id, idempotencyKey: "archive-old", quantity: 1, participantOffset: 2 });
+  await testPrisma.eventOrder.update({ where: { id: old.orderId }, data: { status: "EXPIRED", expiresAt: new Date(Date.now() - 25 * 60 * 60 * 1000) } });
+  await confirmEventOrderPayment({ eventOrderId: recent.orderId, paymentId: "PAY-ARCHIVE-PAID", paidAmount: recent.total });
+  await testPrisma.eventOrder.update({ where: { id: recent.orderId }, data: { expiresAt: new Date(Date.now() - 48 * 60 * 60 * 1000) } });
+  const active = await getAdminEventCockpit(event.id, "pedidos", { orders: { view: "active" } });
+  const archived = await getAdminEventCockpit(event.id, "pedidos", { orders: { view: "archived" } });
+  assert.ok(active?.orders.some((order) => order.id === recent.orderId));
+  assert.equal(active?.orders.some((order) => order.id === old.orderId), false);
+  assert.ok(archived?.orders.some((order) => order.id === old.orderId));
+  assert.ok(await testPrisma.eventOrder.findUnique({ where: { id: old.orderId } }));
+  assert.deepEqual(archivedEventOrderWhere(new Date(0)).status, { in: ["PENDING", "EXPIRED", "FAILED", "CANCELED"] });
+});
+
+test("admin pagina e filtra ingressos por participante, CPF, email, lote, codigo, origem, status e check-in sem credenciais", async () => {
+  const event = await createTestTicketEvent({ maxTicketsPerOrder: 20 });
+  const lot = await createTestTicketLot(event.id, { quantity: 20 });
+  const code = await createTestPartnerCode(event.id, { code: "AAAU", maxUses: 20 });
+  for (let index = 0; index < 11; index += 1) {
+    const order = await reserveOrder({ eventId: event.id, idempotencyKey: `admin-ticket-list-${index}`, quantity: 1, participantOffset: index % 5, buyerIndex: 0, partnerCode: code.code });
+    await confirmEventOrderPayment({ eventOrderId: order.orderId, paymentId: `PAY-ADMIN-LIST-${index}`, paidAmount: order.total });
+  }
+
+  const firstPage = await getAdminEventCockpit(event.id, "ingressos", { tickets: { page: 1, pageSize: 10 } });
+  const secondPage = await getAdminEventCockpit(event.id, "ingressos", { tickets: { page: 2, pageSize: 10 } });
+  assert.equal(firstPage?.ticketPagination.total, 11);
+  assert.equal(firstPage?.tickets.length, 10);
+  assert.equal(secondPage?.tickets.length, 1);
+  const target = participant(2);
+  for (const search of [target.name, target.cpf, target.email!]) {
+    const result = await getAdminEventCockpit(event.id, "ingressos", { tickets: { search } });
+    assert.ok((result?.ticketPagination.total ?? 0) >= 1);
+  }
+  const filtered = await getAdminEventCockpit(event.id, "ingressos", { tickets: { lotId: lot.id, partnerCodeId: code.id, source: "WEBSITE", status: "VALID", checkIn: "no" } });
+  assert.equal(filtered?.ticketPagination.total, 11);
+  const checkedIn = await getAdminEventCockpit(event.id, "ingressos", { tickets: { checkIn: "yes" } });
+  assert.equal(checkedIn?.ticketPagination.total, 0);
+  const serialized = JSON.stringify(filtered);
+  assert.doesNotMatch(serialized, /qrToken|qrTokenHash|ticketCodeHash|accessToken/);
+});
+
+test("estoque de produto por tamanho e concorrencia bloqueiam overselling sem ocultar produto ativo", async () => {
+  const previous = { fetch: global.fetch, databaseUrl: process.env.DATABASE_URL, token: process.env.MERCADO_PAGO_ACCESS_TOKEN, appUrl: process.env.APP_URL };
+  const slug = `stock-test-${crypto.randomUUID()}`;
+  try {
+    process.env.DATABASE_URL = "postgresql://test-only";
+    process.env.MERCADO_PAGO_ACCESS_TOKEN = "TEST-local";
+    process.env.APP_URL = "https://aaau.test";
+    let preference = 0;
+    global.fetch = async () => new Response(JSON.stringify({ id: `pref-${++preference}`, init_point: "https://pay.test", sandbox_init_point: "https://pay.test" }), { status: 200, headers: { "content-type": "application/json" } });
+    const product = await testPrisma.product.create({
+      data: {
+        name: "Camiseta Estoque", slug, price: new Prisma.Decimal("50"), description: "Produto para teste de concorrencia",
+        category: "APPAREL", sizes: ["P", "M"], stock: 1, isActive: true,
+        stockItems: { create: [{ variantId: "", size: "P", stock: 0 }, { variantId: "", size: "M", stock: 1 }] },
+      },
+    });
+    const request = (key: string, size = "M") => new Request("https://aaau.test/api/checkout", {
+      method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": key },
+      body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), buyer: { fullName: "Pessoa Teste", cpf: "52998224725", email: `${key}@stock-test.local`, whatsapp: "51999999999", campus: "Zona Sul" }, items: [{ productId: product.id, size, quantity: 1 }] }),
+    });
+    const soldOutSize = await createStoreCheckout(request("size-p", "P"));
+    assert.equal(soldOutSize.status, 409);
+    const results = await Promise.all([createStoreCheckout(request("buyer-a")), createStoreCheckout(request("buyer-b"))]);
+    assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]);
+    const inventory = await testPrisma.productStockItem.findUniqueOrThrow({ where: { productId_variantId_size: { productId: product.id, variantId: "", size: "M" } } });
+    assert.equal(inventory.stock, 0);
+    assert.equal(await testPrisma.order.count({ where: { items: { some: { productId: product.id } } } }), 1);
+    assert.ok(await testPrisma.product.findFirst({ where: { id: product.id, isActive: true } }));
+    await testPrisma.product.update({ where: { id: product.id }, data: { isActive: false } });
+    assert.equal(await getProductBySlug(slug), null);
+  } finally {
+    global.fetch = previous.fetch;
+    if (previous.databaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous.databaseUrl;
+    if (previous.token === undefined) delete process.env.MERCADO_PAGO_ACCESS_TOKEN; else process.env.MERCADO_PAGO_ACCESS_TOKEN = previous.token;
+    if (previous.appUrl === undefined) delete process.env.APP_URL; else process.env.APP_URL = previous.appUrl;
+    await testPrisma.orderItem.deleteMany({ where: { product: { slug } } });
+    await testPrisma.order.deleteMany({ where: { customerEmail: { endsWith: "@stock-test.local" } } });
+    await testPrisma.product.deleteMany({ where: { slug } });
   }
 });

@@ -9,6 +9,7 @@ import { getBaseUrl as getMercadoPagoBaseUrl } from "@/lib/checkout/mercado-pago
 import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
 import { resendDeliveryStatus } from "@/lib/email/resend-webhook";
 import { buildMercadoPagoNotificationUrl } from "@/lib/site-url";
+import { isProductSoldOut, productAvailableStock, productSelectionStock } from "@/lib/store/inventory";
 
 import {
   assertTicketEventSalesOpen,
@@ -186,6 +187,22 @@ test("contrato do checkout classifica todos os erros recuperaveis sem expor deta
     assert.equal(response.body.participantIndex, entry.participantIndex, entry.error.code);
     assert.doesNotMatch(JSON.stringify(response.body), /provider secret raw response/);
   }
+});
+
+test("estoque detalhado controla variantes e produto esgotado sem desativar catalogo", () => {
+  const product = {
+    stock: 99,
+    stockItems: [
+      { id: "p", variantId: "camiseta", size: "P", stock: 0 },
+      { id: "m", variantId: "camiseta", size: "M", stock: 5 },
+    ],
+  };
+  assert.equal(productSelectionStock(product, "camiseta", "P"), 0);
+  assert.equal(productSelectionStock(product, "camiseta", "M"), 5);
+  assert.equal(productAvailableStock(product), 5);
+  assert.equal(isProductSoldOut(product), false);
+  assert.equal(isProductSoldOut({ ...product, stockItems: product.stockItems.map((item) => ({ ...item, stock: 0 })) }), true);
+  assert.equal(isProductSoldOut({ stock: 0, stockItems: [] }), true);
 });
 
 test("api de versao informa somente o build e proibe cache", async () => {
