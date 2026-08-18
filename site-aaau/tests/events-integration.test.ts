@@ -4632,6 +4632,37 @@ test("admin pagina e filtra ingressos por participante, CPF, email, lote, codigo
   assert.doesNotMatch(serialized, /qrToken|qrTokenHash|ticketCodeHash|accessToken/);
 });
 
+test("admin de ingressos suporta dados WEBSITE historicos sem codigo e sem agregados das novas origens", async () => {
+  const event = await createTestTicketEvent();
+  const lot = await createTestTicketLot(event.id);
+  const order = await reserveOrder({
+    eventId: event.id,
+    idempotencyKey: `admin-historical-${crypto.randomUUID()}`,
+    quantity: 1,
+  });
+  await confirmEventOrderPayment({
+    eventOrderId: order.orderId,
+    paymentId: `PAY-HISTORICAL-${crypto.randomUUID()}`,
+    paidAmount: order.total,
+  });
+
+  const cockpit = await getAdminEventCockpit(event.id, "ingressos");
+
+  assert.ok(cockpit);
+  assert.equal(cockpit.tickets.length, 1);
+  assert.equal(cockpit.tickets[0]?.lotName, lot.name);
+  assert.equal(cockpit.tickets[0]?.partnerCode, null);
+  assert.deepEqual(
+    cockpit.salesBySource.map((item) => ({ source: item.source, orders: item.orders, revenue: item.revenue.toString() })),
+    [
+      { source: "WEBSITE", orders: 1, revenue: order.total.toString() },
+      { source: "ADMIN_PIX", orders: 0, revenue: "0" },
+      { source: "COMPLIMENTARY", orders: 0, revenue: "0" },
+    ],
+  );
+  assert.equal(await testPrisma.eventTicketLot.count({ where: { eventId: event.id, publicSaleEnabled: false } }), 0);
+});
+
 test("estoque de produto por tamanho e concorrencia bloqueiam overselling sem ocultar produto ativo", async () => {
   const previous = { fetch: global.fetch, databaseUrl: process.env.DATABASE_URL, token: process.env.MERCADO_PAGO_ACCESS_TOKEN, appUrl: process.env.APP_URL };
   const slug = `stock-test-${crypto.randomUUID()}`;

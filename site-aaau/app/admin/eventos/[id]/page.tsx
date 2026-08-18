@@ -462,10 +462,9 @@ export default async function AdminEventCockpitPage({
               {cockpit.ticketPagination.page < cockpit.ticketPagination.pageCount ? <Link className={buttonVariants({ variant: "secondary", size: "sm" })} href={ticketPageHref(event.id, query, cockpit.ticketPagination.page + 1)}>Proxima</Link> : null}
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {["WEBSITE", "ADMIN_PIX", "COMPLIMENTARY"].map((source) => {
-                const item = report!.sales.bySource.find((row) => row.source === source);
-                return <ReportCard key={source} label={source === "WEBSITE" ? "Site / Mercado Pago" : source === "ADMIN_PIX" ? "PIX direto" : "Cortesias"} value={item?.orders ?? 0} helper={`${formatAdminMoney(item?.revenue ?? 0)} registrado`} />;
-              })}
+              {cockpit.salesBySource.map((item) => (
+                <ReportCard key={item.source} label={item.source === "WEBSITE" ? "Site / Mercado Pago" : item.source === "ADMIN_PIX" ? "PIX direto" : "Cortesias"} value={item.orders} helper={`${formatAdminMoney(item.revenue)} registrado`} />
+              ))}
             </div>
           </div>
         </section>

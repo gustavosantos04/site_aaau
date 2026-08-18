@@ -397,10 +397,16 @@ export async function getAdminEventCockpit(
   if (!event) return null;
 
   const shouldLoadKpis = section === "geral";
-  const [orders, tickets, partnerCodes, paid, pendingOrders, checkIns, paidOrdersCount, totalIssuedTickets] = await Promise.all([
+  const [orders, tickets, partnerCodes, salesBySourceRows, paid, pendingOrders, checkIns, paidOrdersCount, totalIssuedTickets] = await Promise.all([
     section === "pedidos" ? loadAdminEventOrders(eventId, query.orders) : Promise.resolve([]),
     section === "ingressos" ? loadAdminEventTickets(eventId, query.tickets) : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 25, pageCount: 1 }),
     section === "codigos" || section === "ingressos" ? loadAdminPartnerCodes(eventId) : Promise.resolve([]),
+    section === "ingressos"
+      ? prisma.eventOrder.groupBy({
+          by: ["source"], where: { eventId, status: "PAID" },
+          _count: { _all: true }, _sum: { total: true },
+        })
+      : Promise.resolve([]),
     shouldLoadKpis
       ? prisma.eventOrder.aggregate({ where: { eventId, status: "PAID" }, _sum: { total: true } })
       : Promise.resolve({ _sum: { total: null } }),
@@ -481,6 +487,14 @@ export async function getAdminEventCockpit(
     })),
     ticketPagination: { total: tickets.total, page: tickets.page, pageSize: tickets.pageSize, pageCount: tickets.pageCount },
     partnerCodes,
+    salesBySource: (["WEBSITE", "ADMIN_PIX", "COMPLIMENTARY"] as const).map((source) => {
+      const row = salesBySourceRows.find((entry) => entry.source === source);
+      return {
+        source,
+        orders: row?._count._all ?? 0,
+        revenue: row?._sum.total ?? new Prisma.Decimal(0),
+      };
+    }),
   };
 }
 
