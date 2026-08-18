@@ -688,6 +688,9 @@ test("confirmacao de pagamento duplicada concorrente confirma contadores e ticke
   assert.equal(updatedCode.reservedUses, 0);
   assert.equal(updatedCode.confirmedUses, 1);
   assert.equal(await testPrisma.eventTicket.count({ where: { eventOrderId: order.orderId } }), 2);
+  assert.equal(await testPrisma.eventTicketQrVersion.count({
+    where: { ticket: { eventOrderId: order.orderId }, version: 1, status: "ACTIVE" },
+  }), 2);
 });
 
 test("promocao 2 por 1 cobra por pacote, emite ingressos individuais e reporta unidades separadamente", async () => {
@@ -760,6 +763,9 @@ test("promocao 2 por 1 cobra por pacote, emite ingressos individuais e reporta u
   assert.equal(firstTickets.length, 2);
   assert.equal(new Set(firstTickets.map((ticket) => ticket.qrToken)).size, 2);
   assert.equal(new Set(firstTickets.map((ticket) => ticket.ticketCode)).size, 2);
+  assert.equal(await testPrisma.eventTicketQrVersion.count({
+    where: { ticket: { eventOrderId: first.orderId }, version: 1, status: "ACTIVE" },
+  }), 2);
 
   const second = await reserveOrder({
     eventId: event.id,
@@ -779,6 +785,9 @@ test("promocao 2 por 1 cobra por pacote, emite ingressos individuais e reporta u
     now: PROMO_NOW,
   });
   assert.equal(await testPrisma.eventTicket.count({ where: { eventOrderId: second.orderId } }), 4);
+  assert.equal(await testPrisma.eventTicketQrVersion.count({
+    where: { ticket: { eventOrderId: second.orderId }, version: 1, status: "ACTIVE" },
+  }), 4);
 
   const sentMessages: Array<{ text?: string; html?: string }> = [];
   await ensureEventTicketConfirmationEmail(second.orderId, {
@@ -1514,6 +1523,16 @@ test("emissao oficial e idempotente cria um ticket por participante", async () =
   assert.equal(new Set(tickets.map((ticket) => ticket.ticketCode)).size, 3);
   assert.equal(new Set(tickets.map((ticket) => ticket.qrToken)).size, 3);
   assert.ok(tickets.every((ticket) => ticket.status === "VALID"));
+  const initialVersions = await testPrisma.eventTicketQrVersion.findMany({
+    where: { ticketId: { in: tickets.map((ticket) => ticket.id) } },
+  });
+  assert.equal(initialVersions.length, 3);
+  assert.ok(initialVersions.every((version) => version.version === 1 && version.status === "ACTIVE"));
+  for (const ticket of tickets) {
+    const version = initialVersions.find((candidate) => candidate.ticketId === ticket.id);
+    assert.equal(version?.qrTokenHash, hashEventTicketQrToken(ticket.qrToken));
+    assert.equal(version?.ticketCodeHash, hashEventTicketCode(ticket.ticketCode));
+  }
 });
 
 test("fundacao de transferencia isola historico e acesso no segundo de tres ingressos", async () => {

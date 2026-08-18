@@ -14,6 +14,22 @@ import type { EventTx } from "@/lib/events/types";
 
 type EventTransferDb = EventTx | typeof prisma;
 
+export function initialEventTicketQrVersionData(ticket: {
+  id: string;
+  qrToken: string;
+  ticketCode: string;
+  issuedAt: Date;
+}) {
+  return {
+    ticketId: ticket.id,
+    version: 1,
+    qrTokenHash: hashEventTicketQrToken(ticket.qrToken),
+    ticketCodeHash: hashEventTicketCode(ticket.ticketCode),
+    status: "ACTIVE" as const,
+    issuedAt: ticket.issuedAt,
+  };
+}
+
 export const PENDING_EVENT_TICKET_TRANSFER_STATUSES = [
   EventTicketTransferStatus.PENDING_CURRENT_CONFIRMATION,
   EventTicketTransferStatus.PENDING_RECIPIENT_ACCEPTANCE,
@@ -154,14 +170,7 @@ export async function ensureInitialEventTicketQrVersion(
 
   try {
     return await db.eventTicketQrVersion.create({
-      data: {
-        ticketId: ticket.id,
-        version: 1,
-        qrTokenHash: hashEventTicketQrToken(ticket.qrToken),
-        ticketCodeHash: hashEventTicketCode(ticket.ticketCode),
-        status: "ACTIVE",
-        issuedAt: ticket.issuedAt,
-      },
+      data: initialEventTicketQrVersionData(ticket),
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

@@ -10,6 +10,7 @@ import {
   EventOrderNotFoundError,
 } from "@/lib/events/errors";
 import type { EventTx } from "@/lib/events/types";
+import { initialEventTicketQrVersionData } from "@/lib/events/transfer-foundation";
 
 export function generateEventTicketCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -48,8 +49,10 @@ async function createTicketWithRetry(
   },
 ) {
   for (let attempt = 0; attempt < TICKET_CODE_RETRY_LIMIT; attempt += 1) {
+    const savepoint = `event_ticket_issue_${attempt}`;
+    await tx.$executeRawUnsafe(`SAVEPOINT ${savepoint}`);
     try {
-      await tx.eventTicket.create({
+      const ticket = await tx.eventTicket.create({
         data: {
           ...data,
           ticketCode: generateEventTicketCode(),
@@ -57,12 +60,16 @@ async function createTicketWithRetry(
           status: "VALID",
         },
       });
+      await tx.eventTicketQrVersion.create({ data: initialEventTicketQrVersionData(ticket) });
+      await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${savepoint}`);
       return true;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
+        await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${savepoint}`);
         continue;
       }
 

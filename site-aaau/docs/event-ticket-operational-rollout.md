@@ -108,9 +108,12 @@ $env:NODE_ENV='production'
 $env:EVENT_TICKET_TRANSFERS_ENABLED='false'
 $env:EVENT_TICKET_PORTAL_ENABLED='false'
 $env:EVENT_TICKET_TRANSFER_BACKFILL_TARGET='production'
+$env:EVENT_TICKET_TRANSFER_BACKFILL_SECRET='<fornecer somente no processo>'
 $env:EVENT_TICKET_TRANSFER_BACKFILL_CONFIRM='BACKFILL-PRODUCTION'
-npx tsx scripts/backfill-event-ticket-qr-versions.ts
-npx tsx scripts/backfill-event-ticket-qr-versions.ts
+npm run transfers:rollout:verify
+npm run transfers:backfill:dry-run
+npx tsx scripts/backfill-event-ticket-qr-versions.ts backfill --write
+npx tsx scripts/backfill-event-ticket-qr-versions.ts backfill --write
 npm run transfers:rollout:verify
 ```
 
@@ -118,9 +121,9 @@ Não salve essas confirmações como variáveis permanentes da Vercel.
 
 ## Backfill
 
-O script processa 100 ingressos por lote, cria somente `EventTicketQrVersion.version=1` ausente e pode ser retomado. A constraint `(ticketId, version)` e o tratamento de colisão tornam a operação idempotente. Ele usa o `EVENT_TICKET_TRANSFER_TOKEN_SECRET`; esse secret deve permanecer estável depois do primeiro backfill.
+O script inicia em modo `verify`; `backfill` sem `--write` também não escreve. A escrita processa 100 ingressos por lote e cria somente `EventTicketQrVersion.version=1` para tickets sem qualquer histórico e que satisfaçam todos os critérios seguros. A revalidação dentro da transação e a constraint `(ticketId, version)` tornam a operação idempotente. Ele exige fingerprints idênticas para `EVENT_TICKET_TRANSFER_BACKFILL_SECRET` e `EVENT_TICKET_TRANSFER_TOKEN_SECRET`, sem imprimir os secrets.
 
-Durante a própria execução, compara `qrToken`, `ticketCode` e `updatedAt` antes/depois de cada ingresso. Também mede total de ingressos, versões 1, versões ativas, tickets sem versão, tickets sem versão ativa, hashes divergentes e quantidade de acessos originais revogados.
+O script mede total de ingressos, versões 1, versões ativas, tickets sem versão, tickets sem versão ativa, candidatos elegíveis e hashes divergentes. Qualquer ticket sem histórico que não corresponda ao formato seguro esperado aborta o backfill.
 
 Uma inconsistência encerra com código diferente de zero. Não tente “corrigir” manualmente: preserve banco/backup, registre apenas IDs afetados em canal restrito e escale.
 

@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { cpfHash } from "@/lib/checkout/mercado-pago";
 import { hashPassword } from "@/lib/password";
 import { getConfiguredBaseUrl } from "@/lib/site-url";
+import { ensureInitialEventTicketQrVersion } from "@/lib/events/transfer-foundation";
 
 const prisma = new PrismaClient();
 const fixturePrefix = "staging-portaria-fixture-v1";
@@ -192,6 +193,7 @@ async function createFixture() {
           checkedInByUserId: checkedInAt ? staff.id : null,
         },
       });
+      await ensureInitialEventTicketQrVersion(ticket.id, tx);
       if (checkedInAt) {
         await tx.eventCheckInLog.create({
           data: {
