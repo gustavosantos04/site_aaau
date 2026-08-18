@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { after, before, beforeEach, test } from "node:test";
 import { EmailDeliveryKind, Prisma } from "@prisma/client";
 import { POST as eventCheckoutPost } from "@/app/api/eventos/checkout/route";
@@ -159,6 +160,7 @@ import {
 assertSafeTestDatabase();
 
 const integrationOperationalPrevious = {
+  transferTokenSecret: process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET,
   outboxSecret: process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET,
   appUrl: process.env.APP_URL,
   resendApiKey: process.env.RESEND_API_KEY,
@@ -168,6 +170,7 @@ const integrationOperationalPrevious = {
 
 before(() => {
   resetTransactionRetryMetrics();
+  process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET = "integration-transfer-secret-with-at-least-32-characters";
   process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET = "integration-outbox-secret-with-at-least-32-characters";
   process.env.APP_URL = "https://aaau.test";
   process.env.RESEND_API_KEY = "re_test_operational_config_only";
@@ -192,6 +195,7 @@ after(async () => {
     else process.env[name] = value;
   };
   restore("EVENT_TICKET_TRANSFER_OUTBOX_SECRET", integrationOperationalPrevious.outboxSecret);
+  restore("EVENT_TICKET_TRANSFER_TOKEN_SECRET", integrationOperationalPrevious.transferTokenSecret);
   restore("APP_URL", integrationOperationalPrevious.appUrl);
   restore("RESEND_API_KEY", integrationOperationalPrevious.resendApiKey);
   restore("RESEND_FROM", integrationOperationalPrevious.resendFrom);
@@ -1535,6 +1539,106 @@ test("emissao oficial e idempotente cria um ticket por participante", async () =
   }
 });
 
+test("emissao reverte ticket e versao no savepoint antes de repetir colisao", async () => {
+  const { lot, order } = await createPaidOrderFixture(1);
+  const cpf = "52998224725";
+  const participantWithCollision = await testPrisma.eventOrderParticipant.create({
+    data: {
+      eventOrderId: order.orderId,
+      ticketLotId: lot.id,
+      name: "Participante Colisao",
+      cpf,
+      cpfLast4: cpf.slice(-4),
+    },
+  });
+  await testPrisma.$executeRawUnsafe('CREATE SEQUENCE "EventTicketQrVersion_collision_test_seq"');
+  await testPrisma.$executeRawUnsafe(`
+    CREATE FUNCTION "EventTicketQrVersion_collision_test"() RETURNS trigger AS $$
+    BEGIN
+      IF nextval('"EventTicketQrVersion_collision_test_seq"') = 1 THEN
+        RAISE unique_violation USING MESSAGE = 'forced initial QR version collision';
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await testPrisma.$executeRawUnsafe(`
+    CREATE TRIGGER "EventTicketQrVersion_collision_test_trigger"
+    BEFORE INSERT ON "EventTicketQrVersion"
+    FOR EACH ROW EXECUTE FUNCTION "EventTicketQrVersion_collision_test"()
+  `);
+
+  try {
+    const issued = await runSerializableTransactionWithRetry((tx) =>
+      issueEventTicketsForPaidOrder(tx, order.orderId));
+    assert.equal(issued, 1);
+    assert.equal(await testPrisma.eventTicket.count({ where: { orderParticipantId: participantWithCollision.id } }), 1);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({
+      where: { ticket: { orderParticipantId: participantWithCollision.id }, version: 1, status: "ACTIVE" },
+    }), 1);
+    const attempts = await testPrisma.$queryRaw<Array<{ last_value: bigint }>>`
+      SELECT last_value FROM "EventTicketQrVersion_collision_test_seq"
+    `;
+    assert.equal(attempts[0].last_value, BigInt(2));
+  } finally {
+    await testPrisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "EventTicketQrVersion_collision_test_trigger" ON "EventTicketQrVersion"');
+    await testPrisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "EventTicketQrVersion_collision_test"()');
+    await testPrisma.$executeRawUnsafe('DROP SEQUENCE IF EXISTS "EventTicketQrVersion_collision_test_seq"');
+  }
+});
+
+test("backfill cria somente versoes ausentes e a segunda escrita e idempotente", async () => {
+  const { order } = await createPaidOrderFixture(3);
+  const ticketsBefore = await testPrisma.eventTicket.findMany({
+    where: { eventOrderId: order.orderId },
+    orderBy: { id: "asc" },
+  });
+  await testPrisma.eventTicketQrVersion.deleteMany({
+    where: { ticketId: { in: ticketsBefore.map(({ id }) => id) } },
+  });
+  const secret = "integration-transfer-secret-with-at-least-32-characters";
+  const runBackfill = (write: boolean) => spawnSync(
+    process.execPath,
+    ["node_modules/tsx/dist/cli.mjs", "scripts/backfill-event-ticket-qr-versions.ts", "backfill", ...(write ? ["--write"] : [])],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        DATABASE_URL: process.env.TEST_DATABASE_DIRECT_URL,
+        NODE_ENV: "test",
+        EVENT_TICKET_TRANSFERS_ENABLED: "false",
+        EVENT_TICKET_PORTAL_ENABLED: "false",
+        EVENT_TICKET_TRANSFER_BACKFILL_TARGET: "staging",
+        EVENT_TICKET_TRANSFER_BACKFILL_CONFIRM: "BACKFILL-STAGING",
+        EVENT_TICKET_TRANSFER_BACKFILL_SECRET: secret,
+        EVENT_TICKET_TRANSFER_TOKEN_SECRET: secret,
+      },
+    },
+  );
+
+  const dryRun = runBackfill(false);
+  assert.equal(dryRun.status, 0, dryRun.stderr);
+  assert.equal(JSON.parse(dryRun.stdout.trim()).wouldCreate, 3);
+  assert.equal(await testPrisma.eventTicketQrVersion.count(), 0);
+
+  const firstWrite = runBackfill(true);
+  assert.equal(firstWrite.status, 0, firstWrite.stderr);
+  assert.equal(JSON.parse(firstWrite.stdout.trim()).created, 3);
+  const secondWrite = runBackfill(true);
+  assert.equal(secondWrite.status, 0, secondWrite.stderr);
+  assert.equal(JSON.parse(secondWrite.stdout.trim()).created, 0);
+
+  const ticketsAfter = await testPrisma.eventTicket.findMany({
+    where: { eventOrderId: order.orderId },
+    orderBy: { id: "asc" },
+  });
+  assert.deepEqual(ticketsAfter, ticketsBefore);
+  assert.equal(await testPrisma.eventTicketQrVersion.count({
+    where: { ticketId: { in: ticketsBefore.map(({ id }) => id) }, version: 1, status: "ACTIVE" },
+  }), 3);
+});
+
 test("fundacao de transferencia isola historico e acesso no segundo de tres ingressos", async () => {
   const previousFlag = process.env.EVENT_TICKET_TRANSFERS_ENABLED;
   const previousSecret = process.env.EVENT_TICKET_TRANSFER_TOKEN_SECRET;
@@ -1643,7 +1747,7 @@ test("fundacao de transferencia isola historico e acesso no segundo de tres ingr
     for (const sibling of siblings) {
       assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: sibling.id } }), 0);
       assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: sibling.id } }), 0);
-      assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: sibling.id } }), 0);
+      assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: sibling.id } }), 1);
     }
 
     assert.deepEqual(
@@ -1735,7 +1839,7 @@ test("servicos de transferencia expiram e revogam somente o ticket informado", a
 
     const qrVersion = await ensureInitialEventTicketQrVersion(tickets[1].id, testPrisma);
     assert.equal((await findActiveEventTicketQrVersion(tickets[1].id, testPrisma))?.id, qrVersion.id);
-    assert.equal(await findActiveEventTicketQrVersion(tickets[0].id, testPrisma), null);
+    assert.equal((await findActiveEventTicketQrVersion(tickets[0].id, testPrisma))?.version, 1);
   } finally {
     if (previousFlag === undefined) delete process.env.EVENT_TICKET_TRANSFERS_ENABLED;
     else process.env.EVENT_TICKET_TRANSFERS_ENABLED = previousFlag;
@@ -1887,7 +1991,7 @@ test("feature flag bloqueia mutacoes e transacao falha faz rollback integral", a
 
     assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: ticket.id } }), 0);
     assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: ticket.id } }), 0);
-    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: ticket.id } }), 0);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: ticket.id } }), 1);
     assert.deepEqual(
       await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: ticket.id } }),
       ticket,
@@ -1962,7 +2066,7 @@ test("conclusao de transferencia rotaciona somente o segundo de tres ingressos e
         sibling,
       );
       assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: sibling.id } }), 0);
-      assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: sibling.id } }), 0);
+      assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: sibling.id } }), 1);
       assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, sibling.qrToken)).status, "VALID");
       assert.equal((await validatePortariaManualTicket(superAdminActor, event.id, sibling.ticketCode)).status, "VALID");
     }
@@ -2217,7 +2321,7 @@ test("conclusao rejeita flag, versao, estado, expiracao, pedido e ticket diverge
       }), /EVENT_TICKET_TRANSFER_TICKET_INVALID/);
     }
     assert.deepEqual(await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: tickets[0].id } }), snapshot);
-    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: tickets[0].id } }), 0);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: tickets[0].id } }), 1);
     assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: tickets[0].id } }), 0);
   } finally {
     restore();
@@ -2421,7 +2525,7 @@ test("conclusoes concorrentes sao idempotentes e tickets distintos do mesmo pedi
     }
     assert.deepEqual(await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: tickets[2].id } }), tickets[2]);
     assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: tickets[2].id } }), 0);
-    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: tickets[2].id } }), 0);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: tickets[2].id } }), 1);
   } finally {
     restore();
   }
