@@ -276,6 +276,20 @@ export function ProductAdminForm({
             />
           </FormField>
 
+          <div className="space-y-3 rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+            <label className="flex items-center gap-3 text-sm text-white/70">
+              <input key={`detailed-${selectedProduct.id}`} type="checkbox" name="trackDetailedStock" defaultChecked={Boolean(selectedProduct.stockItems?.length)} className="h-4 w-4 accent-aaau-ember" />
+              Controlar estoque por opcao e tamanho
+            </label>
+            <p className="text-xs leading-5 text-white/40">Ao marcar, cada combinacao abaixo vira a fonte de verdade. Zero significa esgotado.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(selectedProduct.variants?.length ? selectedProduct.variants : [{ id: "", label: "Produto", price: selectedProduct.price }]).flatMap((variant) => selectedProduct.sizes.map((size) => {
+                const saved = selectedProduct.stockItems?.find((item) => item.variantId === variant.id && item.size === size);
+                return <FormField key={`${selectedProduct.id}-${variant.id}-${size}`} label={`${variant.label} / ${size}${saved?.stock === 0 ? " - Esgotado" : ""}`}><input className={inputClass} type="number" min={0} name={`stockItem:${encodeURIComponent(variant.id)}:${encodeURIComponent(size)}`} defaultValue={saved?.stock ?? 0} /></FormField>;
+              }))}
+            </div>
+          </div>
+
           {selectedProduct.variants?.length ? (
             <div className="space-y-3 rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
               <div>
@@ -414,6 +428,9 @@ export function ProductAdminForm({
                       </span>
                     ))}
                     <span>{product.stock} em estoque</span>
+                    {product.stockItems?.map((item) => (
+                      <span key={item.id}>{[product.variants?.find((variant) => variant.id === item.variantId)?.label, item.size].filter(Boolean).join(" / ")}: {item.stock}{item.stock === 0 ? " - Esgotado" : ""}</span>
+                    ))}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">

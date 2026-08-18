@@ -8,6 +8,8 @@ import { prisma } from "@/lib/db/prisma";
 import { buildMercadoPagoNotificationUrl, getConfiguredBaseUrl } from "@/lib/site-url";
 import type { ProductMetadata } from "@/types/store";
 
+class StoreStockUnavailableError extends Error {}
+
 const MAX_ITEMS = 12;
 const MAX_QUANTITY = 20;
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -383,7 +385,7 @@ export async function createCheckout(request: Request) {
     where: {
       id: { in: productIds },
       isActive: true,
-    },
+    }, include: { stockItems: true },
   });
   const productsById = new Map(products.map((product) => [product.id, product]));
 
@@ -396,10 +398,6 @@ export async function createCheckout(request: Request) {
 
     if (!product) {
       return { error: "Produto indisponivel.", status: 400 };
-    }
-
-    if (item.quantity > product.stock) {
-      return { error: `Estoque insuficiente para ${product.name}.`, status: 400 };
     }
 
     if (product.sizes.length > 0 && !item.size) {
@@ -423,6 +421,15 @@ export async function createCheckout(request: Request) {
       if (!selectedVariant) {
         return { error: `Opcao invalida para ${product.name}.`, status: 400 };
       }
+    }
+
+    if (product.stockItems?.length) {
+      const selectedStock = product.stockItems.find((stock) => stock.variantId === (item.variantId ?? "") && stock.size === (item.size ?? ""));
+      if (!selectedStock || item.quantity > selectedStock.stock) {
+        return { error: item.size ? `O tamanho ${item.size} de ${product.name} acabou de esgotar.` : `${product.name} acabou de esgotar.`, status: 409 };
+      }
+    } else if (item.quantity > product.stock) {
+      return { error: `Estoque insuficiente para ${product.name}.`, status: 409 };
     }
 
     const requiredOptionIds = metadata?.variants?.length
@@ -481,12 +488,28 @@ export async function createCheckout(request: Request) {
       quantity: item.quantity,
       unitPrice,
       totalPrice,
+      variantId: item.variantId ?? "",
     };
   });
   const subtotal = orderItems.reduce((acc, item) => acc + item.totalPrice, 0);
 
   try {
-    const order = await prisma.order.create({
+    const inventoryRequests = new Map<string, { productId: string; stockItemId?: string; quantity: number; label: string }>();
+    for (const item of orderItems) {
+      const stockItem = item.product.stockItems?.find((stock) => stock.variantId === item.variantId && stock.size === (item.size ?? ""));
+      const key = stockItem ? `stock:${stockItem.id}` : `product:${item.product.id}`;
+      const current = inventoryRequests.get(key);
+      inventoryRequests.set(key, { productId: item.product.id, stockItemId: stockItem?.id, quantity: (current?.quantity ?? 0) + item.quantity, label: item.size ? `O tamanho ${item.size} de ${item.product.name}` : item.product.name });
+    }
+
+    const order = await prisma.$transaction(async (tx) => {
+      for (const requestItem of inventoryRequests.values()) {
+        const reserved = requestItem.stockItemId
+          ? await tx.productStockItem.updateMany({ where: { id: requestItem.stockItemId, stock: { gte: requestItem.quantity } }, data: { stock: { decrement: requestItem.quantity } } })
+          : await tx.product.updateMany({ where: { id: requestItem.productId, isActive: true, stock: { gte: requestItem.quantity } }, data: { stock: { decrement: requestItem.quantity } } });
+        if (reserved.count !== 1) throw new StoreStockUnavailableError(`${requestItem.label} acabou de esgotar.`);
+      }
+      return tx.order.create({
       data: {
         orderNumber: buildOrderNumber(),
         checkoutSessionKey,
@@ -518,7 +541,8 @@ export async function createCheckout(request: Request) {
         },
       },
       include: { items: true },
-    });
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     const preference = await createMercadoPagoPreference({
       request,
@@ -565,6 +589,12 @@ export async function createCheckout(request: Request) {
       status: 200,
     };
   } catch (error) {
+    if (error instanceof StoreStockUnavailableError) {
+      return { error: error.message, status: 409 };
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return { error: "O estoque mudou durante a compra. Revise o carrinho e tente novamente.", status: 409 };
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: "Checkout ja iniciado. Tente atualizar a pagina.", status: 409 };
     }

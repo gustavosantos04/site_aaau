@@ -11,6 +11,7 @@ import {
 
 import { couponsSeed } from "@/lib/data/seed-content";
 import type { Product } from "@/types/store";
+import { productSelectionStock } from "@/lib/store/inventory";
 
 export interface CartItem {
   productId: string;
@@ -28,6 +29,7 @@ export interface CartItem {
   customName?: string;
   customNumber?: string;
   quantity: number;
+  availableStock?: number;
 }
 
 export interface CartItemCustomization {
@@ -158,6 +160,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const name = variantLabel
       ? `${product.name} - ${variantLabel}${optionSuffix}`
       : `${product.name}${optionSuffix}`;
+    const availableStock = productSelectionStock(product, variantId, size);
+    if (availableStock <= 0) return;
 
     setItems((currentItems) => {
       const nextItemKey = getCartItemKey({
@@ -175,7 +179,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existing) {
         return currentItems.map((item) =>
           getCartItemKey(item) === nextItemKey
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: Math.min(item.quantity + 1, availableStock), availableStock }
             : item,
         );
       }
@@ -198,6 +202,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           customName,
           customNumber,
           quantity: 1,
+          availableStock,
         },
       ];
     });
@@ -214,7 +219,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((currentItems) =>
       currentItems.map((item) =>
         getCartItemKey(item) === itemKey
-          ? { ...item, quantity }
+          ? { ...item, quantity: Math.min(quantity, item.availableStock ?? quantity) }
           : item,
       ),
     );

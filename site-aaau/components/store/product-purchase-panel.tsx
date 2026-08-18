@@ -6,6 +6,7 @@ import { AddToCartButton } from "@/components/store/add-to-cart-button";
 import { siteConfig } from "@/lib/site";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { Product } from "@/types/store";
+import { isProductSoldOut, productSelectionStock, usesDetailedInventory } from "@/lib/store/inventory";
 
 export function ProductPurchasePanel({ product }: { product: Product }) {
   const [selectedSize, setSelectedSize] = useState("");
@@ -17,6 +18,8 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
   const selectedVariant =
     product.variants?.find((variant) => variant.id === selectedVariantId);
   const displayPrice = selectedVariant?.price ?? product.price;
+  const soldOut = isProductSoldOut(product);
+  const detailedInventory = usesDetailedInventory(product);
   const visibleOptions =
     product.options?.filter(
       (option) =>
@@ -33,11 +36,13 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
   const customizationIsComplete =
     !requiresCustomization || (customName.trim().length > 0 && customNumber.trim().length > 0);
   const canAddToCart =
+    !soldOut &&
     variantIsComplete &&
     sizeIsComplete &&
     optionsAreComplete &&
-    customizationIsComplete;
-  const missingMessage = !variantIsComplete
+    customizationIsComplete &&
+    productSelectionStock(product, selectedVariantId, selectedSize) > 0;
+  const missingMessage = soldOut ? "Produto esgotado." : !variantIsComplete
     ? "Escolha uma opção do produto."
     : !sizeIsComplete
       ? "Escolha um tamanho antes de adicionar ao carrinho."
@@ -74,10 +79,13 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
             Opção
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            {product.variants.map((variant) => (
+            {product.variants.map((variant) => {
+              const variantSoldOut = detailedInventory && !(product.stockItems ?? []).some((item) => item.variantId === variant.id && item.stock > 0);
+              return (
               <button
                 key={variant.id}
                 type="button"
+                disabled={variantSoldOut}
                 onClick={() => {
                   setSelectedVariantId(variant.id);
                   setSelectedOptions((currentOptions) => {
@@ -90,7 +98,7 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
                   });
                 }}
                 className={cn(
-                  "min-h-24 rounded-[1.2rem] border p-4 text-left transition",
+                  "min-h-24 rounded-[1.2rem] border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-45",
                   selectedVariant?.id === variant.id
                     ? "border-aaau-ember bg-aaau-ember/15"
                     : "border-white/[0.12] bg-white/[0.03] hover:border-white/25",
@@ -105,10 +113,10 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
                   </span>
                 ) : null}
                 <span className="mt-3 block text-sm font-semibold uppercase tracking-[0.16em] text-aaau-sand">
-                  {formatCurrency(variant.price)}
+                  {variantSoldOut ? "Esgotado" : formatCurrency(variant.price)}
                 </span>
               </button>
-            ))}
+            )})}
           </div>
         </div>
       ) : null}
@@ -158,21 +166,24 @@ export function ProductPurchasePanel({ product }: { product: Product }) {
           Tamanho obrigatório
         </p>
         <div className="flex flex-wrap gap-3">
-          {product.sizes.map((size) => (
+          {product.sizes.map((size) => {
+            const sizeSoldOut = detailedInventory && productSelectionStock(product, selectedVariantId, size) <= 0;
+            return (
             <button
               key={size}
               type="button"
+              disabled={sizeSoldOut}
               onClick={() => setSelectedSize(size)}
               className={cn(
-                "rounded-full border px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition",
+                "rounded-full border px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-40",
                 selectedSize === size
                   ? "border-aaau-ember bg-aaau-ember text-white"
                   : "border-white/[0.12] bg-white/[0.03] text-white/70 hover:border-white/25",
               )}
             >
-              {size}
+              {size}{sizeSoldOut ? " - Esgotado" : ""}
             </button>
-          ))}
+          )})}
         </div>
       </div>
 

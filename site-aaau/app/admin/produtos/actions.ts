@@ -75,6 +75,20 @@ function parsePriceValue(value: FormDataEntryValue | null) {
   return Number.isFinite(price) && price > 0 ? price : null;
 }
 
+function parseDetailedStock(formData: FormData) {
+  if (formData.get("trackDetailedStock") !== "on") return null;
+  const items: Array<{ variantId: string; size: string; stock: number }> = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("stockItem:")) continue;
+    const [, encodedVariant = "", encodedSize = ""] = key.split(":");
+    const stock = Number(value);
+    if (!Number.isInteger(stock) || stock < 0) throw new Error("O estoque por variacao precisa ser um inteiro nao negativo.");
+    items.push({ variantId: decodeURIComponent(encodedVariant), size: decodeURIComponent(encodedSize), stock });
+  }
+  if (!items.length) throw new Error("Configure ao menos uma combinacao de estoque.");
+  return items;
+}
+
 function buildProductMetadata(
   formData: FormData,
   productId: string | undefined,
@@ -172,6 +186,13 @@ export async function saveProductAction(
   const data = parsed.data;
   const slug = buildSlug(data.slug || data.name);
   const metadata = buildProductMetadata(formData, data.productId, slug, data.price);
+  let detailedStock: ReturnType<typeof parseDetailedStock>;
+  try {
+    detailedStock = parseDetailedStock(formData);
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : "Revise o estoque por variacao." };
+  }
+  const effectiveGeneralStock = detailedStock?.reduce((sum, item) => sum + item.stock, 0) ?? data.stock;
   const sizes = data.sizes
     .split(",")
     .map((size) => size.trim())
@@ -227,7 +248,7 @@ export async function saveProductAction(
           metadata,
           category: data.category,
           sizes,
-          stock: data.stock,
+          stock: effectiveGeneralStock,
           requiresCustomization: data.requiresCustomization,
           featured: data.featured,
           isNew: data.isNew,
@@ -241,6 +262,10 @@ export async function saveProductAction(
               sortOrder: 0,
             },
           },
+          stockItems: {
+            deleteMany: {},
+            ...(detailedStock ? { create: detailedStock } : {}),
+          },
         },
       });
     } else {
@@ -253,7 +278,7 @@ export async function saveProductAction(
           metadata,
           category: data.category,
           sizes,
-          stock: data.stock,
+          stock: effectiveGeneralStock,
           requiresCustomization: data.requiresCustomization,
           featured: data.featured,
           isNew: data.isNew,
@@ -266,6 +291,7 @@ export async function saveProductAction(
               sortOrder: 0,
             },
           },
+          ...(detailedStock ? { stockItems: { create: detailedStock } } : {}),
         },
       });
     }

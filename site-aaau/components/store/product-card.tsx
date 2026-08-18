@@ -6,6 +6,7 @@ import { Badge } from "@/components/shared/badge";
 import { buttonVariants } from "@/components/shared/button";
 import { siteConfig } from "@/lib/site";
 import { cn, formatCurrency } from "@/lib/utils";
+import { isProductSoldOut } from "@/lib/store/inventory";
 import type { Product } from "@/types/store";
 
 export function ProductCard({
@@ -17,6 +18,7 @@ export function ProductCard({
 }) {
   const image = product.images.find((entry) => entry.isPrimary)?.url ?? product.images[0]?.url;
   const isFeaturedCard = variant === "featured";
+  const soldOut = isProductSoldOut(product);
   const priceLabel = product.variants?.length
     ? `A partir de ${formatCurrency(Math.min(...product.variants.map((entry) => entry.price)))}`
     : formatCurrency(product.price);
@@ -38,6 +40,7 @@ export function ProductCard({
             {product.isNew ? (
               <Badge className="border-aaau-ember/[0.60] text-white">Lancamento</Badge>
             ) : null}
+            {soldOut ? <Badge className="border-red-300/50 text-red-100">Esgotado</Badge> : null}
           </div>
         )}
 
@@ -113,7 +116,7 @@ export function ProductCard({
             href={`/produtos/${product.slug}` as Route}
             className={buttonVariants({ size: "lg", className: "w-full" })}
           >
-            Ver produto
+            {soldOut ? "Esgotado" : "Ver produto"}
           </Link>
         </div>
       </div>

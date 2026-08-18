@@ -33,6 +33,13 @@ export interface ProductVariant {
   requiredOptionIds?: string[];
 }
 
+export interface ProductStockItem {
+  id: string;
+  variantId: string;
+  size: string;
+  stock: number;
+}
+
 export interface ProductOption {
   id: string;
   label: string;
@@ -78,6 +85,7 @@ export interface Product {
   isNew: boolean;
   isActive: boolean;
   images: ProductImage[];
+  stockItems?: ProductStockItem[];
   variants?: ProductVariant[];
   options?: ProductOption[];
   measurementGuide?: ProductMeasurementGuide;

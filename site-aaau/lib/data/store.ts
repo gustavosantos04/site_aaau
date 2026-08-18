@@ -45,6 +45,7 @@ function normalizeProduct(product: {
   isNew: boolean;
   isActive: boolean;
   images: Product["images"];
+  stockItems?: Product["stockItems"];
   metadata?: Prisma.JsonValue | null;
 }): Product {
   const seedMetadata = productsSeed.find(
@@ -62,6 +63,7 @@ function normalizeProduct(product: {
     variants,
     options: savedMetadata?.options ?? seedMetadata?.options,
     measurementGuide: savedMetadata?.measurementGuide ?? seedMetadata?.measurementGuide,
+    stockItems: product.stockItems ?? [],
   };
 }
 
@@ -88,7 +90,7 @@ export async function getProducts() {
     async () => {
       const products = await prisma.product.findMany({
         where: { isActive: true },
-        include: { images: { orderBy: { sortOrder: "asc" } } },
+        include: { images: { orderBy: { sortOrder: "asc" } }, stockItems: true },
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
       });
 
@@ -111,7 +113,7 @@ export async function getAdminProducts() {
   return withFallback(
     async () => {
       const products = await prisma.product.findMany({
-        include: { images: { orderBy: { sortOrder: "asc" } } },
+        include: { images: { orderBy: { sortOrder: "asc" } }, stockItems: true },
         orderBy: [{ createdAt: "desc" }],
       });
 
@@ -134,9 +136,9 @@ export async function getFeaturedProducts() {
 export async function getProductBySlug(slug: string) {
   return withFallback(
     async () => {
-      const product = await prisma.product.findUnique({
-        where: { slug },
-        include: { images: { orderBy: { sortOrder: "asc" } } },
+      const product = await prisma.product.findFirst({
+        where: { slug, isActive: true },
+        include: { images: { orderBy: { sortOrder: "asc" } }, stockItems: true },
       });
       return product
         ? normalizeProduct({
