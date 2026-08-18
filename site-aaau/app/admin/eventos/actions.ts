@@ -27,6 +27,7 @@ import {
   type EventTicketLotAdminInput,
   type TicketEventAdminInput,
 } from "@/lib/events/admin";
+import { issueManualEventTicket } from "@/lib/events/manual-issuance";
 
 export type AdminEventFormState = {
   status: "idle" | "success" | "error";
@@ -200,6 +201,37 @@ export async function resendTicketEmailAction(formData: FormData) {
   const confirmAmbiguous = formData.get("confirmAmbiguous") === "on";
   await resendTicketConfirmationEmailAdmin({ eventOrderId, confirmAmbiguous, actor });
   revalidateEventAdmin(eventId);
+}
+
+export async function issueManualTicketAction(
+  _prevState: AdminEventFormState = idle,
+  formData: FormData,
+): Promise<AdminEventFormState> {
+  const actor = await requireAdminRole("super_admin");
+  const eventId = String(formData.get("eventId") ?? "");
+  try {
+    const type = String(formData.get("type") ?? "ADMIN_PIX") as "ADMIN_PIX" | "COMPLIMENTARY";
+    const amount = type === "COMPLIMENTARY" ? "0" : String(formData.get("amountReceived") ?? "").replace(",", ".");
+    const result = await issueManualEventTicket({
+      eventId,
+      idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
+      type,
+      amountReceived: parseAdminDecimal(amount),
+      participant: {
+        name: String(formData.get("name") ?? ""), cpf: String(formData.get("cpf") ?? ""),
+        email: String(formData.get("email") ?? ""), phone: String(formData.get("phone") ?? "") || undefined,
+        birthDate: String(formData.get("birthDate") ?? "") || undefined,
+        institution: String(formData.get("institution") ?? "") || undefined,
+        course: String(formData.get("course") ?? "") || undefined,
+        campus: String(formData.get("campus") ?? "") || undefined,
+      },
+    }, actor);
+    revalidateEventAdmin(eventId);
+    const emailMessage = result.email.sent ? " E-mail enviado." : " Ingresso valido; envio de e-mail pendente para reenvio.";
+    return { status: "success", message: result.alreadyCreated ? "Emissao ja processada; nenhum ingresso duplicado." : `Ingresso emitido.${emailMessage}` };
+  } catch (error) {
+    return errorState(error);
+  }
 }
 
 export async function createEventStaffAction(formData: FormData) {

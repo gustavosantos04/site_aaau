@@ -10,6 +10,7 @@ import {
   setEventStaffAssignmentAction,
 } from "@/app/admin/eventos/actions";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { ManualTicketIssuanceForm } from "@/components/admin/manual-ticket-issuance-form";
 import { EventAdminForm, EventLotForm, EventPartnerCodeForm } from "@/components/admin/event-admin-forms";
 import { ResendTicketEmailForm } from "@/components/admin/resend-ticket-email-form";
 import { SummaryCard } from "@/components/admin/summary-card";
@@ -76,18 +77,33 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
+function ticketPageHref(eventId: string, query: Record<string, string | undefined>, page: number) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) if (value) params.set(key, value);
+  params.set("tab", "ingressos");
+  params.set("pagina", String(page));
+  return `/admin/eventos/${eventId}?${params.toString()}` as Route;
+}
+
 export default async function AdminEventCockpitPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; busca?: string; lote?: string; codigo?: string; status?: string; origem?: string; checkin?: string; pagina?: string; pedidos?: string }>;
 }) {
   await requireAdminRole("super_admin");
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const activeTab = tabs.find(([key]) => key === query.tab)?.[0] ?? "geral";
   const [cockpit, staffAdmin, report] = await Promise.all([
-    getAdminEventCockpit(id, activeTab),
+    getAdminEventCockpit(id, activeTab, {
+      tickets: {
+        search: query.busca, lotId: query.lote, partnerCodeId: query.codigo,
+        status: query.status, source: query.origem, checkIn: query.checkin,
+        page: Number(query.pagina) || 1,
+      },
+      orders: { view: query.pedidos === "archived" ? "archived" : query.pedidos === "all" ? "all" : "active" },
+    }),
     activeTab === "equipe" ? getEventStaffAdmin(id) : Promise.resolve(null),
     activeTab === "relatorio" ? getAdminEventReport(id) : Promise.resolve(null),
   ]);
@@ -351,7 +367,7 @@ export default async function AdminEventCockpitPage({
 
       {activeTab === "lotes" ? (
         <section className="space-y-5 rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
-          {cockpit.lots.some((lot) => !lot.active) ? (
+          {cockpit.lots.some((lot) => lot.publicSaleEnabled && !lot.active) ? (
             <div className="rounded-[0.75rem] border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-6 text-amber-50">
               <strong className="block">Atenção: existe lote desativado.</strong>
               Um lote desativado não abre automaticamente, mesmo que tenha uma data de início. Edite o lote e marque “Disponibilizar este lote no site”.
@@ -376,7 +392,7 @@ export default async function AdminEventCockpitPage({
           {cockpit.lots.length ? (
             <div className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/45">Editar lotes</h2>
-              {cockpit.lots.map((lot) => (
+              {cockpit.lots.filter((lot) => lot.publicSaleEnabled).map((lot) => (
                 <details key={lot.id} className="rounded-[1.25rem] border border-white/10 bg-white/[0.025] p-4">
                   <summary className="cursor-pointer text-sm font-semibold text-white">
                     {lot.name} - {formatAdminMoney(lot.price)}
@@ -409,27 +425,57 @@ export default async function AdminEventCockpitPage({
       ) : null}
 
       {activeTab === "ingressos" ? (
-        <section className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+        <section className="space-y-5 rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+          <ManualTicketIssuanceForm eventId={event.id} eventName={event.name} requirements={{ phone: event.requireParticipantPhone, birthDate: event.requireBirthDate || event.minimumAge !== null, institution: event.requireInstitution, course: event.requireCourse, campus: event.requireCampus }} />
+          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <input type="hidden" name="tab" value="ingressos" />
+            <input className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white" name="busca" defaultValue={query.busca} placeholder="Nome, CPF ou e-mail" />
+            <select className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white" name="lote" defaultValue={query.lote ?? ""}><option value="">Todos os lotes</option>{cockpit.lots.map((lot) => <option key={lot.id} value={lot.id}>{lot.name}</option>)}</select>
+            <select className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white" name="codigo" defaultValue={query.codigo ?? ""}><option value="">Todos os codigos</option>{cockpit.partnerCodes.map((code) => <option key={code.id} value={code.id}>{code.code}</option>)}</select>
+            <select className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white" name="status" defaultValue={query.status ?? ""}><option value="">Todos os status</option><option value="VALID">Valido</option><option value="USED">Usado</option><option value="CANCELED">Cancelado</option><option value="REFUNDED">Reembolsado</option></select>
+            <select className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white" name="origem" defaultValue={query.origem ?? ""}><option value="">Todas as origens</option><option value="WEBSITE">Site / Mercado Pago</option><option value="ADMIN_PIX">Emissao manual / PIX</option><option value="COMPLIMENTARY">Cortesia</option></select>
+            <select className="h-11 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white" name="checkin" defaultValue={query.checkin ?? ""}><option value="">Todos os check-ins</option><option value="yes">Com check-in</option><option value="no">Sem check-in</option></select>
+            <button className={buttonVariants({ size: "sm" })}>Filtrar</button>
+            <Link href={`/admin/eventos/${event.id}?tab=ingressos` as Route} className={buttonVariants({ variant: "secondary", size: "sm" })}>Limpar filtros</Link>
+          </form>
+          <p className="text-sm text-white/55">{cockpit.ticketPagination.total} ingresso(s) encontrado(s).</p>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm [&_td]:pr-6 [&_th]:pr-6">
+            <table className="w-full min-w-[1350px] text-left text-sm [&_td]:pr-6 [&_th]:pr-6">
               <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
-                <tr><th>Ticket</th><th>Participante</th><th>CPF</th><th>Lote</th><th>Pedido</th><th>Status</th><th>Check-in</th><th>Parceiro</th></tr>
+                <tr><th>Ticket</th><th>Participante</th><th>CPF</th><th>E-mail</th><th>Evento</th><th>Lote</th><th>Parceiro</th><th>Origem</th><th>Valor</th><th>Status</th><th>Emissao</th><th>Check-in</th></tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-white/70">
                 {cockpit.tickets.map((ticket) => (
                   <tr key={ticket.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{ticket.ticketCode}</td>
-                    <td>{ticket.participantName}</td><td>{ticket.participantCpfMasked}</td><td>{ticket.lotName}</td><td>{ticket.orderCode}</td><td>{adminStatusLabel(ticket.status)}</td><td>{formatDate(ticket.checkedInAt)}</td><td>{ticket.partnerCode ?? "-"}</td>
+                    <td>{ticket.participantName}</td><td>{ticket.participantCpfMasked}</td><td>{ticket.participantEmail ?? "-"}</td><td>{event.name}</td><td>{ticket.lotName}</td><td>{ticket.partnerCode ?? "-"}</td><td>{ticket.source === "WEBSITE" ? "Site / MP" : ticket.source === "ADMIN_PIX" ? "PIX admin" : "Cortesia"}</td><td>{formatAdminMoney(ticket.value)}</td><td>{adminStatusLabel(ticket.status)}</td><td>{formatDate(ticket.issuedAt)}</td><td>{formatDate(ticket.checkedInAt)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {cockpit.tickets.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/50">Nenhum ingresso corresponde aos filtros.</p> : null}
+          <div className="flex items-center justify-between gap-3 text-sm text-white/60">
+            <span>Pagina {cockpit.ticketPagination.page} de {cockpit.ticketPagination.pageCount}</span>
+            <div className="flex gap-2">
+              {cockpit.ticketPagination.page > 1 ? <Link className={buttonVariants({ variant: "secondary", size: "sm" })} href={ticketPageHref(event.id, query, cockpit.ticketPagination.page - 1)}>Anterior</Link> : null}
+              {cockpit.ticketPagination.page < cockpit.ticketPagination.pageCount ? <Link className={buttonVariants({ variant: "secondary", size: "sm" })} href={ticketPageHref(event.id, query, cockpit.ticketPagination.page + 1)}>Proxima</Link> : null}
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {["WEBSITE", "ADMIN_PIX", "COMPLIMENTARY"].map((source) => {
+                const item = report!.sales.bySource.find((row) => row.source === source);
+                return <ReportCard key={source} label={source === "WEBSITE" ? "Site / Mercado Pago" : source === "ADMIN_PIX" ? "PIX direto" : "Cortesias"} value={item?.orders ?? 0} helper={`${formatAdminMoney(item?.revenue ?? 0)} registrado`} />;
+              })}
+            </div>
+          </div>
         </section>
       ) : null}
 
       {activeTab === "pedidos" ? (
-        <section className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+        <section className="space-y-4 rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+          <nav className="flex flex-wrap gap-2" aria-label="Visualizacao de pedidos">
+            {[["active", "Ativos"], ["archived", "Arquivados"], ["all", "Todos"]].map(([value, label]) => <Link key={value} href={`/admin/eventos/${event.id}?tab=pedidos&pedidos=${value}` as Route} className={buttonVariants({ variant: (query.pedidos ?? "active") === value ? "primary" : "secondary", size: "sm" })}>{label}</Link>)}
+          </nav>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-sm [&_td]:pr-3 [&_th]:pr-3">
               <thead className="text-xs uppercase tracking-[0.16em] text-white/45">

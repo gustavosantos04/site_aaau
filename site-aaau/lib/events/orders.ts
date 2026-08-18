@@ -80,7 +80,7 @@ function normalizePhone(value?: string | null) {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function normalizeParticipant(participant: EventParticipantInput, participantIndex: number) {
+export function normalizeEventParticipant(participant: EventParticipantInput, participantIndex: number) {
   const cpf = onlyDigits(participant.cpf);
   const name = sanitizeText(participant.name);
   const email = normalizeEmail(participant.email);
@@ -114,7 +114,7 @@ function normalizeParticipant(participant: EventParticipantInput, participantInd
   };
 }
 
-function assertRequiredParticipantFields(
+export function assertRequiredEventParticipantFields(
   event: {
     requireParticipantEmail: boolean;
     requireParticipantPhone: boolean;
@@ -125,7 +125,7 @@ function assertRequiredParticipantFields(
     minimumAge: number | null;
     startAt: Date;
   },
-  participant: ReturnType<typeof normalizeParticipant>,
+  participant: ReturnType<typeof normalizeEventParticipant>,
   participantIndex: number,
 ) {
   if (!participant.name) {
@@ -291,7 +291,7 @@ async function createEventOrderReservationOnce(
       });
     }
 
-    const participants = input.participants.map(normalizeParticipant);
+    const participants = input.participants.map(normalizeEventParticipant);
     const participantCpfHashes = participants.map((participant) => participant.cpfHash);
 
     const firstParticipantByCpf = new Map<string, number>();
@@ -307,7 +307,7 @@ async function createEventOrderReservationOnce(
     }
 
     for (const [participantIndex, participant] of participants.entries()) {
-      assertRequiredParticipantFields(event, participant, participantIndex);
+      assertRequiredEventParticipantFields(event, participant, participantIndex);
     }
 
     const buyerCpf = input.buyer.cpf ? onlyDigits(input.buyer.cpf) : null;

@@ -22,7 +22,7 @@ export type LotLike = Pick<
   | "salesStartAt"
   | "salesEndAt"
   | "position"
-> & Partial<Pick<EventTicketLot, "ticketsPerUnit" | "maxUnitsPerOrder" | "exclusiveWindow">>;
+> & Partial<Pick<EventTicketLot, "ticketsPerUnit" | "maxUnitsPerOrder" | "exclusiveWindow" | "publicSaleEnabled">>;
 
 type EventSaleLike = Pick<
   TicketEvent,
@@ -66,6 +66,7 @@ export function assertTicketEventSalesOpen(event: EventSaleLike, now = new Date(
 export function isLotTemporallyEligible(lot: LotLike, now: Date) {
   return (
     lot.active &&
+    lot.publicSaleEnabled !== false &&
     (!lot.salesStartAt || lot.salesStartAt <= now) &&
     (!lot.salesEndAt || lot.salesEndAt > now)
   );

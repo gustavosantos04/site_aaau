@@ -28,7 +28,7 @@ export function generateEventTicketQrToken() {
   return `tk_${crypto.randomBytes(QR_TOKEN_BYTES).toString("base64url")}`;
 }
 
-async function createTicketWithRetry(
+export async function createEventTicketWithRetry(
   tx: EventTx,
   data: {
     eventOrderId: string;
@@ -62,7 +62,7 @@ async function createTicketWithRetry(
       });
       await tx.eventTicketQrVersion.create({ data: initialEventTicketQrVersionData(ticket) });
       await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${savepoint}`);
-      return true;
+      return ticket;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -105,7 +105,7 @@ export async function issueEventTicketsForPaidOrder(tx: EventTx, eventOrderId: s
       continue;
     }
 
-    await createTicketWithRetry(tx, {
+    await createEventTicketWithRetry(tx, {
       eventOrderId: order.id,
       eventId: order.eventId,
       lotId: participant.ticketLotId,

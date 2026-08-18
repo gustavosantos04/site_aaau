@@ -16,6 +16,7 @@ import { formatMoney, getPublicEventStatus, publicStatusLabel } from "@/lib/even
 export type EventAdminActor = {
   role: "super_admin" | "event_staff";
   adminUserId?: string | null;
+  email?: string;
 };
 
 export class EventAdminForbiddenError extends Error {
@@ -192,7 +193,9 @@ function lotStatus(lot: {
   soldQuantity: number;
   salesStartAt: Date | null;
   salesEndAt: Date | null;
+  publicSaleEnabled?: boolean;
 }, now = new Date(), exclusiveLotId: string | null = null) {
+  if (lot.publicSaleEnabled === false) return "ADMINISTRATIVO";
   if (!lot.active) return "INATIVO";
   if (getTicketLotAvailability(lot) <= 0) return "ESGOTADO";
   if (lot.salesStartAt && lot.salesStartAt > now) return "FUTURO";
@@ -274,9 +277,28 @@ export type AdminEventSection =
   | "equipe"
   | "config";
 
-async function loadAdminEventOrders(eventId: string) {
+export type AdminTicketQuery = {
+  search?: string; lotId?: string; partnerCodeId?: string; status?: string;
+  source?: string; checkIn?: string; page?: number; pageSize?: number;
+};
+
+export type AdminOrderQuery = { view?: "active" | "archived" | "all" };
+
+export function archivedEventOrderWhere(now = new Date()): Prisma.EventOrderWhereInput {
+  return {
+    status: { in: ["PENDING", "EXPIRED", "FAILED", "CANCELED"] },
+    expiresAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+  };
+}
+
+async function loadAdminEventOrders(eventId: string, query: AdminOrderQuery = {}) {
+  const archived = archivedEventOrderWhere();
+  const view = query.view ?? "active";
   return prisma.eventOrder.findMany({
-    where: { eventId },
+    where: {
+      eventId,
+      ...(view === "archived" ? archived : view === "all" ? {} : { NOT: archived }),
+    },
     include: {
       ticketLot: true,
       partnerCode: true,
@@ -292,16 +314,35 @@ async function loadAdminEventOrders(eventId: string) {
   });
 }
 
-async function loadAdminEventTickets(eventId: string) {
-  return prisma.eventTicket.findMany({
-    where: { eventId },
+async function loadAdminEventTickets(eventId: string, query: AdminTicketQuery = {}) {
+  const pageSize = Math.min(100, Math.max(10, query.pageSize ?? 25));
+  const page = Math.max(1, query.page ?? 1);
+  const search = query.search?.trim();
+  const cpfDigits = search?.replace(/\D/g, "") ?? "";
+  const where: Prisma.EventTicketWhereInput = {
+    eventId,
+    ...(search ? { OR: [
+      { participantName: { contains: search, mode: "insensitive" } },
+      { participantEmail: { contains: search, mode: "insensitive" } },
+      ...(cpfDigits ? [{ participantCpf: { contains: cpfDigits } } as Prisma.EventTicketWhereInput] : []),
+    ] } : {}),
+    ...(query.lotId ? { lotId: query.lotId } : {}),
+    ...(query.partnerCodeId ? { eventOrder: { partnerCodeId: query.partnerCodeId } } : {}),
+    ...(query.status ? { status: query.status as never } : {}),
+    ...(query.source ? { eventOrder: { source: query.source as never, ...(query.partnerCodeId ? { partnerCodeId: query.partnerCodeId } : {}) } } : {}),
+    ...(query.checkIn === "yes" ? { checkedInAt: { not: null } } : query.checkIn === "no" ? { checkedInAt: null } : {}),
+  };
+  const [items, total] = await Promise.all([prisma.eventTicket.findMany({
+    where,
     include: {
       lot: true,
-      eventOrder: { select: { id: true, partnerCode: true, buyerName: true } },
+      eventOrder: { select: { id: true, partnerCode: true, buyerName: true, source: true, total: true, tickets: { select: { id: true } } } },
     },
     orderBy: [{ issuedAt: "desc" }],
-    take: 50,
-  });
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  }), prisma.eventTicket.count({ where })]);
+  return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 async function loadAdminPartnerCodes(eventId: string) {
@@ -341,7 +382,11 @@ async function loadAdminPartnerCodes(eventId: string) {
   });
 }
 
-export async function getAdminEventCockpit(eventId: string, section: AdminEventSection = "geral") {
+export async function getAdminEventCockpit(
+  eventId: string,
+  section: AdminEventSection = "geral",
+  query: { tickets?: AdminTicketQuery; orders?: AdminOrderQuery } = {},
+) {
   const event = await prisma.ticketEvent.findUnique({
     where: { id: eventId },
     include: {
@@ -353,9 +398,9 @@ export async function getAdminEventCockpit(eventId: string, section: AdminEventS
 
   const shouldLoadKpis = section === "geral";
   const [orders, tickets, partnerCodes, paid, pendingOrders, checkIns, paidOrdersCount, totalIssuedTickets] = await Promise.all([
-    section === "pedidos" ? loadAdminEventOrders(eventId) : Promise.resolve([]),
-    section === "ingressos" ? loadAdminEventTickets(eventId) : Promise.resolve([]),
-    section === "codigos" ? loadAdminPartnerCodes(eventId) : Promise.resolve([]),
+    section === "pedidos" ? loadAdminEventOrders(eventId, query.orders) : Promise.resolve([]),
+    section === "ingressos" ? loadAdminEventTickets(eventId, query.tickets) : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 25, pageCount: 1 }),
+    section === "codigos" || section === "ingressos" ? loadAdminPartnerCodes(eventId) : Promise.resolve([]),
     shouldLoadKpis
       ? prisma.eventOrder.aggregate({ where: { eventId, status: "PAID" }, _sum: { total: true } })
       : Promise.resolve({ _sum: { total: null } }),
@@ -415,18 +460,26 @@ export async function getAdminEventCockpit(eventId: string, section: AdminEventS
         checkedInAt: participant.ticket?.checkedInAt ?? null,
       })),
     })),
-    tickets: tickets.map((ticket) => ({
+    tickets: tickets.items.map((ticket) => ({
       id: ticket.id,
       ticketCode: ticket.ticketCode,
       participantName: ticket.participantName,
       participantCpfMasked: maskCpfLast4(ticket.participantCpfLast4),
+      participantEmail: ticket.participantEmail,
       lotName: ticket.lot.name,
       orderCode: ticket.eventOrderId.slice(0, 8).toUpperCase(),
       buyerName: ticket.eventOrder.buyerName,
       status: ticket.status,
       checkedInAt: ticket.checkedInAt,
       partnerCode: ticket.eventOrder.partnerCode?.code ?? null,
+      partnerCodeId: ticket.eventOrder.partnerCode?.id ?? null,
+      source: ticket.eventOrder.source,
+      value: ticket.eventOrder.tickets.length > 0
+        ? ticket.eventOrder.total.dividedBy(ticket.eventOrder.tickets.length)
+        : ticket.eventOrder.total,
+      issuedAt: ticket.issuedAt,
     })),
+    ticketPagination: { total: tickets.total, page: tickets.page, pageSize: tickets.pageSize, pageCount: tickets.pageCount },
     partnerCodes,
   };
 }
@@ -447,6 +500,7 @@ export async function getAdminEventReport(eventId: string) {
   const [
     ordersByStatus,
     paidFinancials,
+    financialsBySource,
     paidTickets,
     ticketsByStatus,
     paidUnitsByLot,
@@ -469,6 +523,10 @@ export async function getAdminEventReport(eventId: string) {
       where: { eventId, status: "PAID" },
       _count: { _all: true },
       _sum: { subtotal: true, discountAmount: true, total: true },
+    }),
+    prisma.eventOrder.groupBy({
+      by: ["source"], where: { eventId, status: "PAID" },
+      _count: { _all: true }, _sum: { total: true },
     }),
     prisma.eventTicket.count({ where: { eventId, eventOrder: { status: "PAID" } } }),
     prisma.eventTicket.groupBy({
@@ -588,6 +646,7 @@ export async function getAdminEventReport(eventId: string) {
       subtotal: paidFinancials._sum.subtotal ?? new Prisma.Decimal(0),
       discount: paidFinancials._sum.discountAmount ?? new Prisma.Decimal(0),
       revenue: paidFinancials._sum.total ?? new Prisma.Decimal(0),
+      bySource: financialsBySource.map((row) => ({ source: row.source, orders: row._count._all, revenue: row._sum.total ?? new Prisma.Decimal(0) })),
       ordersByStatus: ordersByStatus.map((row) => ({ status: row.status, count: row._count._all })),
       ticketsByStatus: ticketsByStatus.map((row) => ({ status: row.status, count: row._count._all })),
     },
@@ -708,7 +767,7 @@ export async function publishTicketEventAdmin(eventId: string, actor: EventAdmin
     throw new EventAdminValidationError("Complete informacoes, data e local antes de publicar.");
   }
   assertDateRange(event);
-  if (event.lots.length === 0) {
+  if (!event.lots.some((lot) => lot.publicSaleEnabled)) {
     throw new EventAdminValidationError("Configure pelo menos um lote antes de publicar.");
   }
 

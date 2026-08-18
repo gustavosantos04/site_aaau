@@ -212,7 +212,7 @@ export async function getUpcomingTicketSale(now = new Date()) {
       status: { notIn: ["DRAFT", "CANCELED"] },
       salesStartAt: { gt: now },
     },
-    include: { lots: { where: { active: true }, orderBy: [{ position: "asc" }, { id: "asc" }] } },
+    include: { lots: { where: { active: true, publicSaleEnabled: true }, orderBy: [{ position: "asc" }, { id: "asc" }] } },
     orderBy: { salesStartAt: "asc" },
     take: 10,
   });

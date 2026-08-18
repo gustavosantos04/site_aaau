@@ -35,6 +35,7 @@ const labels: Record<string, string> = {
   ENCERRADO: "Vendas encerradas",
   ATIVO: "Disponível agora",
   SUSPENSO: "Suspenso durante a promoção",
+  ADMINISTRATIVO: "Somente emissão administrativa",
 };
 
 export function adminStatusLabel(status?: string | null) {
