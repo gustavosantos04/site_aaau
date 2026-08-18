@@ -336,7 +336,12 @@ async function loadAdminEventTickets(eventId: string, query: AdminTicketQuery = 
     where,
     include: {
       lot: true,
-      eventOrder: { select: { id: true, partnerCode: true, buyerName: true, source: true, total: true, tickets: { select: { id: true } } } },
+      eventOrder: { select: { id: true, partnerCode: true, buyerName: true, buyerEmail: true, source: true, total: true, tickets: { select: { id: true } } } },
+      transfers: {
+        where: { status: "COMPLETED" },
+        select: { id: true, fromHolderName: true, toHolderName: true, completedAt: true, fromOwnershipVersion: true, toOwnershipVersion: true },
+        orderBy: { completedAt: "asc" },
+      },
     },
     orderBy: [{ issuedAt: "desc" }],
     skip: (page - 1) * pageSize,
@@ -475,6 +480,8 @@ export async function getAdminEventCockpit(
       lotName: ticket.lot.name,
       orderCode: ticket.eventOrderId.slice(0, 8).toUpperCase(),
       buyerName: ticket.eventOrder.buyerName,
+      buyerEmail: ticket.eventOrder.buyerEmail,
+      transferHistory: ticket.transfers,
       status: ticket.status,
       checkedInAt: ticket.checkedInAt,
       partnerCode: ticket.eventOrder.partnerCode?.code ?? null,

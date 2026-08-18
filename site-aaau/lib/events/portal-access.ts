@@ -34,11 +34,31 @@ export type EventTicketPortalGroup = {
   groupId: string;
   source: "ORIGINAL_ORDER" | "INDIVIDUAL_GRANT" | "TRANSFER_HISTORY";
   label: string;
-  event: { name: string; startAt: Date; venueName: string; venueAddress: string | null };
+  event: {
+    name: string;
+    startAt: Date;
+    venueName: string;
+    venueAddress: string | null;
+    minimumAge: number | null;
+    requireParticipantPhone: boolean;
+    requireInstitution: boolean;
+    requireCourse: boolean;
+    requireCampus: boolean;
+  };
   tickets: EventTicketPortalTicket[];
 };
 
-const eventSelect = { name: true, startAt: true, venueName: true, venueAddress: true } as const;
+const eventSelect = {
+  name: true,
+  startAt: true,
+  venueName: true,
+  venueAddress: true,
+  minimumAge: true,
+  requireParticipantPhone: true,
+  requireInstitution: true,
+  requireCourse: true,
+  requireCampus: true,
+} as const;
 const pendingTransferSelect = {
   where: {
     status: { in: [

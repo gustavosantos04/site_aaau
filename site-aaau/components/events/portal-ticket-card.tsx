@@ -1,4 +1,5 @@
 import { CalendarDays, MapPin, Ticket } from "lucide-react";
+import { randomUUID } from "node:crypto";
 
 import { CopyTicketCodeButton, PendingTransferControls, PortalTransferForm } from "@/components/events/portal-controls";
 import { Badge } from "@/components/shared/badge";
@@ -49,7 +50,18 @@ export async function PortalTicketCard({ ticket, event }: {
             <p>Expira em: {formatEventDateTime(ticket.pendingTransfer.expiresAt)}</p>
             <PendingTransferControls ticketId={ticket.ticketId} />
           </div> : null}
-          {ticket.canTransfer ? <PortalTransferForm ticketId={ticket.ticketId} /> : null}
+          {ticket.canTransfer ? <PortalTransferForm
+            ticketId={ticket.ticketId}
+            requestId={randomUUID()}
+            event={{
+              startAt: event.startAt.toISOString(),
+              minimumAge: event.minimumAge,
+              requireParticipantPhone: event.requireParticipantPhone,
+              requireInstitution: event.requireInstitution,
+              requireCourse: event.requireCourse,
+              requireCampus: event.requireCampus,
+            }}
+          /> : null}
           {ticket.state === "CANCELED" ? <p className="mt-4 text-sm text-white/60">Este ingresso foi cancelado e não pode ser transferido.</p> : null}
           {ticket.state === "REFUNDED" ? <p className="mt-4 text-sm text-white/60">Este ingresso foi reembolsado e não pode ser transferido.</p> : null}
         </div>

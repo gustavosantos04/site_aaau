@@ -10,8 +10,7 @@ import { consumePortalRateLimits } from "@/lib/events/portal-rate-limit";
 import { assertEventTicketTransferCsrf } from "@/lib/events/transfer-http-security";
 import {
   cancelEventTicketTransferByHolder,
-  requestEventTicketTransfer,
-  resendEventTicketTransferEmail,
+  transferEventTicketDirectly,
 } from "@/lib/events/transfer-flow";
 import { deliverEventTicketOutboxImmediately } from "@/lib/events/immediate-outbox";
 import { logEventTicketOperation } from "@/lib/events/operations-log";
@@ -46,18 +45,27 @@ export async function requestPortalTransferAction(
 ): Promise<PortalMutationState> {
   try {
     const session = await authorize("portal-transfer-request");
-    if (formData.get("confirmed") !== "yes") return { ok: false, message: "Confirme que deseja iniciar a transferência." };
-    const result = await requestEventTicketTransfer({
+    if (formData.get("confirmed") !== "yes") return { ok: false, message: "Revise e confirme a transferência." };
+    const result = await transferEventTicketDirectly({
       ticketId,
-      holderCredential: { kind: "PORTAL_SESSION", portalSessionId: session.id },
-      recipientEmail: String(formData.get("recipientEmail") ?? ""),
+      portalSessionId: session.id,
+      requestId: String(formData.get("requestId") ?? ""),
+      recipient: {
+        name: String(formData.get("name") ?? ""),
+        cpf: String(formData.get("cpf") ?? ""),
+        email: String(formData.get("recipientEmail") ?? ""),
+        phone: String(formData.get("phone") ?? "") || null,
+        birthDate: String(formData.get("birthDate") ?? "") || null,
+        institution: String(formData.get("institution") ?? "") || null,
+        course: String(formData.get("course") ?? "") || null,
+        campus: String(formData.get("campus") ?? "") || null,
+      },
     });
-    if (result.created) logEventTicketOperation("transfer.requested", { transferId: result.transferId });
     scheduleTransferEmail(result.outboxIds);
     revalidatePath("/meus-ingressos/painel");
-    return { ok: true, message: "Solicitação registrada. Enviamos uma confirmação ao seu e-mail." };
+    return { ok: true, message: "Transferência concluída. O ingresso anterior foi invalidado e o novo titular já recebeu a nova credencial." };
   } catch {
-    return { ok: false, message: "Não foi possível solicitar a transferência. Verifique os dados ou tente novamente mais tarde." };
+    return { ok: false, message: "Não foi possível concluir a transferência. Revise os dados ou tente novamente mais tarde." };
   }
 }
 
@@ -69,17 +77,6 @@ export async function cancelPortalTransferAction(ticketId: string) {
     scheduleTransferEmail(result.outboxIds);
   } catch {
     // A interface não distingue falta de autorização de uma solicitação já encerrada.
-  }
-  revalidatePath("/meus-ingressos/painel");
-}
-
-export async function resendPortalTransferAction(ticketId: string) {
-  try {
-    const session = await authorize("portal-transfer-resend");
-    const result = await resendEventTicketTransferEmail({ ticketId, holderCredential: { kind: "PORTAL_SESSION", portalSessionId: session.id } });
-    scheduleTransferEmail(result.outboxIds);
-  } catch {
-    // Cooldown, sessão inválida e item já encerrado têm resposta pública equivalente.
   }
   revalidatePath("/meus-ingressos/painel");
 }

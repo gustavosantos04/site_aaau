@@ -14,6 +14,18 @@ export const EVENT_TICKET_OUTBOX_MAX_ATTEMPTS = 8;
 
 export type TransferEmailPayload = Pick<TrackedEmailInput, "subject" | "text" | "html">;
 
+export type PreparedTransferEmail = {
+  id: string;
+  transferId: string;
+  kind: EmailDeliveryKind;
+  idempotencyKey: string;
+  recipient: string;
+  encryptedPayload: string;
+  initializationVector: string;
+  authenticationTag: string;
+  nextAttemptAt: Date;
+};
+
 function outboxKey() {
   const secret = process.env.EVENT_TICKET_TRANSFER_OUTBOX_SECRET?.trim();
   if (!secret || secret.length < 32) {
@@ -62,6 +74,26 @@ export function decryptTransferEmailPayload(input: {
   return parsed as TransferEmailPayload;
 }
 
+export function prepareTransferEmail(input: {
+  id?: string;
+  transferId: string;
+  kind: EmailDeliveryKind;
+  idempotencyKey: string;
+  recipient: string;
+  payload: TransferEmailPayload;
+  now?: Date;
+}): PreparedTransferEmail {
+  return {
+    id: input.id ?? crypto.randomUUID(),
+    transferId: input.transferId,
+    kind: input.kind,
+    idempotencyKey: input.idempotencyKey,
+    recipient: input.recipient,
+    ...encryptTransferEmailPayload(input.payload),
+    nextAttemptAt: input.now ?? new Date(),
+  };
+}
+
 export async function queueTransferEmail(tx: EventTx, input: {
   transferId: string;
   kind: EmailDeliveryKind;
@@ -70,17 +102,10 @@ export async function queueTransferEmail(tx: EventTx, input: {
   payload: TransferEmailPayload;
   now?: Date;
 }) {
-  const encrypted = encryptTransferEmailPayload(input.payload);
+  const prepared = prepareTransferEmail(input);
   return tx.eventTicketTransferOutbox.upsert({
     where: { idempotencyKey: input.idempotencyKey },
-    create: {
-      transferId: input.transferId,
-      kind: input.kind,
-      idempotencyKey: input.idempotencyKey,
-      recipient: input.recipient,
-      ...encrypted,
-      nextAttemptAt: input.now ?? new Date(),
-    },
+    create: prepared,
     update: {},
   });
 }

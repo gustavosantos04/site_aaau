@@ -1,13 +1,19 @@
-import { EventTicketTransferStatus } from "@prisma/client";
+import { EventTicketTransferStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db/prisma";
-import { completeEventTicketTransfer } from "@/lib/events/transfer-completion";
+import {
+  completeEventTicketTransfer,
+  completeEventTicketTransferInTransaction,
+  prepareEventTicketTransferCredentials,
+} from "@/lib/events/transfer-completion";
+import { TICKET_CODE_RETRY_LIMIT } from "@/lib/events/constants";
 import { safeEventTicketTransferErrorCode } from "@/lib/events/transfer-action-errors";
 import { logEventTicketOperation } from "@/lib/events/operations-log";
 import { assertEventTicketTransfersEnabled } from "@/lib/events/transfer-config";
 import {
   queueHolderConfirmationEmail,
+  prepareTransferCompletionEmails,
   queueRecipientInvitationEmail,
   queueTransferStatusEmail,
 } from "@/lib/events/transfer-emails";
@@ -19,7 +25,11 @@ import {
   normalizeEventTicketHolderEmail,
 } from "@/lib/events/transfer-security";
 import { runSerializableTransactionWithRetry } from "@/lib/events/transaction";
-import type { EventTicketTransferRecipientInput } from "@/lib/events/transfer-validation";
+import type { EventTx } from "@/lib/events/types";
+import {
+  normalizeDirectEventTicketTransferRecipient,
+  type EventTicketTransferRecipientInput,
+} from "@/lib/events/transfer-validation";
 
 export const CURRENT_HOLDER_CONFIRMATION_TTL_MS = 30 * 60_000;
 export const RECIPIENT_ACCEPTANCE_TTL_MS = 48 * 60 * 60_000;
@@ -59,7 +69,7 @@ async function expireStaleTransfer(id: string, now: Date) {
   });
 }
 
-async function resolveHolder(tx: Parameters<Parameters<typeof runSerializableTransactionWithRetry>[0]>[0], input: {
+async function resolveHolder(tx: EventTx, input: {
   ticketId: string;
   credential: TicketHolderCredential;
   now: Date;
@@ -71,7 +81,7 @@ async function resolveHolder(tx: Parameters<Parameters<typeof runSerializableTra
         originalOrderAccessRevokedAt: null,
         eventOrder: { accessToken: input.credential.orderAccessToken, status: "PAID" },
       },
-      include: { event: true, lot: true, eventOrder: { select: { buyerEmail: true } } },
+      include: { event: true, lot: true, eventOrder: { select: { status: true, buyerEmail: true } } },
     });
     if (!ticket) flowError("EVENT_TICKET_TRANSFER_UNAUTHORIZED");
     return { ticket, holderEmail: ticket.participantEmail ?? ticket.eventOrder.buyerEmail };
@@ -101,7 +111,7 @@ async function resolveHolder(tx: Parameters<Parameters<typeof runSerializableTra
 
   const grant = await tx.eventTicketAccessGrant.findUnique({
     where: { tokenHash: hashEventTicketAccessToken(input.credential.grantToken) },
-    include: { ticket: { include: { event: true, lot: true, eventOrder: { select: { buyerEmail: true } } } } },
+    include: { ticket: { include: { event: true, lot: true, eventOrder: { select: { status: true, buyerEmail: true } } } } },
   });
   if (
     !grant || grant.ticketId !== input.ticketId || grant.revokedAt ||
@@ -109,6 +119,160 @@ async function resolveHolder(tx: Parameters<Parameters<typeof runSerializableTra
     grant.ownershipVersion !== grant.ticket.ownershipVersion
   ) flowError("EVENT_TICKET_TRANSFER_UNAUTHORIZED");
   return { ticket: grant.ticket, holderEmail: grant.holderEmail };
+}
+
+function directTransferId(requestId: string) {
+  const normalized = requestId.trim();
+  if (!/^[a-zA-Z0-9_-]{16,160}$/.test(normalized)) {
+    flowError("EVENT_TICKET_TRANSFER_IDEMPOTENCY_INVALID");
+  }
+  return `direct_${hashEventTicketTransferValue("direct-request", normalized).slice(0, 48)}`;
+}
+
+function uniqueConstraintFailure(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+async function completedDirectTransferRetry(input: {
+  transferId: string;
+  ticketId: string;
+  portalSessionId: string;
+  recipient: EventTicketTransferRecipientInput;
+  now: Date;
+}) {
+  const transfer = await prisma.eventTicketTransfer.findUnique({
+    where: { id: input.transferId },
+    include: {
+      ticket: { include: { event: true } },
+      outboxMessages: { where: { status: { not: "SENT" } }, select: { id: true } },
+    },
+  });
+  if (!transfer) return null;
+  const session = await prisma.eventTicketPortalSession.findUnique({ where: { id: input.portalSessionId } });
+  if (
+    !session || session.revokedAt || session.expiresAt <= input.now ||
+    session.emailHash !== transfer.fromHolderEmailHash
+  ) flowError("EVENT_TICKET_TRANSFER_UNAUTHORIZED");
+  const recipient = normalizeDirectEventTicketTransferRecipient(input.recipient, transfer.ticket.event);
+  if (
+    transfer.ticketId !== input.ticketId || transfer.status !== "COMPLETED" ||
+    transfer.toHolderName !== recipient.name || transfer.toHolderEmailHash !== hashEventTicketHolderEmail(recipient.email) ||
+    transfer.toHolderCpfHash !== recipient.cpfHash
+  ) flowError("EVENT_TICKET_TRANSFER_IDEMPOTENCY_CONFLICT");
+  return {
+    transferId: transfer.id,
+    ticketId: transfer.ticketId,
+    ownershipVersion: transfer.ticket.ownershipVersion,
+    qrVersion: transfer.ticket.qrVersion,
+    alreadyCompleted: true,
+    outboxIds: transfer.outboxMessages.map((message) => message.id),
+  };
+}
+
+export async function transferEventTicketDirectly(input: {
+  ticketId: string;
+  portalSessionId: string;
+  requestId: string;
+  recipient: EventTicketTransferRecipientInput;
+  now?: Date;
+}) {
+  assertEventTicketTransfersEnabled();
+  const now = input.now ?? new Date();
+  const transferId = directTransferId(input.requestId);
+  const retry = await completedDirectTransferRetry({ ...input, transferId, now });
+  if (retry) return retry;
+
+  const preflight = await resolveHolder(prisma, {
+    ticketId: input.ticketId,
+    credential: { kind: "PORTAL_SESSION", portalSessionId: input.portalSessionId },
+    now,
+  });
+  const recipient = normalizeDirectEventTicketTransferRecipient(input.recipient, preflight.ticket.event);
+  if (normalizeEventTicketHolderEmail(preflight.holderEmail) === recipient.email) {
+    flowError("EVENT_TICKET_TRANSFER_SAME_HOLDER");
+  }
+
+  for (let attempt = 0; attempt < TICKET_CODE_RETRY_LIMIT; attempt += 1) {
+    const credentials = prepareEventTicketTransferCredentials();
+    const preparedOutbox = prepareTransferCompletionEmails({
+      transferId,
+      eventName: preflight.ticket.event.name,
+      newHolderEmail: recipient.email,
+      previousHolderEmail: preflight.holderEmail,
+      rawGrantToken: credentials.rawAccessToken,
+      qrToken: credentials.qrToken,
+      ticketCode: credentials.ticketCode,
+      completedAt: now,
+    });
+    try {
+      const result = await runSerializableTransactionWithRetry(async (tx) => {
+        const holder = await resolveHolder(tx, {
+          ticketId: input.ticketId,
+          credential: { kind: "PORTAL_SESSION", portalSessionId: input.portalSessionId },
+          now,
+        });
+        const authoritativeRecipient = normalizeDirectEventTicketTransferRecipient(input.recipient, holder.ticket.event);
+        if (
+          normalizeEventTicketHolderEmail(holder.holderEmail) !== normalizeEventTicketHolderEmail(preflight.holderEmail) ||
+          authoritativeRecipient.email !== recipient.email || authoritativeRecipient.cpfHash !== recipient.cpfHash ||
+          authoritativeRecipient.name !== recipient.name
+        ) flowError("EVENT_TICKET_TRANSFER_CONFLICT");
+        if (holder.ticket.status !== "VALID" || holder.ticket.checkedInAt || holder.ticket.eventOrder.status !== "PAID") {
+          flowError("EVENT_TICKET_TRANSFER_TICKET_INVALID");
+        }
+
+        await tx.eventTicketTransfer.updateMany({
+          where: {
+            ticketId: holder.ticket.id,
+            status: { in: ["PENDING_CURRENT_CONFIRMATION", "PENDING_RECIPIENT_ACCEPTANCE"] },
+          },
+          data: {
+            status: "EXPIRED",
+            expiredAt: now,
+            currentHolderConfirmationTokenHash: null,
+            recipientAcceptanceTokenHash: null,
+          },
+        });
+        await tx.eventTicketTransfer.create({
+          data: {
+            id: transferId,
+            ticketId: holder.ticket.id,
+            status: "PENDING_CURRENT_CONFIRMATION",
+            fromOwnershipVersion: holder.ticket.ownershipVersion,
+            fromHolderName: holder.ticket.participantName,
+            fromHolderEmail: holder.holderEmail,
+            fromHolderEmailHash: hashEventTicketHolderEmail(holder.holderEmail),
+            toHolderName: recipient.name,
+            toHolderEmail: recipient.email,
+            toHolderEmailHash: hashEventTicketHolderEmail(recipient.email),
+            toHolderCpfHash: recipient.cpfHash,
+            toHolderCpfLast4: recipient.cpfLast4,
+            toHolderPhone: recipient.phone,
+            currentHolderConfirmedAt: now,
+            expiresAt: new Date(now.getTime() + CURRENT_HOLDER_CONFIRMATION_TTL_MS),
+            metadata: { flow: "DIRECT", confirmedBy: "CURRENT_HOLDER" },
+          },
+        });
+        return completeEventTicketTransferInTransaction(tx, {
+          transferId,
+          ticketId: holder.ticket.id,
+          expectedOwnershipVersion: holder.ticket.ownershipVersion,
+          recipient: input.recipient,
+          now,
+          direct: true,
+          preparedCredentials: credentials,
+          preparedOutbox,
+        }, now);
+      });
+      logEventTicketOperation("transfer.completed", { transferId });
+      return { ...result, transferId };
+    } catch (error) {
+      const completed = await completedDirectTransferRetry({ ...input, transferId, now });
+      if (completed) return completed;
+      if (!uniqueConstraintFailure(error) || attempt === TICKET_CODE_RETRY_LIMIT - 1) throw error;
+    }
+  }
+  flowError("EVENT_TICKET_TRANSFER_CREDENTIAL_GENERATION_FAILED");
 }
 
 export async function requestEventTicketTransfer(input: {

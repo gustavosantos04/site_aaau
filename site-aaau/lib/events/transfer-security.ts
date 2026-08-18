@@ -6,6 +6,7 @@ export type EventTicketTransferHashPurpose =
   | "access-grant"
   | "current-holder-confirmation"
   | "recipient-acceptance"
+  | "direct-request"
   | "holder-email"
   | "qr-token"
   | "ticket-code";

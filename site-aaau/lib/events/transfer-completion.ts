@@ -6,6 +6,7 @@ import { TICKET_CODE_RETRY_LIMIT } from "@/lib/events/constants";
 import { generateEventTicketCode, generateEventTicketQrToken } from "@/lib/events/tickets";
 import { runSerializableTransactionWithRetry } from "@/lib/events/transaction";
 import { queueTransferCompletionEmails } from "@/lib/events/transfer-emails";
+import type { PreparedTransferEmail } from "@/lib/events/transfer-outbox";
 import { assertEventTicketTransfersEnabled } from "@/lib/events/transfer-config";
 import { logEventTicketOperation } from "@/lib/events/operations-log";
 import {
@@ -37,6 +38,15 @@ type TestHooks = {
   generateAccessToken?: () => string;
 };
 
+export type PreparedTransferCredentials = {
+  qrToken: string;
+  ticketCode: string;
+  rawAccessToken: string;
+  qrTokenHash: string;
+  ticketCodeHash: string;
+  accessTokenHash: string;
+};
+
 export type CompleteEventTicketTransferInput = {
   transferId: string;
   ticketId: string;
@@ -45,6 +55,9 @@ export type CompleteEventTicketTransferInput = {
   now?: Date;
   testHooks?: TestHooks;
   queueCompletionEmails?: boolean;
+  direct?: boolean;
+  preparedCredentials?: PreparedTransferCredentials;
+  preparedOutbox?: PreparedTransferEmail[];
 };
 
 export type CompleteEventTicketTransferResult = {
@@ -93,33 +106,44 @@ function isCredentialCollision(error: unknown) {
 
 async function generateUniqueCredentials(tx: EventTx, hooks: TestHooks | undefined) {
   for (let attempt = 0; attempt < TICKET_CODE_RETRY_LIMIT; attempt += 1) {
-    const qrToken = hooks?.generateQrToken?.() ?? generateEventTicketQrToken();
-    const ticketCode = hooks?.generateTicketCode?.() ?? generateEventTicketCode();
-    const rawAccessToken = hooks?.generateAccessToken?.() ?? generateEventTicketTransferToken();
-    const qrTokenHash = hashEventTicketQrToken(qrToken);
-    const ticketCodeHash = hashEventTicketCode(ticketCode);
-    const accessTokenHash = hashEventTicketAccessToken(rawAccessToken);
+    const credentials = prepareEventTicketTransferCredentials(hooks);
 
     const [ticketCollision, versionCollision, grantCollision] = await Promise.all([
       tx.eventTicket.findFirst({
-        where: { OR: [{ qrToken }, { ticketCode }] },
+        where: { OR: [{ qrToken: credentials.qrToken }, { ticketCode: credentials.ticketCode }] },
         select: { id: true },
       }),
       tx.eventTicketQrVersion.findFirst({
-        where: { OR: [{ qrTokenHash }, { ticketCodeHash }] },
+        where: { OR: [{ qrTokenHash: credentials.qrTokenHash }, { ticketCodeHash: credentials.ticketCodeHash }] },
         select: { id: true },
       }),
       tx.eventTicketAccessGrant.findUnique({
-        where: { tokenHash: accessTokenHash },
+        where: { tokenHash: credentials.accessTokenHash },
         select: { id: true },
       }),
     ]);
 
     if (!ticketCollision && !versionCollision && !grantCollision) {
-      return { qrToken, ticketCode, rawAccessToken, qrTokenHash, ticketCodeHash, accessTokenHash };
+      return credentials;
     }
   }
   transferError("EVENT_TICKET_TRANSFER_CREDENTIAL_GENERATION_FAILED");
+}
+
+export function prepareEventTicketTransferCredentials(
+  hooks?: Pick<TestHooks, "generateQrToken" | "generateTicketCode" | "generateAccessToken">,
+): PreparedTransferCredentials {
+  const qrToken = hooks?.generateQrToken?.() ?? generateEventTicketQrToken();
+  const ticketCode = hooks?.generateTicketCode?.() ?? generateEventTicketCode();
+  const rawAccessToken = hooks?.generateAccessToken?.() ?? generateEventTicketTransferToken();
+  return {
+    qrToken,
+    ticketCode,
+    rawAccessToken,
+    qrTokenHash: hashEventTicketQrToken(qrToken),
+    ticketCodeHash: hashEventTicketCode(ticketCode),
+    accessTokenHash: hashEventTicketAccessToken(rawAccessToken),
+  };
 }
 
 function completedResult(input: CompleteEventTicketTransferInput, transfer: {
@@ -187,7 +211,7 @@ function completedResult(input: CompleteEventTicketTransferInput, transfer: {
   };
 }
 
-async function completeInTransaction(
+export async function completeEventTicketTransferInTransaction(
   tx: EventTx,
   input: CompleteEventTicketTransferInput,
   now: Date,
@@ -219,9 +243,12 @@ async function completeInTransaction(
   if (!transfer) transferError("EVENT_TICKET_TRANSFER_NOT_FOUND");
   if (transfer.ticketId !== input.ticketId) transferError("EVENT_TICKET_TRANSFER_TICKET_MISMATCH");
   if (transfer.status === EventTicketTransferStatus.COMPLETED) return completedResult(input, transfer);
-  if (transfer.status !== COMPLETABLE_STATUS) transferError("EVENT_TICKET_TRANSFER_INVALID_STATUS");
+  const completableStatus = input.direct
+    ? EventTicketTransferStatus.PENDING_CURRENT_CONFIRMATION
+    : COMPLETABLE_STATUS;
+  if (transfer.status !== completableStatus) transferError("EVENT_TICKET_TRANSFER_INVALID_STATUS");
   if (transfer.expiresAt <= now) transferError("EVENT_TICKET_TRANSFER_EXPIRED");
-  if (!transfer.currentHolderConfirmedAt || !transfer.recipientConfirmedAt) {
+  if (!transfer.currentHolderConfirmedAt || (!input.direct && !transfer.recipientConfirmedAt)) {
     transferError("EVENT_TICKET_TRANSFER_CONFIRMATION_REQUIRED");
   }
 
@@ -297,7 +324,7 @@ async function completeInTransaction(
     data: { revokedAt: now },
   });
 
-  const credentials = await generateUniqueCredentials(tx, input.testHooks);
+  const credentials = input.preparedCredentials ?? await generateUniqueCredentials(tx, input.testHooks);
   failAt(input.testHooks, "AFTER_GENERATE_CREDENTIALS");
   const nextOwnershipVersion = ticket.ownershipVersion + 1;
   const nextQrVersion = ticket.qrVersion + 1;
@@ -330,7 +357,7 @@ async function completeInTransaction(
       qrVersion: nextQrVersion,
       transferredAt: now,
       lastQrRotatedAt: now,
-      originalOrderAccessRevokedAt: now,
+      originalOrderAccessRevokedAt: ticket.originalOrderAccessRevokedAt ?? now,
     },
   });
   if (updated.count !== 1) transferError("EVENT_TICKET_TRANSFER_CONFLICT");
@@ -378,7 +405,7 @@ async function completeInTransaction(
     where: {
       id: transfer.id,
       ticketId: ticket.id,
-      status: COMPLETABLE_STATUS,
+      status: completableStatus,
       fromOwnershipVersion: input.expectedOwnershipVersion,
       completedAt: null,
     },
@@ -412,6 +439,13 @@ async function completeInTransaction(
     },
   });
 
+  if (input.preparedOutbox?.some((record) => record.transferId !== transfer.id)) {
+    transferError("EVENT_TICKET_TRANSFER_OUTBOX_MISMATCH");
+  }
+  if (input.preparedOutbox?.length) {
+    await tx.eventTicketTransferOutbox.createMany({ data: input.preparedOutbox });
+  }
+
   const completionOutbox = input.queueCompletionEmails
     ? await queueTransferCompletionEmails(tx, {
       transferId: transfer.id,
@@ -429,7 +463,7 @@ async function completeInTransaction(
     qrVersion: nextQrVersion,
     alreadyCompleted: false,
     rawAccessToken: credentials.rawAccessToken,
-    outboxIds: completionOutbox.flatMap((item) => item ? [item.id] : []),
+    outboxIds: input.preparedOutbox?.map((item) => item.id) ?? completionOutbox.flatMap((item) => item ? [item.id] : []),
     delivery: {
       holderName: recipient.name,
       holderEmail: recipient.email,
@@ -446,7 +480,7 @@ export async function completeEventTicketTransfer(input: CompleteEventTicketTran
 
   for (let attempt = 0; attempt < TICKET_CODE_RETRY_LIMIT; attempt += 1) {
     try {
-      const result = await runSerializableTransactionWithRetry((tx) => completeInTransaction(tx, input, now));
+      const result = await runSerializableTransactionWithRetry((tx) => completeEventTicketTransferInTransaction(tx, input, now));
       if (!result.alreadyCompleted) logEventTicketOperation("transfer.completed", { transferId: input.transferId });
       return result;
     } catch (error) {
