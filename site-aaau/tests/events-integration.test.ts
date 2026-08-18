@@ -4319,6 +4319,42 @@ test("transferencia direta A para B revoga credenciais, preserva irmao e pedido 
   }
 });
 
+test("processamento externo lento nao mantem a transacao direta aberta nem duplica estado", async () => {
+  const restore = enablePortalTestEnvironment();
+  try {
+    const { order } = await createPaidOrderFixture(1);
+    const ticket = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
+    await ensureInitialEventTicketQrVersion(ticket.id, testPrisma);
+    const sessionA = await createPortalSessionFor(buyer(0).email, "198.51.100.86");
+
+    const commitStartedAt = performance.now();
+    const completed = await transferEventTicketDirectly({
+      ticketId: ticket.id,
+      portalSessionId: sessionA.id,
+      requestId: "direct-slow-outbox-request",
+      recipient: { ...transferRecipient, birthDate: "2000-01-15" },
+    });
+    const commitElapsedMs = performance.now() - commitStartedAt;
+    assert.ok(commitElapsedMs < 5_000, `commit direto levou ${commitElapsedMs.toFixed(0)} ms`);
+    assert.equal((await testPrisma.eventTicketTransfer.findUniqueOrThrow({ where: { id: completed.transferId } })).status, "COMPLETED");
+
+    const deliveryStartedAt = performance.now();
+    const delivery = await processEventTicketTransferOutbox({
+      ids: [completed.outboxIds[0]],
+      sender: async () => new Promise((resolve) => setTimeout(resolve, 5_100)),
+    });
+    const deliveryElapsedMs = performance.now() - deliveryStartedAt;
+    assert.ok(deliveryElapsedMs >= 5_000, `envio fake levou apenas ${deliveryElapsedMs.toFixed(0)} ms`);
+    assert.deepEqual(delivery, { processed: 1, sent: 1, failed: 0, exhausted: 0 });
+    assert.equal((await testPrisma.eventTicketTransfer.findUniqueOrThrow({ where: { id: completed.transferId } })).status, "COMPLETED");
+    assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: ticket.id } }), 1);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: ticket.id } }), 2);
+    assert.equal(await testPrisma.eventTicketTransferOutbox.count({ where: { transferId: completed.transferId } }), 2);
+  } finally {
+    restore();
+  }
+});
+
 test("transferencia direta em cadeia A para B para C para A preserva historico e uma QR ACTIVE", async () => {
   const restore = enablePortalTestEnvironment();
   const recipientB = { ...transferRecipient, birthDate: "2000-01-15" };

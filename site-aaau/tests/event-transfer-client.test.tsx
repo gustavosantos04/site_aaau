@@ -135,13 +135,29 @@ test("aceite exige nascimento por idade minima e mantem erro corrigivel no formu
 test("links legados nao trocam token por cookie nem executam aceite", () => {
   const acceptRoute = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/aceitar/[token]/route.ts"), "utf8");
   const confirmRoute = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/confirmar/[token]/route.ts"), "utf8");
+  const acceptPage = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/aceitar/page.tsx"), "utf8");
+  const confirmPage = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/confirmar/page.tsx"), "utf8");
   const actions = readFileSync(path.join(process.cwd(), "app/transferencia-ingresso/actions.ts"), "utf8");
   assert.match(acceptRoute, /cancelada\?legado=1/);
   assert.match(confirmRoute, /cancelada\?legado=1/);
+  assert.match(acceptPage, /cancelada\?legado=1/);
+  assert.match(confirmPage, /cancelada\?legado=1/);
   assert.doesNotMatch(acceptRoute, /exchangeEventTicketTransferUrlToken/);
   assert.doesNotMatch(confirmRoute, /exchangeEventTicketTransferUrlToken/);
+  assert.doesNotMatch(acceptPage, /getRecipientAcceptanceView|TransferRecipientForm/);
+  assert.doesNotMatch(confirmPage, /getHolderConfirmationView|cancelTransferAction/);
   assert.doesNotMatch(actions, /acceptEventTicketTransfer/);
   assert.doesNotMatch(actions, /confirmEventTicketTransfer/);
+  assert.doesNotMatch(actions, /cancelEventTicketTransfer/);
+});
+
+test("acesso individual legado nao inicia o fluxo pendente de transferencia", () => {
+  const page = readFileSync(path.join(process.cwd(), "app/meus-ingressos/[accessToken]/page.tsx"), "utf8");
+  const action = readFileSync(path.join(process.cwd(), "app/meus-ingressos/[accessToken]/actions.ts"), "utf8");
+  assert.match(page, /central autenticada/);
+  assert.doesNotMatch(page, /requestTransferAction|recipientEmail/);
+  assert.match(action, /redirect\("\/meus-ingressos"/);
+  assert.doesNotMatch(action, /requestEventTicketTransfer|deliverEventTicketOutboxImmediately/);
 });
 
 test("admin deixa explicita e ativa a exigencia de nascimento quando ha idade minima", () => {
