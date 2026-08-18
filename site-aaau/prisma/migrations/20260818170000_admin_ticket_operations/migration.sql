@@ -1,0 +1,7 @@
+CREATE TYPE "EventOrderSource" AS ENUM ('WEBSITE', 'ADMIN_PIX', 'COMPLIMENTARY');
+
+ALTER TABLE "EventOrder"
+ADD COLUMN "source" "EventOrderSource" NOT NULL DEFAULT 'WEBSITE';
+
+ALTER TABLE "EventTicketLot"
+ADD COLUMN "publicSaleEnabled" BOOLEAN NOT NULL DEFAULT true;

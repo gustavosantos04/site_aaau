@@ -56,6 +56,12 @@ enum EventOrderStatus {
   EXPIRED
 }
 
+enum EventOrderSource {
+  WEBSITE
+  ADMIN_PIX
+  COMPLIMENTARY
+}
+
 enum EventPaymentPreferenceStatus {
   NOT_CREATED
   CREATING
@@ -183,6 +189,21 @@ model Product {
   updatedAt             DateTime        @updatedAt
   images                ProductImage[]
   orderItems            OrderItem[]
+  stockItems            ProductStockItem[]
+}
+
+model ProductStockItem {
+  id        String   @id @default(cuid())
+  productId String
+  variantId String   @default("")
+  size      String   @default("")
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, variantId, size])
+  @@index([productId, stock])
 }
 
 model ProductImage {
@@ -424,6 +445,7 @@ model EventTicketLot {
   ticketsPerUnit   Int                     @default(1)
   maxUnitsPerOrder Int?
   exclusiveWindow  Boolean                 @default(false)
+  publicSaleEnabled Boolean                 @default(true)
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   event            TicketEvent             @relation(fields: [eventId], references: [id], onDelete: Restrict)
@@ -477,6 +499,7 @@ model EventOrder {
   discountAmount                     Decimal                            @default(0) @db.Decimal(10, 2)
   total                              Decimal                            @db.Decimal(10, 2)
   status                             EventOrderStatus                   @default(PENDING)
+  source                             EventOrderSource                   @default(WEBSITE)
   mercadoPagoPreferenceId            String?
   mercadoPagoInitPoint               String?                            @db.Text
   mercadoPagoSandboxInitPoint        String?                            @db.Text
