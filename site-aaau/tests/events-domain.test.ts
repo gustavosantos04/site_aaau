@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import test from "node:test";
 import { Prisma } from "@prisma/client";
+import { POST as mercadoPagoWebhookPost } from "@/app/api/mercado-pago/webhook/route";
 
 import { getBaseUrl as getMercadoPagoBaseUrl } from "@/lib/checkout/mercado-pago";
 import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
@@ -85,6 +87,10 @@ import { validateEventTicketOperationalConfig } from "@/lib/events/operational-c
 import { handleEventTicketOutboxCron } from "@/lib/events/outbox-cron-http";
 import { routeMercadoPagoExternalReference } from "@/lib/mercado-pago-routing";
 import {
+  buildMercadoPagoSignatureManifest,
+  validateMercadoPagoWebhookSignature,
+} from "@/lib/mercado-pago-webhook";
+import {
   buildCpfHashForPortariaSearch,
   normalizeNameSearch,
   normalizeTicketCodeSearch,
@@ -93,6 +99,87 @@ import { parseEventTicketQrPayload } from "@/lib/portaria-qr";
 import { buildAbsoluteUrl, normalizeBaseUrl } from "@/lib/site-url";
 
 const now = new Date("2026-07-07T18:00:00.000Z");
+
+function signedMercadoPagoRequest(input: {
+  url: string;
+  secret: string;
+  ts?: string;
+  requestId?: string;
+  body?: unknown;
+}) {
+  const ts = input.ts ?? "1704908010";
+  const url = new URL(input.url);
+  const manifest = buildMercadoPagoSignatureManifest({
+    dataId: url.searchParams.get("data.id"),
+    requestId: input.requestId,
+    ts,
+  });
+  const v1 = crypto.createHmac("sha256", input.secret).update(manifest).digest("hex");
+  return new Request(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-signature": `ts=${ts},v1=${v1}`,
+      ...(input.requestId ? { "x-request-id": input.requestId } : {}),
+    },
+    body: JSON.stringify(input.body ?? {}),
+  });
+}
+
+test("Mercado Pago valida HMAC com data.id da query em lowercase, nao com o corpo", () => {
+  const secret = "webhook-test-secret";
+  const request = signedMercadoPagoRequest({
+    url: "https://aaau.test/api/mercado-pago/webhook?data.id=AbC123",
+    secret,
+    requestId: "request-123",
+    body: { data: { id: "ID-DO-CORPO-NAO-ASSINADO" } },
+  });
+
+  assert.deepEqual(validateMercadoPagoWebhookSignature(request, secret), { valid: true });
+  assert.equal(validateMercadoPagoWebhookSignature(request, "wrong-secret").valid, false);
+});
+
+test("Mercado Pago remove request-id ausente do manifesto sem remover o HMAC", () => {
+  const secret = "webhook-test-secret";
+  const request = signedMercadoPagoRequest({
+    url: "https://aaau.test/api/mercado-pago/webhook?data.id=999",
+    secret,
+  });
+
+  assert.deepEqual(validateMercadoPagoWebhookSignature(request, secret), { valid: true });
+});
+
+test("rota do webhook retorna 200 para HMAC valido e 401 para assinatura invalida", async () => {
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  const previousSecret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+  delete process.env.DATABASE_URL;
+  process.env.MERCADO_PAGO_WEBHOOK_SECRET = "route-webhook-secret";
+  try {
+    const valid = signedMercadoPagoRequest({
+      url: "https://aaau.test/api/mercado-pago/webhook?data.id=12345&type=payment",
+      secret: "route-webhook-secret",
+      requestId: "route-request-1",
+      body: { type: "payment", data: { id: "12345" } },
+    });
+    assert.equal((await mercadoPagoWebhookPost(valid)).status, 200);
+
+    const invalid = new Request(valid.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-request-id": "route-request-1",
+        "x-signature": `ts=1704908010,v1=${"0".repeat(64)}`,
+      },
+      body: JSON.stringify({ type: "payment", data: { id: "12345" } }),
+    });
+    assert.equal((await mercadoPagoWebhookPost(invalid)).status, 401);
+  } finally {
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+    if (previousSecret === undefined) delete process.env.MERCADO_PAGO_WEBHOOK_SECRET;
+    else process.env.MERCADO_PAGO_WEBHOOK_SECRET = previousSecret;
+  }
+});
 
 test("template transacional compartilhado preserva identidade AAAU e escapa conteudo", () => {
   const previousAppUrl = process.env.APP_URL;

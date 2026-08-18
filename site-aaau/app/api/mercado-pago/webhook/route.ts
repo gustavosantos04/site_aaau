@@ -1,5 +1,3 @@
-import crypto from "node:crypto";
-
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 
@@ -12,73 +10,12 @@ import { prisma } from "@/lib/db/prisma";
 import { sendOrderPaidEmails } from "@/lib/email/order-confirmation";
 import { processEventPayment } from "@/lib/events/mercado-pago";
 import { routeMercadoPagoExternalReference } from "@/lib/mercado-pago-routing";
+import {
+  mercadoPagoSignedDataId,
+  validateMercadoPagoWebhookSignature,
+} from "@/lib/mercado-pago-webhook";
 
 export const runtime = "nodejs";
-
-function parseSignature(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  const parts = value.split(",");
-  const parsed = new Map<string, string>();
-
-  for (const part of parts) {
-    const [key, rawPartValue] = part.split("=");
-    const partValue = rawPartValue?.trim();
-
-    if (key && partValue) {
-      parsed.set(key.trim(), partValue);
-    }
-  }
-
-  const ts = parsed.get("ts");
-  const v1 = parsed.get("v1");
-
-  return ts && v1 ? { ts, v1 } : null;
-}
-
-function buildSignatureTemplate({
-  dataId,
-  requestId,
-  ts,
-}: {
-  dataId?: string | null;
-  requestId?: string | null;
-  ts?: string | null;
-}) {
-  return [
-    dataId ? `id:${dataId};` : "",
-    requestId ? `request-id:${requestId};` : "",
-    ts ? `ts:${ts};` : "",
-  ].join("");
-}
-
-function timingSafeEqualHex(left: string, right: string) {
-  const leftBuffer = Buffer.from(left, "hex");
-  const rightBuffer = Buffer.from(right, "hex");
-
-  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function isValidSignature(request: Request, dataId: string | null) {
-  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim();
-  const signature = parseSignature(request.headers.get("x-signature"));
-  const requestId = request.headers.get("x-request-id");
-
-  if (!secret || !signature || !requestId) {
-    return false;
-  }
-
-  const template = buildSignatureTemplate({
-    dataId,
-    requestId,
-    ts: signature.ts,
-  });
-  const expected = crypto.createHmac("sha256", secret).update(template).digest("hex");
-
-  return timingSafeEqualHex(expected, signature.v1);
-}
 
 function redactPayment(payment: MercadoPagoPayment | null) {
   if (!payment) {
@@ -105,6 +42,18 @@ function redactPayment(payment: MercadoPagoPayment | null) {
 
 function asJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+async function createPaymentEventOnce(data: Prisma.PaymentEventUncheckedCreateInput) {
+  try {
+    await prisma.paymentEvent.create({ data });
+    return true;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 function extractPaymentId(url: URL, payload: Record<string, unknown>) {
@@ -193,20 +142,22 @@ async function processStorePayment(input: {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ ok: true });
-  }
-
   const url = new URL(request.url);
   const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const dataId =
-    url.searchParams.get("data.id") ||
-    url.searchParams.get("id") ||
-    extractPaymentId(url, payload) ||
-    null;
+  const signatureValidation = validateMercadoPagoWebhookSignature(request);
 
-  if (!isValidSignature(request, dataId)) {
+  if (!signatureValidation.valid) {
+    console.warn("[MERCADO_PAGO_WEBHOOK_REJECTED]", {
+      reason: signatureValidation.reason,
+      hasRequestId: Boolean(request.headers.get("x-request-id")),
+      hasDataId: Boolean(mercadoPagoSignedDataId(url)),
+      eventType: String(payload.type ?? payload.action ?? url.searchParams.get("type") ?? "unknown"),
+    });
     return NextResponse.json({ message: "Webhook nao autorizado." }, { status: 401 });
+  }
+
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ ok: true });
   }
 
   const webhookRequestId = request.headers.get("x-request-id");
@@ -228,13 +179,11 @@ export async function POST(request: Request) {
   const paymentId = extractPaymentId(url, payload);
 
   if (!paymentId) {
-    await prisma.paymentEvent.create({
-      data: {
+    await createPaymentEventOnce({
         provider: "MERCADO_PAGO",
         eventType,
         webhookRequestId,
         payload: asJson({ raw: payload }),
-      },
     });
     return NextResponse.json({ ok: true });
   }
@@ -244,15 +193,13 @@ export async function POST(request: Request) {
   try {
     payment = await fetchMercadoPagoPayment(paymentId);
   } catch {
-    await prisma.paymentEvent.create({
-      data: {
+    await createPaymentEventOnce({
         provider: "MERCADO_PAGO",
         eventType,
         mercadoPagoPaymentId: paymentId,
         webhookRequestId,
         status: "payment_fetch_failed",
         payload: asJson({ raw: payload }),
-      },
     });
     return NextResponse.json({ ok: true });
   }

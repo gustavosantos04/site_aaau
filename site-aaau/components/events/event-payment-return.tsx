@@ -56,6 +56,15 @@ export function EventPaymentReturn({ variant }: { variant: keyof typeof copy }) 
     }
 
     async function poll() {
+      const paymentId = new URLSearchParams(window.location.search).get("payment_id");
+      if (paymentId) {
+        await fetch(`/api/eventos/orders/${accessToken}/reconcile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentId }),
+        }).catch(() => null);
+      }
+
       for (let attempt = 0; attempt < 10 && !canceled; attempt += 1) {
         const response = await fetch(`/api/eventos/orders/${accessToken}/status`, { cache: "no-store" });
         if (response.ok) {

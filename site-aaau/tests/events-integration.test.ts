@@ -37,6 +37,7 @@ import {
 import {
   EventPaymentPreferenceAmbiguousError,
   EventPaymentPreferenceCreatingError,
+  EventCheckoutStaleError,
   EventSalesEndedError,
   EventSalesNotStartedError,
   IdempotencyConflictError,
@@ -809,6 +810,13 @@ test("promocao rejeita pacote parcial, terceiro pacote, lote suspenso e janela a
     participantCount: 1,
     now: PROMO_NOW,
   }), InvalidTicketQuantityError);
+  await assert.rejects(() => createEventOrderReservation({
+    eventId: event.id,
+    idempotencyKey: "promo-stale-client",
+    buyer: buyer(0),
+    participants: [participant(0)],
+    now: PROMO_NOW,
+  }), EventCheckoutStaleError);
   await assert.rejects(() => reserveOrder({
     eventId: event.id,
     idempotencyKey: "promo-three-packages",
@@ -844,6 +852,31 @@ test("promocao rejeita pacote parcial, terceiro pacote, lote suspenso e janela a
     now: PROMO_END,
   }), InsufficientTicketAvailabilityError);
   assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
+});
+
+test("checkout HTTP identifica cliente anterior ao 2 por 1 sem criar reserva", async () => {
+  const event = await createTestTicketEvent({ maxTicketsPerOrder: 4 });
+  const lot = await createTestTicketLot(event.id, {
+    name: "Promocional ativo",
+    ticketsPerUnit: 2,
+    maxUnitsPerOrder: 2,
+    exclusiveWindow: true,
+  });
+  const response = await eventCheckoutPost(new Request("https://staging.example/api/eventos/checkout", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.199" },
+    body: JSON.stringify({
+      eventSlug: event.slug,
+      buyer: buyer(),
+      participants: [participant()],
+      idempotencyKey: "stale-promo-http-client-key",
+    }),
+  }));
+
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, "EVENT_CHECKOUT_STALE");
+  assert.equal(await testPrisma.eventOrder.count({ where: { eventId: event.id } }), 0);
+  assert.equal((await testPrisma.eventTicketLot.findUniqueOrThrow({ where: { id: lot.id } })).reservedQuantity, 0);
 });
 
 test("estoque promocional residual e concorrente nunca ultrapassa 100 pacotes", async () => {

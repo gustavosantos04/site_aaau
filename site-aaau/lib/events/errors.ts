@@ -7,6 +7,7 @@ export type EventDomainErrorCode =
   | "INCONSISTENT_TICKET_COUNTERS"
   | "INSUFFICIENT_TICKET_AVAILABILITY"
   | "INVALID_TICKET_QUANTITY"
+  | "EVENT_CHECKOUT_STALE"
   | "INVALID_PARTNER_CODE"
   | "PARTNER_CODE_EXPIRED"
   | "PARTNER_CODE_LIMIT_REACHED"
@@ -32,6 +33,7 @@ export class EventDomainError extends Error {
   constructor(
     public readonly code: EventDomainErrorCode,
     message: string,
+    public readonly details?: Record<string, string | number | boolean | null>,
   ) {
     super(message);
     this.name = "EventDomainError";
@@ -81,8 +83,18 @@ export class InsufficientTicketAvailabilityError extends EventDomainError {
 }
 
 export class InvalidTicketQuantityError extends EventDomainError {
+  constructor(reason = "UNSPECIFIED", details?: Record<string, string | number | boolean | null>) {
+    super("INVALID_TICKET_QUANTITY", "Quantidade de ingressos invalida.", { reason, ...details });
+  }
+}
+
+export class EventCheckoutStaleError extends EventDomainError {
   constructor() {
-    super("INVALID_TICKET_QUANTITY", "Quantidade de ingressos invalida.");
+    super(
+      "EVENT_CHECKOUT_STALE",
+      "O lote de ingressos mudou. Recarregue a pagina e revise a compra.",
+      { reason: "TICKET_LOT_SNAPSHOT_CHANGED" },
+    );
   }
 }
 

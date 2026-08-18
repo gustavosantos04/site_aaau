@@ -202,6 +202,12 @@ export function EventCheckoutForm({
       return submit(attempt + 1);
     }
 
+    if (body.code === "EVENT_CHECKOUT_STALE") {
+      setFeedback(body.message);
+      window.location.reload();
+      return;
+    }
+
     if (!response.ok || !body.initPoint) {
       setFeedback(body.message ?? "Não conseguimos preparar o pagamento agora. Tente novamente em alguns instantes.");
       setSubmitting(false);

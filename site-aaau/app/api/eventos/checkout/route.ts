@@ -47,6 +47,7 @@ function statusFromDomainError(error: EventDomainError) {
     case "EVENT_NOT_FOUND":
       return 404;
     case "IDEMPOTENCY_CONFLICT":
+    case "EVENT_CHECKOUT_STALE":
       return 409;
     case "INSUFFICIENT_TICKET_AVAILABILITY":
     case "NO_ACTIVE_TICKET_LOT":
@@ -65,6 +66,26 @@ function statusFromDomainError(error: EventDomainError) {
   }
 }
 
+function checkoutLogContext(body: unknown) {
+  const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  return {
+    eventId: typeof value.eventId === "string" ? value.eventId : undefined,
+    eventSlug: typeof value.eventSlug === "string" ? value.eventSlug : undefined,
+    lotId: typeof value.ticketLotId === "string" ? value.ticketLotId : undefined,
+    quantity: typeof value.commercialUnitQuantity === "number" ? value.commercialUnitQuantity : undefined,
+    participantsCount: Array.isArray(value.participants) ? value.participants.length : undefined,
+    partnerCode: typeof value.partnerCode === "string" ? value.partnerCode.slice(0, 80) : undefined,
+  };
+}
+
+function logCheckoutRejected(body: unknown, reason: string, details?: unknown) {
+  console.warn("[EVENT_CHECKOUT_REJECTED]", {
+    reason,
+    ...checkoutLogContext(body),
+    details,
+  });
+}
+
 export async function POST(request: Request) {
   if (!process.env.DATABASE_URL) {
     return NextResponse.json({ message: "Banco de dados nao configurado." }, { status: 503 });
@@ -81,12 +102,10 @@ export async function POST(request: Request) {
   const parsed = eventCheckoutSchema.safeParse(body);
 
   if (!parsed.success) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "Event checkout validation failed",
-        parsed.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code })),
-      );
-    }
+    logCheckoutRejected(body, "SCHEMA_VALIDATION", parsed.error.issues.map((issue) => ({
+      path: issue.path.join("."),
+      code: issue.code,
+    })));
     return NextResponse.json({ message: "Revise os dados obrigatorios do checkout." }, { status: 400 });
   }
 
@@ -119,6 +138,9 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof EventDomainError) {
+      if (statusFromDomainError(error) === 400 || error.code === "EVENT_CHECKOUT_STALE") {
+        logCheckoutRejected(body, error.code, error.details);
+      }
       return NextResponse.json(
         {
           message: error.message,

@@ -20,6 +20,7 @@ import {
   EVENT_TICKET_RESERVATION_MINUTES,
 } from "@/lib/events/constants";
 import {
+  EventCheckoutStaleError,
   EventNotFoundError,
   EventOrderExpiredError,
   EventOrderInvalidStatusError,
@@ -79,7 +80,7 @@ function normalizeParticipant(participant: EventParticipantInput) {
   const cpf = onlyDigits(participant.cpf);
 
   if (!isValidCpf(cpf)) {
-    throw new InvalidTicketQuantityError();
+    throw new InvalidTicketQuantityError("PARTICIPANT_CPF_INVALID");
   }
 
   return {
@@ -110,24 +111,24 @@ function assertRequiredParticipantFields(
   participant: ReturnType<typeof normalizeParticipant>,
 ) {
   if (!participant.name || !participant.cpf) {
-    throw new InvalidTicketQuantityError();
+    throw new InvalidTicketQuantityError("PARTICIPANT_IDENTITY_MISSING");
   }
 
-  if (event.requireParticipantEmail && !participant.email) throw new InvalidTicketQuantityError();
-  if (event.requireParticipantPhone && !participant.phone) throw new InvalidTicketQuantityError();
+  if (event.requireParticipantEmail && !participant.email) throw new InvalidTicketQuantityError("PARTICIPANT_EMAIL_REQUIRED");
+  if (event.requireParticipantPhone && !participant.phone) throw new InvalidTicketQuantityError("PARTICIPANT_PHONE_REQUIRED");
   if ((event.requireBirthDate || event.minimumAge !== null) && !participant.birthDate) {
-    throw new InvalidTicketQuantityError();
+    throw new InvalidTicketQuantityError("PARTICIPANT_BIRTH_DATE_REQUIRED");
   }
-  if (event.requireInstitution && !participant.institution) throw new InvalidTicketQuantityError();
-  if (event.requireCourse && !participant.course) throw new InvalidTicketQuantityError();
-  if (event.requireCampus && !participant.campus) throw new InvalidTicketQuantityError();
+  if (event.requireInstitution && !participant.institution) throw new InvalidTicketQuantityError("PARTICIPANT_INSTITUTION_REQUIRED");
+  if (event.requireCourse && !participant.course) throw new InvalidTicketQuantityError("PARTICIPANT_COURSE_REQUIRED");
+  if (event.requireCampus && !participant.campus) throw new InvalidTicketQuantityError("PARTICIPANT_CAMPUS_REQUIRED");
   if (event.minimumAge !== null && participant.birthDate) {
     let age = event.startAt.getUTCFullYear() - participant.birthDate.getUTCFullYear();
     const birthdayNotReached = event.startAt.getUTCMonth() < participant.birthDate.getUTCMonth() ||
       (event.startAt.getUTCMonth() === participant.birthDate.getUTCMonth() &&
         event.startAt.getUTCDate() < participant.birthDate.getUTCDate());
     if (birthdayNotReached) age -= 1;
-    if (age < event.minimumAge) throw new InvalidTicketQuantityError();
+    if (age < event.minimumAge) throw new InvalidTicketQuantityError("PARTICIPANT_MINIMUM_AGE_NOT_MET");
   }
 }
 
@@ -227,20 +228,30 @@ async function createEventOrderReservationOnce(
     }
 
     const ticketsPerUnit = lot.ticketsPerUnit ?? 1;
+    if (ticketsPerUnit > 1 &&
+      (input.ticketLotId === undefined || input.commercialUnitQuantity === undefined)) {
+      throw new EventCheckoutStaleError();
+    }
     const commercialUnitQuantity = input.commercialUnitQuantity ??
       (input.participants.length / ticketsPerUnit);
     const ticketCount = getTicketCountForCommercialUnits(lot, commercialUnitQuantity);
     const maxUnitsPerOrder = getTicketLotMaxUnitsPerOrder(event, lot);
     if (!Number.isInteger(commercialUnitQuantity) || commercialUnitQuantity < 1 ||
       commercialUnitQuantity > maxUnitsPerOrder || input.participants.length !== ticketCount) {
-      throw new InvalidTicketQuantityError();
+      throw new InvalidTicketQuantityError("COMMERCIAL_UNIT_PARTICIPANT_MISMATCH", {
+        commercialUnitQuantity,
+        ticketsPerUnit,
+        participantsCount: input.participants.length,
+        expectedParticipantsCount: ticketCount,
+        maxUnitsPerOrder,
+      });
     }
 
     const participants = input.participants.map(normalizeParticipant);
     const participantCpfHashes = participants.map((participant) => participant.cpfHash);
 
     if (new Set(participantCpfHashes).size !== participantCpfHashes.length) {
-      throw new InvalidTicketQuantityError();
+      throw new InvalidTicketQuantityError("DUPLICATE_PARTICIPANT_CPF");
     }
 
     for (const participant of participants) {
@@ -249,14 +260,14 @@ async function createEventOrderReservationOnce(
 
     const buyerCpf = input.buyer.cpf ? onlyDigits(input.buyer.cpf) : null;
     if (buyerCpf && !isValidCpf(buyerCpf)) {
-      throw new InvalidTicketQuantityError();
+      throw new InvalidTicketQuantityError("BUYER_CPF_INVALID");
     }
 
     const buyerEmail = normalizeEmail(input.buyer.email);
     const buyerPhone = normalizePhone(input.buyer.phone);
 
     if (!buyerEmail || !buyerPhone) {
-      throw new InvalidTicketQuantityError();
+      throw new InvalidTicketQuantityError("BUYER_CONTACT_INVALID");
     }
 
     const normalizedPartnerCode = input.partnerCode ? normalizePartnerCode(input.partnerCode) : null;

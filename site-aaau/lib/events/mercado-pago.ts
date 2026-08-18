@@ -647,21 +647,26 @@ async function recordEventPayment(input: {
     return;
   }
 
-  await prisma.paymentEvent.create({
-    data: {
-      eventOrderId: input.eventOrderId ?? null,
-      provider: "MERCADO_PAGO",
-      eventType: input.eventType,
-      mercadoPagoPaymentId,
-      webhookRequestId: input.webhookRequestId ?? null,
-      status: input.payment.status ?? "unknown",
-      payload: asJson({
-        result: input.result,
-        amountMatches: input.amountMatches,
-        payment: redactPayment(input.payment),
-      }),
-    },
-  });
+  try {
+    await prisma.paymentEvent.create({
+      data: {
+        eventOrderId: input.eventOrderId ?? null,
+        provider: "MERCADO_PAGO",
+        eventType: input.eventType,
+        mercadoPagoPaymentId,
+        webhookRequestId: input.webhookRequestId ?? null,
+        status: input.payment.status ?? "unknown",
+        payload: asJson({
+          result: input.result,
+          amountMatches: input.amountMatches,
+          payment: redactPayment(input.payment),
+        }),
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
+    throw error;
+  }
 }
 
 export async function processEventPayment(
@@ -838,4 +843,23 @@ export async function fetchAndProcessEventPayment(
 ) {
   const payment = await fetchMercadoPagoPayment(paymentId);
   return processEventPayment(payment, options);
+}
+
+export async function reconcileEventOrderPaymentFromReturn(input: {
+  accessToken: string;
+  paymentId: string;
+}) {
+  const order = await prisma.eventOrder.findUnique({
+    where: { accessToken: input.accessToken },
+    select: { externalReference: true },
+  });
+
+  if (!order) return { result: "ORDER_NOT_FOUND" as const };
+
+  const payment = await fetchMercadoPagoPayment(input.paymentId);
+  if (payment.external_reference !== order.externalReference) {
+    return { result: "EXTERNAL_REFERENCE_MISMATCH" as const };
+  }
+
+  return processEventPayment(payment, { eventType: "payment_return_reconciliation" });
 }
