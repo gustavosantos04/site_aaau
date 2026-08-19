@@ -10,6 +10,7 @@ export const siteConfig = {
   nav: [
     { label: "Home", href: "/" },
     { label: "Eventos", href: "/eventos" },
+    { label: "Meus ingressos", href: "/meus-ingressos" },
     { label: "Produtos", href: "/produtos" },
     { label: "Gestão", href: "/#gestao" },
   ],
