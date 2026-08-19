@@ -70,6 +70,9 @@ export function normalizeEventTicketTransferRecipient(
   if (birthDate && Number.isNaN(birthDate.getTime())) {
     throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
   }
+  if (birthDate && birthDate > new Date()) {
+    throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
+  }
   if (event.requireParticipantEmail && !email) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
   if (event.requireParticipantPhone && !phone) throw new Error("EVENT_TICKET_TRANSFER_RECIPIENT_INVALID");
   if (eventTicketTransferRequiresBirthDate(event) && !birthDate) {
@@ -102,4 +105,11 @@ export function normalizeEventTicketTransferRecipient(
     course,
     campus,
   };
+}
+
+export function normalizeDirectEventTicketTransferRecipient(
+  input: EventTicketTransferRecipientInput,
+  event: Parameters<typeof normalizeEventTicketTransferRecipient>[1],
+) {
+  return normalizeEventTicketTransferRecipient(input, { ...event, requireBirthDate: true });
 }

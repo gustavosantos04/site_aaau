@@ -1,0 +1,92 @@
+name: aaau-transfer-test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aaau_test
+      POSTGRES_PASSWORD: aaau_test_local_only
+      POSTGRES_DB: aaau_transfer_manual
+    ports:
+      - "127.0.0.1:55439:5432"
+    volumes:
+      - transfer_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aaau_test -d aaau_transfer_manual"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  mailpit:
+    image: axllent/mailpit@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8026:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.transfer-test
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://aaau_test:aaau_test_local_only@postgres:5432/aaau_transfer_manual?schema=public
+      DIRECT_URL: postgresql://aaau_test:aaau_test_local_only@postgres:5432/aaau_transfer_manual?schema=public
+      APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      EVENT_TICKET_TRANSFERS_ENABLED: "true"
+      EVENT_TICKET_PORTAL_ENABLED: "true"
+      EVENT_TICKET_TRANSFER_TOKEN_SECRET: local-transfer-token-secret-2026-do-not-use-production
+      EVENT_TICKET_TRANSFER_OUTBOX_SECRET: local-transfer-outbox-secret-2026-do-not-use-production
+      EVENT_TICKET_PORTAL_SECRET: local-portal-secret-2026-do-not-use-production
+      CRON_SECRET: local-cron-secret-2026-do-not-use-production
+      JWT_SECRET: local-admin-jwt-secret-2026-do-not-use-production
+      ADMIN_EMAIL: admin.local@event-test.local
+      ADMIN_PASSWORD: AdminLocal-2026!
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USER: mailpit-local
+      SMTP_PASS: mailpit-local-password
+      SMTP_FROM: AAAU Teste Local <ingressos@event-test.local>
+      SMTP_SECURE: "false"
+      RESEND_API_KEY: ""
+      RESEND_FROM: ""
+      RESEND_REPLY_TO: ""
+      RESEND_WEBHOOK_SECRET: ""
+      MERCADO_PAGO_ACCESS_TOKEN: ""
+      MERCADO_PAGO_WEBHOOK_SECRET: ""
+      VERCEL: ""
+      VERCEL_ENV: ""
+      VERCEL_URL: ""
+      VERCEL_GIT_COMMIT_SHA: ""
+      VERCEL_AUTOMATION_BYPASS_SECRET: ""
+      NEXT_PUBLIC_CLARITY_PROJECT_ID: ""
+      NEXT_PUBLIC_VERCEL_ANALYTICS_ID: ""
+      TRANSFER_TEST_FIXTURE_ALLOWED: "true"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/version').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 45s
+    init: true
+
+volumes:
+  transfer_postgres_data:

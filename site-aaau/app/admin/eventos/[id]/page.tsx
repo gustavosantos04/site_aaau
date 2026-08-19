@@ -440,15 +440,15 @@ export default async function AdminEventCockpitPage({
           </form>
           <p className="text-sm text-white/55">{cockpit.ticketPagination.total} ingresso(s) encontrado(s).</p>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1350px] text-left text-sm [&_td]:pr-6 [&_th]:pr-6">
+            <table className="w-full min-w-[1650px] text-left text-sm [&_td]:pr-6 [&_th]:pr-6">
               <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
-                <tr><th>Ticket</th><th>Participante</th><th>CPF</th><th>E-mail</th><th>Evento</th><th>Lote</th><th>Parceiro</th><th>Origem</th><th>Valor</th><th>Status</th><th>Emissao</th><th>Check-in</th></tr>
+                <tr><th>Ticket</th><th>Titular atual</th><th>CPF</th><th>E-mail</th><th>Comprador original</th><th>Histórico</th><th>Evento</th><th>Lote</th><th>Parceiro</th><th>Origem</th><th>Valor</th><th>Status</th><th>Emissão</th><th>Check-in</th></tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-white/70">
                 {cockpit.tickets.map((ticket) => (
                   <tr key={ticket.id}>
                     <td className="py-3 pr-4 font-semibold text-white">{ticket.ticketCode}</td>
-                    <td>{ticket.participantName}</td><td>{ticket.participantCpfMasked}</td><td>{ticket.participantEmail ?? "-"}</td><td>{event.name}</td><td>{ticket.lotName}</td><td>{ticket.partnerCode ?? "-"}</td><td>{ticket.source === "WEBSITE" ? "Site / MP" : ticket.source === "ADMIN_PIX" ? "PIX admin" : "Cortesia"}</td><td>{formatAdminMoney(ticket.value)}</td><td>{adminStatusLabel(ticket.status)}</td><td>{formatDate(ticket.issuedAt)}</td><td>{formatDate(ticket.checkedInAt)}</td>
+                    <td>{ticket.participantName}</td><td>{ticket.participantCpfMasked}</td><td>{ticket.participantEmail ?? "-"}</td><td>{ticket.buyerName}<br /><span className="text-xs text-white/45">{ticket.buyerEmail}</span></td><td>{ticket.transferHistory.length ? ticket.transferHistory.map((transfer) => <span className="block whitespace-nowrap text-xs" key={transfer.id}>{transfer.fromHolderName} → {transfer.toHolderName}</span>) : "-"}</td><td>{event.name}</td><td>{ticket.lotName}</td><td>{ticket.partnerCode ?? "-"}</td><td>{ticket.source === "WEBSITE" ? "Site / MP" : ticket.source === "ADMIN_PIX" ? "PIX admin" : "Cortesia"}</td><td>{formatAdminMoney(ticket.value)}</td><td>{adminStatusLabel(ticket.status)}</td><td>{formatDate(ticket.issuedAt)}</td><td>{formatDate(ticket.checkedInAt)}</td>
                   </tr>
                 ))}
               </tbody>

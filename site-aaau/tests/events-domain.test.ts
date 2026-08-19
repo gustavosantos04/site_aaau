@@ -62,6 +62,7 @@ import {
 } from "@/lib/events/transfer-security";
 import {
   eventTicketTransferRequiresBirthDate,
+  normalizeDirectEventTicketTransferRecipient,
   normalizeEventTicketTransferRecipient,
 } from "@/lib/events/transfer-validation";
 import {
@@ -1246,6 +1247,23 @@ test("idade minima exige nascimento mesmo sem requireBirthDate e preserva evento
   const unrestricted = { ...event, minimumAge: null };
   assert.equal(eventTicketTransferRequiresBirthDate(unrestricted), false);
   assert.doesNotThrow(() => normalizeEventTicketTransferRecipient(baseRecipient, unrestricted));
+});
+
+test("transferencia direta sempre exige nascimento valido mesmo em evento sem classificacao", () => {
+  const event = {
+    requireParticipantEmail: false,
+    requireParticipantPhone: false,
+    requireBirthDate: false,
+    requireInstitution: false,
+    requireCourse: false,
+    requireCampus: false,
+    minimumAge: null,
+    startAt: new Date("2026-08-22T02:00:00.000Z"),
+  };
+  const recipient = { name: "Nova Titular", cpf: "52998224725", email: "nova@event-test.local" };
+  assert.throws(() => normalizeDirectEventTicketTransferRecipient(recipient, event), /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
+  assert.throws(() => normalizeDirectEventTicketTransferRecipient({ ...recipient, birthDate: "2099-01-01" }, event), /EVENT_TICKET_TRANSFER_RECIPIENT_INVALID/);
+  assert.doesNotThrow(() => normalizeDirectEventTicketTransferRecipient({ ...recipient, birthDate: "2000-01-02" }, event));
 });
 
 test("admin rejeita classificacao minima sem coleta de nascimento", () => {

@@ -9,8 +9,6 @@ import { Badge } from "@/components/shared/badge";
 import { buttonVariants } from "@/components/shared/button";
 import { eventOrderTicketsReady, getEventTicketsByAccessToken } from "@/lib/events/ticket-access";
 import { formatEventDate } from "@/lib/events/public";
-import { eventTicketTransfersEnabled } from "@/lib/events/transfer-config";
-import { requestTransferAction } from "./actions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,13 +22,10 @@ export const metadata: Metadata = {
 
 export default async function MyEventTicketsPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ accessToken: string }>;
-  searchParams: Promise<{ transferencia?: string }>;
 }) {
   const { accessToken } = await params;
-  const query = await searchParams;
   const order = await getEventTicketsByAccessToken(accessToken);
 
   if (!order) {
@@ -90,36 +85,18 @@ export default async function MyEventTicketsPage({
         </section>
       ) : (
         <section className="mt-6 space-y-5">
-          {query.transferencia === "solicitada" ? (
-            <p className="rounded-[0.5rem] border border-aaau-sand/35 bg-aaau-sand/10 p-4 text-sm text-aaau-sand">
-              Solicitação registrada. Enviamos a confirmação ao titular atual.
-            </p>
-          ) : null}
           {order.tickets.map((ticket, index) => ticket.accessStatus === "TRANSFERRED" ? (
             <TransferredTicketNotice key={ticket.id} />
           ) : (
             <div key={ticket.id} className="space-y-3">
               <EventTicketCard ticket={ticket} event={order.event} index={index} total={order.tickets.length} />
-              {eventTicketTransfersEnabled() && ticket.status === "VALID" && !ticket.checkedInAt ? (
-                <form
-                  action={requestTransferAction.bind(null, accessToken, ticket.ticketId, order.accessKind)}
-                  className="flex flex-col gap-3 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-end"
-                >
-                  <label className="flex-1 text-sm text-white/75">
-                    E-mail de quem receberá este ingresso
-                    <input
-                      name="recipientEmail"
-                      type="email"
-                      required
-                      maxLength={160}
-                      autoComplete="email"
-                      className="mt-2 w-full rounded-[0.35rem] border border-white/15 bg-aaau-night px-3 py-2 text-white"
-                    />
-                  </label>
-                  <button type="submit" className={buttonVariants({ variant: "secondary", size: "md" })}>
-                    Solicitar transferência
-                  </button>
-                </form>
+              {ticket.status === "VALID" && !ticket.checkedInAt ? (
+                <div className="flex flex-col gap-3 rounded-[0.5rem] border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-white/70">Para transferir este ingresso diretamente, acesse a central autenticada.</p>
+                  <Link href="/meus-ingressos" className={buttonVariants({ variant: "secondary", size: "md" })}>
+                    Ir para Meus ingressos
+                  </Link>
+                </div>
               ) : null}
             </div>
           ))}

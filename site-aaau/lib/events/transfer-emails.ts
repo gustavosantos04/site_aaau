@@ -3,7 +3,7 @@ import { EmailDeliveryKind } from "@prisma/client";
 import { buildAaauTransactionalEmailHtml } from "@/lib/email/aaau-transactional-template";
 import { buildAbsoluteUrl } from "@/lib/site-url";
 import type { EventTx } from "@/lib/events/types";
-import { queueTransferEmail } from "@/lib/events/transfer-outbox";
+import { prepareTransferEmail, queueTransferEmail } from "@/lib/events/transfer-outbox";
 
 export function maskEmail(value: string) {
   const [local, domain = ""] = value.split("@");
@@ -115,6 +115,46 @@ export function queueTransferCompletionEmails(tx: EventTx, input: {
     now: input.completedAt,
   }) : Promise.resolve(null);
   return Promise.all([recipient, previous]);
+}
+
+export function prepareTransferCompletionEmails(input: {
+  transferId: string;
+  eventName: string;
+  newHolderEmail: string;
+  previousHolderEmail: string | null;
+  rawGrantToken: string;
+  qrToken: string;
+  ticketCode: string;
+  completedAt: Date;
+}) {
+  const accessUrl = buildAbsoluteUrl(`/meus-ingressos/${input.rawGrantToken}`);
+  const records = [prepareTransferEmail({
+    transferId: input.transferId,
+    kind: EmailDeliveryKind.EVENT_TICKET_TRANSFER_RECIPIENT_COMPLETED,
+    idempotencyKey: `event-ticket-transfer:${input.transferId}:recipient-completed`,
+    recipient: input.newHolderEmail,
+    payload: message("Você recebeu um ingresso", [
+      `Você recebeu um ingresso para ${input.eventName}.`,
+      `Código: ${input.ticketCode}.`,
+      `QR Code: ${buildAbsoluteUrl(`/checkin/${encodeURIComponent(input.qrToken)}`)}.`,
+      "A transferência já foi concluída. Use o acesso individual abaixo para visualizar o novo QR Code e o novo código.",
+    ], { label: "Acessar meus ingressos", url: accessUrl }),
+    now: input.completedAt,
+  })];
+  if (input.previousHolderEmail) {
+    records.push(prepareTransferEmail({
+      transferId: input.transferId,
+      kind: EmailDeliveryKind.EVENT_TICKET_TRANSFER_PREVIOUS_HOLDER_COMPLETED,
+      idempotencyKey: `event-ticket-transfer:${input.transferId}:previous-holder-completed`,
+      recipient: input.previousHolderEmail,
+      payload: message("Seu ingresso foi transferido com sucesso", [
+        `A transferência do ingresso para ${input.eventName} foi concluída em ${formatDate(input.completedAt)}.`,
+        "O QR Code e o código anteriores foram revogados e não funcionam mais.",
+      ]),
+      now: input.completedAt,
+    }));
+  }
+  return records;
 }
 
 export function queueTransferStatusEmail(tx: EventTx, input: {

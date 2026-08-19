@@ -10,19 +10,19 @@ O magic link é pessoal, expira e só pode ser usado uma vez. Depois da abertura
 
 - A AAAU transfere apenas a titularidade do ingresso.
 - O site não recebe pagamentos entre pessoas e não garante negociações externas.
-- O titular atual recebe uma confirmação e o destinatário precisa aceitar.
-- Até a conclusão, o QR atual continua válido.
-- Na conclusão, QR e código manual antigos são invalidados e o novo titular recebe credenciais novas.
+- O titular atual informa os dados completos, revisa e confirma no painel.
+- A confirmação conclui a transferência imediatamente; o destinatário não precisa aceitar.
+- No mesmo commit, QR e código manual antigos são invalidados e o novo titular recebe credenciais novas.
+- Cada ingresso pode ser transferido uma única vez; o destinatário se torna o titular definitivo e vê essa informação no painel.
 - Ingresso utilizado não pode ser transferido.
-- Uma transferência pendente pode ser cancelada no painel pelo titular autorizado.
+- Links antigos de confirmação ou aceite não alteram titularidade e orientam o usuário a acessar **Meus ingressos**.
 
 ## Quando o e-mail não chega
 
 1. Confirmar apenas que a pessoa digitou o endereço pretendido, sem pedir senha ou token.
 2. Pedir que aguarde alguns minutos e confira spam/promoções.
-3. Respeitar o cooldown antes de reenviar.
-4. Se persistir, a equipe técnica deve verificar somente contadores/status da outbox e `EmailDelivery`, sem copiar payload ou link.
-5. Item `FAILED` abaixo de oito tentativas será retomado pelo cron. Item com oito tentativas exige investigação técnica do provedor/configuração.
+3. Se persistir, a equipe técnica deve verificar somente contadores/status da outbox e `EmailDelivery`, sem copiar payload ou link.
+4. Item `FAILED` abaixo de oito tentativas será retomado pelo cron. Item com oito tentativas exige investigação técnica do provedor/configuração. A falha de e-mail não desfaz a transferência.
 
 ## Dados que o suporte nunca deve solicitar
 
