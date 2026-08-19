@@ -14,6 +14,7 @@ import {
 } from "@/lib/events/transfer-flow";
 import { deliverEventTicketOutboxImmediately } from "@/lib/events/immediate-outbox";
 import { logEventTicketOperation } from "@/lib/events/operations-log";
+import { safeEventTicketTransferErrorCode } from "@/lib/events/transfer-action-errors";
 
 export type PortalMutationState = { message: string; ok: boolean };
 
@@ -64,7 +65,10 @@ export async function requestPortalTransferAction(
     scheduleTransferEmail(result.outboxIds);
     revalidatePath("/meus-ingressos/painel");
     return { ok: true, message: "Transferência concluída. O ingresso anterior foi invalidado e o novo titular já recebeu a nova credencial." };
-  } catch {
+  } catch (error) {
+    if (safeEventTicketTransferErrorCode(error) === "EVENT_TICKET_TRANSFER_LIMIT_REACHED") {
+      return { ok: false, message: "Este ingresso já utilizou sua única transferência e não pode ser transferido novamente." };
+    }
     return { ok: false, message: "Não foi possível concluir a transferência. Revise os dados ou tente novamente mais tarde." };
   }
 }

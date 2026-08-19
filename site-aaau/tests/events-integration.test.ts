@@ -4109,7 +4109,7 @@ test("fase 4 redige somente o ingresso transferido de um pedido com tres ingress
   }
 });
 
-test("fase 4 limita grant ao ingresso recebido e permite nova transferencia individual", async () => {
+test("fase 4 limita grant ao ingresso recebido e bloqueia segunda transferencia", async () => {
   const restore = enablePortalTestEnvironment();
   try {
     const { order } = await createPaidOrderFixture(2);
@@ -4135,13 +4135,24 @@ test("fase 4 limita grant ao ingresso recebido e permite nova transferencia indi
     assert.deepEqual(view.groups[0].tickets.map((ticket) => ticket.ticketId), [target.id]);
     assert.equal(JSON.stringify(view).includes(sibling.id), false);
     assert.equal(JSON.stringify(view).includes(order.accessToken), false);
+    const received = view.groups[0].tickets[0];
+    assert.equal(received.state, "ACTIVE");
+    assert.ok(!received.canTransfer && received.transferLimitReached);
 
-    const second = await requestEventTicketTransfer({
+    await assert.rejects(() => transferEventTicketDirectly({
       ticketId: target.id,
-      holderCredential: { kind: "PORTAL_SESSION", portalSessionId: resolved.id },
-      recipientEmail: "terceiro.titular@event-test.local",
-    });
-    assert.equal(second.created, true);
+      portalSessionId: resolved.id,
+      requestId: "blocked-second-transfer-request",
+      recipient: {
+        name: "Terceira Titular",
+        cpf: "11144477735",
+        email: "terceiro.titular@event-test.local",
+        phone: "51988880000",
+        birthDate: "1999-06-20",
+      },
+    }), /EVENT_TICKET_TRANSFER_LIMIT_REACHED/);
+    assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: target.id } }), 1);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: target.id } }), 2);
     await assert.rejects(() => requestEventTicketTransfer({
       ticketId: sibling.id,
       holderCredential: { kind: "PORTAL_SESSION", portalSessionId: resolved.id },
@@ -4153,7 +4164,7 @@ test("fase 4 limita grant ao ingresso recebido e permite nova transferencia indi
   }
 });
 
-test("cadeia A para B para C rotaciona ownership, QR e grant em cada conclusao", async () => {
+test("conclusao interna nao contorna o limite de uma transferencia", async () => {
   const restore = enablePortalTestEnvironment();
   const recipientC = {
     name: "Terceira Titular",
@@ -4171,67 +4182,64 @@ test("cadeia A para B para C rotaciona ownership, QR e grant em cada conclusao",
     });
     const afterB = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
     const transferBC = await createReadyTransfer(original.id, recipientC);
-    const completedBC = await completeEventTicketTransfer({
+    await assert.rejects(() => completeEventTicketTransfer({
       transferId: transferBC.id, ticketId: original.id, expectedOwnershipVersion: 2, recipient: recipientC,
-    });
+    }), /EVENT_TICKET_TRANSFER_LIMIT_REACHED/);
     const afterC = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
 
     assert.deepEqual(
       { ownership: [original.ownershipVersion, afterB.ownershipVersion, afterC.ownershipVersion], qr: [original.qrVersion, afterB.qrVersion, afterC.qrVersion] },
-      { ownership: [1, 2, 3], qr: [1, 2, 3] },
+      { ownership: [1, 2, 2], qr: [1, 2, 2] },
     );
     assert.notEqual(afterB.qrToken, original.qrToken);
-    assert.notEqual(afterC.qrToken, afterB.qrToken);
-    assert.notEqual(afterC.ticketCode, afterB.ticketCode);
+    assert.equal(afterC.qrToken, afterB.qrToken);
+    assert.equal(afterC.ticketCode, afterB.ticketCode);
     assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, original.qrToken)).status, "INVALID");
-    assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, afterB.qrToken)).status, "INVALID");
-    assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, afterC.qrToken)).status, "VALID");
+    assert.equal((await validatePortariaQrTicketDto(superAdminActor, event.id, afterB.qrToken)).status, "VALID");
     assert.deepEqual(
       (await testPrisma.eventTicketQrVersion.findMany({ where: { ticketId: original.id }, orderBy: { version: "asc" } }))
         .map(({ version, status }) => ({ version, status })),
-      [{ version: 1, status: "REVOKED" }, { version: 2, status: "REVOKED" }, { version: 3, status: "ACTIVE" }],
+      [{ version: 1, status: "REVOKED" }, { version: 2, status: "ACTIVE" }],
     );
     const grants = await testPrisma.eventTicketAccessGrant.findMany({ where: { ticketId: original.id }, orderBy: { ownershipVersion: "asc" } });
     assert.deepEqual(grants.map(({ ownershipVersion, revokedAt }) => ({ ownershipVersion, active: revokedAt === null })), [
-      { ownershipVersion: 2, active: false },
-      { ownershipVersion: 3, active: true },
+      { ownershipVersion: 2, active: true },
     ]);
-    assert.equal((await resolveEventTicketAccessGrant(completedAB.rawAccessToken!, new Date(), testPrisma)), null);
-    assert.equal((await resolveEventTicketAccessGrant(completedBC.rawAccessToken!, new Date(), testPrisma))?.ticket.id, original.id);
+    assert.equal((await resolveEventTicketAccessGrant(completedAB.rawAccessToken!, new Date(), testPrisma))?.ticket.id, original.id);
+    assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: original.id, status: "COMPLETED" } }), 1);
+    assert.equal(await testPrisma.eventTicketTransferOutbox.count({ where: { transferId: transferBC.id } }), 0);
   } finally {
     restore();
   }
 });
 
-test("retorno A para B para A prioriza grant atual no portal do comprador original", async () => {
+test("dois ingressos do mesmo pedido podem usar uma transferencia cada", async () => {
   const restore = enablePortalTestEnvironment();
   try {
-    const { order } = await createPaidOrderFixture(1);
-    const original = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
-    await ensureInitialEventTicketQrVersion(original.id, testPrisma);
-    const transferAB = await createReadyTransfer(original.id, transferRecipient);
+    const { order } = await createPaidOrderFixture(2);
+    const [first, second] = await testPrisma.eventTicket.findMany({ where: { eventOrderId: order.orderId }, orderBy: { participantName: "asc" } });
+    await Promise.all([ensureInitialEventTicketQrVersion(first.id, testPrisma), ensureInitialEventTicketQrVersion(second.id, testPrisma)]);
+    const transferAB = await createReadyTransfer(first.id, transferRecipient);
     await completeEventTicketTransfer({
-      transferId: transferAB.id, ticketId: original.id, expectedOwnershipVersion: 1, recipient: transferRecipient,
+      transferId: transferAB.id, ticketId: first.id, expectedOwnershipVersion: 1, recipient: transferRecipient,
     });
-    const recipientA = {
-      name: original.participantName,
-      cpf: original.participantCpf!,
-      email: buyer(0).email,
-      phone: original.participantPhone,
+    const recipientC = {
+      name: "Terceira Titular",
+      cpf: "11144477735",
+      email: "terceira.titular@event-test.local",
+      phone: "51988880000",
     };
-    const transferBA = await createReadyTransfer(original.id, recipientA);
+    const transferAC = await createReadyTransfer(second.id, recipientC);
     await completeEventTicketTransfer({
-      transferId: transferBA.id, ticketId: original.id, expectedOwnershipVersion: 2, recipient: recipientA,
+      transferId: transferAC.id, ticketId: second.id, expectedOwnershipVersion: 1, recipient: recipientC,
     });
-    const current = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
-    const portalA = await getEventTicketPortalView({ email: buyer(0).email, emailHash: hashPortalEmail(buyer(0).email) });
-    const projected = portalA.groups.flatMap((group) => group.tickets).filter((ticket) => ticket.ticketId === original.id);
-    assert.equal(projected.length, 1);
-    assert.equal(projected[0].state, "ACTIVE");
-    assert.ok("qrToken" in projected[0] && projected[0].qrToken === current.qrToken);
-    assert.ok("ticketCode" in projected[0] && projected[0].ticketCode === current.ticketCode);
-    assert.equal(JSON.stringify(portalA).includes(transferRecipient.name), false);
-    assert.equal(JSON.stringify(portalA).includes(transferRecipient.email), false);
+    const current = await testPrisma.eventTicket.findMany({ where: { id: { in: [first.id, second.id] } }, orderBy: { participantName: "asc" } });
+    assert.deepEqual(current.map(({ ownershipVersion, qrVersion }) => ({ ownershipVersion, qrVersion })), [
+      { ownershipVersion: 2, qrVersion: 2 },
+      { ownershipVersion: 2, qrVersion: 2 },
+    ]);
+    assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: { in: [first.id, second.id] }, status: "COMPLETED" } }), 2);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: { in: [first.id, second.id] }, status: "ACTIVE" } }), 2);
   } finally {
     restore();
   }
@@ -4355,7 +4363,7 @@ test("processamento externo lento nao mantem a transacao direta aberta nem dupli
   }
 });
 
-test("transferencia direta em cadeia A para B para C para A preserva historico e uma QR ACTIVE", async () => {
+test("duas tentativas simultaneas B para C sao bloqueadas sem efeito", async () => {
   const restore = enablePortalTestEnvironment();
   const recipientB = { ...transferRecipient, birthDate: "2000-01-15" };
   const recipientC = { name: "Terceira Titular", cpf: "11144477735", email: "terceira.titular@event-test.local", phone: "51988880000", birthDate: "1999-06-20" };
@@ -4364,33 +4372,33 @@ test("transferencia direta em cadeia A para B para C para A preserva historico e
     const original = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: order.orderId } });
     await ensureInitialEventTicketQrVersion(original.id, testPrisma);
     const sessionA = await createPortalSessionFor(buyer(0).email, "198.51.100.82");
-    await transferEventTicketDirectly({ ticketId: original.id, portalSessionId: sessionA.id, requestId: "chain-direct-request-ab", recipient: recipientB });
+    const completed = await transferEventTicketDirectly({ ticketId: original.id, portalSessionId: sessionA.id, requestId: "chain-direct-request-ab", recipient: recipientB });
     const sessionB = await createPortalSessionFor(recipientB.email, "198.51.100.83");
-    await transferEventTicketDirectly({ ticketId: original.id, portalSessionId: sessionB.id, requestId: "chain-direct-request-bc", recipient: recipientC });
-    const sessionC = await createPortalSessionFor(recipientC.email, "198.51.100.84");
-    await transferEventTicketDirectly({
-      ticketId: original.id,
-      portalSessionId: sessionC.id,
-      requestId: "chain-direct-request-ca",
-      recipient: { name: original.participantName, cpf: original.participantCpf!, email: buyer(0).email, phone: original.participantPhone, birthDate: "2000-01-01" },
-    });
+    const beforeAttempt = {
+      transfers: await testPrisma.eventTicketTransfer.count({ where: { ticketId: original.id } }),
+      qrVersions: await testPrisma.eventTicketQrVersion.count({ where: { ticketId: original.id } }),
+      outbox: await testPrisma.eventTicketTransferOutbox.count({ where: { transferId: completed.transferId } }),
+    };
+    const attempts = await Promise.allSettled([
+      transferEventTicketDirectly({ ticketId: original.id, portalSessionId: sessionB.id, requestId: "chain-direct-request-bc-one", recipient: recipientC }),
+      transferEventTicketDirectly({ ticketId: original.id, portalSessionId: sessionB.id, requestId: "chain-direct-request-bc-two", recipient: recipientC }),
+    ]);
+    assert.ok(attempts.every((attempt) => attempt.status === "rejected" && String(attempt.reason).includes("EVENT_TICKET_TRANSFER_LIMIT_REACHED")));
 
     const current = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: original.id } });
-    assert.deepEqual({ ownership: current.ownershipVersion, qr: current.qrVersion, email: current.participantEmail }, { ownership: 4, qr: 4, email: buyer(0).email });
+    assert.deepEqual({ ownership: current.ownershipVersion, qr: current.qrVersion, email: current.participantEmail }, { ownership: 2, qr: 2, email: recipientB.email });
     const versions = await testPrisma.eventTicketQrVersion.findMany({ where: { ticketId: original.id }, orderBy: { version: "asc" } });
     assert.deepEqual(versions.map(({ version, status }) => ({ version, status })), [
-      { version: 1, status: "REVOKED" }, { version: 2, status: "REVOKED" },
-      { version: 3, status: "REVOKED" }, { version: 4, status: "ACTIVE" },
+      { version: 1, status: "REVOKED" }, { version: 2, status: "ACTIVE" },
     ]);
     assert.equal(await testPrisma.eventTicketAccessGrant.count({ where: { ticketId: original.id, revokedAt: null } }), 1);
-    assert.deepEqual(
-      (await testPrisma.eventTicketTransfer.findMany({ where: { ticketId: original.id }, orderBy: { completedAt: "asc" } })).map(({ fromHolderName, toHolderName, status, fromOwnershipVersion, toOwnershipVersion }) => ({ fromHolderName, toHolderName, status, fromOwnershipVersion, toOwnershipVersion })),
-      [
-        { fromHolderName: original.participantName, toHolderName: recipientB.name, status: "COMPLETED", fromOwnershipVersion: 1, toOwnershipVersion: 2 },
-        { fromHolderName: recipientB.name, toHolderName: recipientC.name, status: "COMPLETED", fromOwnershipVersion: 2, toOwnershipVersion: 3 },
-        { fromHolderName: recipientC.name, toHolderName: original.participantName, status: "COMPLETED", fromOwnershipVersion: 3, toOwnershipVersion: 4 },
-      ],
-    );
+    assert.equal(await testPrisma.eventTicketTransfer.count({ where: { ticketId: original.id } }), beforeAttempt.transfers);
+    assert.equal(await testPrisma.eventTicketQrVersion.count({ where: { ticketId: original.id } }), beforeAttempt.qrVersions);
+    assert.equal(await testPrisma.eventTicketTransferOutbox.count({ where: { transferId: completed.transferId } }), beforeAttempt.outbox);
+    assert.equal(await testPrisma.eventTicketTransferOutbox.count({ where: { transferId: { not: completed.transferId } } }), 0);
+    const portalB = await getEventTicketPortalView({ email: recipientB.email, emailHash: hashPortalEmail(recipientB.email) });
+    const visible = portalB.groups.flatMap((group) => group.tickets).find((ticket) => ticket.ticketId === original.id);
+    assert.ok(visible && visible.state === "ACTIVE" && visible.transferLimitReached && !visible.canTransfer);
   } finally {
     restore();
   }

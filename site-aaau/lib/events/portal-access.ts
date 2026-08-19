@@ -15,6 +15,7 @@ type PortalVisibleTicket = {
   ticketCode?: string;
   checkedInAt?: Date | null;
   canTransfer: boolean;
+  transferLimitReached: boolean;
   pendingTransfer?: {
     stage: "CONFIRMAÇÃO DO TITULAR" | "ACEITE DO DESTINATÁRIO";
     recipientEmailMasked: string;
@@ -59,16 +60,16 @@ const eventSelect = {
   requireCourse: true,
   requireCampus: true,
 } as const;
-const pendingTransferSelect = {
+const portalTransferSelect = {
   where: {
     status: { in: [
       EventTicketTransferStatus.PENDING_CURRENT_CONFIRMATION,
       EventTicketTransferStatus.PENDING_RECIPIENT_ACCEPTANCE,
+      EventTicketTransferStatus.COMPLETED,
     ] },
   },
   select: { status: true, toHolderEmail: true, expiresAt: true },
   orderBy: { createdAt: "desc" },
-  take: 1,
 } satisfies Prisma.EventTicket$transfersArgs;
 
 function visibleTicket(ticket: {
@@ -81,7 +82,9 @@ function visibleTicket(ticket: {
   lot: { name: string };
   transfers: Array<{ status: string; toHolderEmail: string; expiresAt: Date }>;
 }, now: Date): PortalVisibleTicket {
-  const pending = ticket.transfers.find((transfer) => transfer.expiresAt > now);
+  const transferLimitReached = ticket.transfers.some((transfer) => transfer.status === EventTicketTransferStatus.COMPLETED);
+  const pending = ticket.transfers.find((transfer) =>
+    transfer.status !== EventTicketTransferStatus.COMPLETED && transfer.expiresAt > now);
   const state = pending ? "PENDING_TRANSFER" : ticket.status === "VALID" ? "ACTIVE" : ticket.status;
   const exposesCredential = state === "ACTIVE" || state === "PENDING_TRANSFER";
   return {
@@ -92,7 +95,8 @@ function visibleTicket(ticket: {
     qrToken: exposesCredential ? ticket.qrToken : undefined,
     ticketCode: exposesCredential ? ticket.ticketCode : undefined,
     checkedInAt: ticket.checkedInAt,
-    canTransfer: eventTicketTransfersEnabled() && state === "ACTIVE",
+    canTransfer: eventTicketTransfersEnabled() && state === "ACTIVE" && !transferLimitReached,
+    transferLimitReached,
     pendingTransfer: pending ? {
       stage: pending.status === "PENDING_CURRENT_CONFIRMATION" ? "CONFIRMAÇÃO DO TITULAR" : "ACEITE DO DESTINATÁRIO",
       recipientEmailMasked: maskEmail(pending.toHolderEmail),
@@ -133,7 +137,7 @@ export async function getEventTicketPortalView(session: { email: string; emailHa
         ticket: { select: {
           id: true, ownershipVersion: true, participantName: true, ticketCode: true, qrToken: true,
           status: true, checkedInAt: true, lot: { select: { name: true } },
-          event: { select: eventSelect }, transfers: pendingTransferSelect,
+          event: { select: eventSelect }, transfers: portalTransferSelect,
         } },
       },
       orderBy: { issuedAt: "desc" },
@@ -155,7 +159,7 @@ export async function getEventTicketPortalView(session: { email: string; emailHa
     where: { id: { in: availableOriginalIds }, originalOrderAccessRevokedAt: null },
     select: {
       id: true, participantName: true, ticketCode: true, qrToken: true, status: true,
-      checkedInAt: true, lot: { select: { name: true } }, transfers: pendingTransferSelect,
+      checkedInAt: true, lot: { select: { name: true } }, transfers: portalTransferSelect,
     },
   }) : [];
   const originalById = new Map(availableOriginalTickets.map((ticket) => [ticket.id, ticket]));

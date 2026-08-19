@@ -62,6 +62,10 @@ export async function PortalTicketCard({ ticket, event }: {
               requireCampus: event.requireCampus,
             }}
           /> : null}
+          {ticket.transferLimitReached ? <div className="mt-5 rounded-[0.4rem] border border-aaau-sand/25 bg-aaau-sand/10 p-4">
+            <h4 className="font-display text-xl uppercase tracking-[0.06em] text-aaau-sand">Transferência já utilizada</h4>
+            <p className="mt-2 text-sm text-white/70">Este ingresso já foi transferido anteriormente e não pode ser transferido novamente.</p>
+          </div> : null}
           {ticket.state === "CANCELED" ? <p className="mt-4 text-sm text-white/60">Este ingresso foi cancelado e não pode ser transferido.</p> : null}
           {ticket.state === "REFUNDED" ? <p className="mt-4 text-sm text-white/60">Este ingresso foi reembolsado e não pode ser transferido.</p> : null}
         </div>

@@ -25,6 +25,7 @@ import {
   normalizeEventTicketHolderEmail,
 } from "@/lib/events/transfer-security";
 import { runSerializableTransactionWithRetry } from "@/lib/events/transaction";
+import { assertEventTicketTransferLimitAvailable } from "@/lib/events/transfer-limit";
 import type { EventTx } from "@/lib/events/types";
 import {
   normalizeDirectEventTicketTransferRecipient,
@@ -187,6 +188,7 @@ export async function transferEventTicketDirectly(input: {
     credential: { kind: "PORTAL_SESSION", portalSessionId: input.portalSessionId },
     now,
   });
+  await assertEventTicketTransferLimitAvailable(prisma, input.ticketId);
   const recipient = normalizeDirectEventTicketTransferRecipient(input.recipient, preflight.ticket.event);
   if (normalizeEventTicketHolderEmail(preflight.holderEmail) === recipient.email) {
     flowError("EVENT_TICKET_TRANSFER_SAME_HOLDER");
@@ -220,6 +222,7 @@ export async function transferEventTicketDirectly(input: {
         if (holder.ticket.status !== "VALID" || holder.ticket.checkedInAt || holder.ticket.eventOrder.status !== "PAID") {
           flowError("EVENT_TICKET_TRANSFER_TICKET_INVALID");
         }
+        await assertEventTicketTransferLimitAvailable(tx, holder.ticket.id);
 
         await tx.eventTicketTransfer.updateMany({
           where: {
@@ -289,6 +292,7 @@ export async function requestEventTicketTransfer(input: {
     const holder = await resolveHolder(tx, { ticketId: input.ticketId, credential: input.holderCredential, now });
     const ticket = holder.ticket;
     if (ticket.status !== "VALID" || ticket.checkedInAt) flowError("EVENT_TICKET_TRANSFER_TICKET_INVALID");
+    await assertEventTicketTransferLimitAvailable(tx, ticket.id);
     if (normalizeEventTicketHolderEmail(holder.holderEmail) === recipientEmail) {
       flowError("EVENT_TICKET_TRANSFER_SAME_HOLDER");
     }

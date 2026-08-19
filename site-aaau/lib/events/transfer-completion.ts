@@ -5,6 +5,7 @@ import { createEventAdminAuditLog } from "@/lib/events/audit";
 import { TICKET_CODE_RETRY_LIMIT } from "@/lib/events/constants";
 import { generateEventTicketCode, generateEventTicketQrToken } from "@/lib/events/tickets";
 import { runSerializableTransactionWithRetry } from "@/lib/events/transaction";
+import { assertEventTicketTransferLimitAvailable } from "@/lib/events/transfer-limit";
 import { queueTransferCompletionEmails } from "@/lib/events/transfer-emails";
 import type { PreparedTransferEmail } from "@/lib/events/transfer-outbox";
 import { assertEventTicketTransfersEnabled } from "@/lib/events/transfer-config";
@@ -243,6 +244,7 @@ export async function completeEventTicketTransferInTransaction(
   if (!transfer) transferError("EVENT_TICKET_TRANSFER_NOT_FOUND");
   if (transfer.ticketId !== input.ticketId) transferError("EVENT_TICKET_TRANSFER_TICKET_MISMATCH");
   if (transfer.status === EventTicketTransferStatus.COMPLETED) return completedResult(input, transfer);
+  await assertEventTicketTransferLimitAvailable(tx, input.ticketId, transfer.id);
   const completableStatus = input.direct
     ? EventTicketTransferStatus.PENDING_CURRENT_CONFIRMATION
     : COMPLETABLE_STATUS;

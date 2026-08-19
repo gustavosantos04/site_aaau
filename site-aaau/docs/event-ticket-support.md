@@ -13,6 +13,7 @@ O magic link é pessoal, expira e só pode ser usado uma vez. Depois da abertura
 - O titular atual informa os dados completos, revisa e confirma no painel.
 - A confirmação conclui a transferência imediatamente; o destinatário não precisa aceitar.
 - No mesmo commit, QR e código manual antigos são invalidados e o novo titular recebe credenciais novas.
+- Cada ingresso pode ser transferido uma única vez; o destinatário se torna o titular definitivo e vê essa informação no painel.
 - Ingresso utilizado não pode ser transferido.
 - Links antigos de confirmação ou aceite não alteram titularidade e orientam o usuário a acessar **Meus ingressos**.
 

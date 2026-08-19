@@ -89,6 +89,14 @@ test("transferencia direta coleta dados, revisa titular e exige confirmacao fina
   assert.ok(screen.getByText(/novo titular receberá uma nova credencial/i));
 });
 
+test("portal explica limite utilizado e nao renderiza novamente o formulario", () => {
+  const source = readFileSync(path.join(process.cwd(), "components/events/portal-ticket-card.tsx"), "utf8");
+  assert.match(source, /ticket\.canTransfer \? <PortalTransferForm/);
+  assert.match(source, /ticket\.transferLimitReached \? <div/);
+  assert.match(source, /Transferência já utilizada/);
+  assert.match(source, /não pode ser transferido novamente/);
+});
+
 test("aceite exige nascimento por idade minima e mantem erro corrigivel no formulario", async () => {
   const { TransferRecipientForm } = await import("@/components/events/transfer-recipient-form");
   const event = {

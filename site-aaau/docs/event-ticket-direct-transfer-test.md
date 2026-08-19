@@ -14,15 +14,16 @@ O commit atômico:
 
 1. valida sessão, titular atual, pedido pago, ticket `VALID` e ausência de check-in;
 2. normaliza e valida os dados segundo as regras compartilhadas com checkout;
-3. encerra pendências legadas daquele ticket;
-4. registra `EventTicketTransfer` com metadata `flow=DIRECT` e confirmação do titular;
-5. revoga a versão QR ativa e grants anteriores;
-6. atualiza somente o `EventTicket` escolhido, incrementando `ownershipVersion` e `qrVersion`;
-7. cria uma nova versão QR `ACTIVE` e um grant individual para o destinatário;
-8. marca a transferência `COMPLETED`, registra auditoria e insere as duas mensagens finais da outbox em lote;
-9. faz commit; só então o envio assíncrono é tentado.
+3. consulta o histórico do ticket e rejeita com `EVENT_TICKET_TRANSFER_LIMIT_REACHED` se já existir transferência `COMPLETED`;
+4. encerra pendências legadas daquele ticket;
+5. registra `EventTicketTransfer` com metadata `flow=DIRECT` e confirmação do titular;
+6. revoga a versão QR ativa e grants anteriores;
+7. atualiza somente o `EventTicket` escolhido, incrementando `ownershipVersion` e `qrVersion`;
+8. cria uma nova versão QR `ACTIVE` e um grant individual para o destinatário;
+9. marca a transferência `COMPLETED`, registra auditoria e insere as duas mensagens finais da outbox em lote;
+10. faz commit; só então o envio assíncrono é tentado.
 
-`EventOrder`, comprador, lote, parceiro, desconto, origem e valores não são modificados. O admin exibe titular atual, comprador original e a cadeia `origem → destino`.
+Cada `EventTicket` pode consumir essa operação uma única vez. A fonte da verdade é seu histórico `EventTicketTransfer.status=COMPLETED`, não apenas `ownershipVersion`, para manter a regra correta diante de dados legados ou correções administrativas. `EventOrder`, comprador, lote, parceiro, desconto, origem e valores não são modificados. O admin exibe titular atual, comprador original e a cadeia `origem → destino`.
 
 ## Idempotência, concorrência e timeout
 
@@ -50,12 +51,12 @@ Para um banco PostgreSQL vazio, a cadeia histórica de migrations não é autoco
 4. No Ticket 1, escolha **Transferir ingresso**, preencha os dados fictícios completos de B e avance para revisão.
 5. Confirme nome, CPF mascarado e e-mail; clique **CONFIRMAR TRANSFERÊNCIA** uma vez e depois repita com duplo clique/retry controlado.
 6. Confirme que não há tela/e-mail de aceite e que a operação já aparece concluída.
-7. Acesse **Meus ingressos** como B pelo e-mail fake e confirme o novo QR/código. B deve poder iniciar outra transferência.
+7. Acesse **Meus ingressos** como B pelo e-mail fake e confirme o novo QR/código. O formulário não deve aparecer; deve ser exibida a mensagem **Transferência já utilizada**.
 8. Na portaria local, valide: QR antigo A `INVALID`, código antigo A `INVALID`, QR novo B `VALID`, código novo B `VALID`.
 9. Confirme no banco: A sem grant/credencial vigente; B titular atual; `ownershipVersion=2`; `qrVersion=2`; uma única QR `ACTIVE`; anterior `REVOKED`; histórico A→B; duas mensagens finais de outbox, sem convite.
 10. Confirme que o pedido ainda pertence ao comprador original e que o admin mostra comprador original separado do titular atual e histórico.
 11. Compare o Ticket 2 com o snapshot inicial: participante, ownership, QR/código, versões, status e grants devem estar idênticos.
-12. Repita B→C e C→A. Após cada etapa, ownership/QR aumentam em um, a versão anterior é revogada, existe uma única `ACTIVE` e todo o histórico permanece.
+12. Tente B→C pela interface e por chamada direta. Ambas devem ser bloqueadas com `EVENT_TICKET_TRANSFER_LIMIT_REACHED`, sem v3, nova transferência, ownership, outbox ou e-mail. O Ticket 2 continua elegível à sua própria transferência única.
 13. Simule falha do sender fake. A transferência continua `COMPLETED`, a outbox fica `FAILED`/retryable e nova execução não duplica transferência, QR ou mensagem.
 14. Dispare duas transferências simultâneas do mesmo ticket e depois transferência contra check-in. Em cada disputa, confirme exatamente uma transição vencedora e nenhum estado parcial.
 15. Abra URLs antigas de confirmação/aceite e confirme que apenas a orientação de fluxo legado é exibida.
