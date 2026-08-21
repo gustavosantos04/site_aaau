@@ -14,11 +14,24 @@ import {
   EVENT_TICKET_OUTBOX_MAX_ATTEMPTS,
   processEventTicketTransferOutbox,
 } from "@/lib/events/transfer-outbox";
+import { processDueEventTicketReminderCampaigns } from "@/lib/events/ticket-reminder-campaign";
 
 const LEASE_KEY_HASH = crypto.createHash("sha256").update("event-ticket-outbox-cron-v1").digest("hex");
 const LEASE_DURATION_MS = 2 * 60_000;
 
 type Sender = (input: TrackedEmailInput) => Promise<unknown>;
+
+async function countDueReminders(now: Date) {
+  try {
+    return await prisma.eventTicketReminderCampaign.count({
+      where: { status: { in: ["SCHEDULED", "PROCESSING", "COMPLETED_WITH_FAILURES"] }, scheduledFor: { lte: now } },
+    });
+  } catch (error) {
+    // Keeps the cron safe during a rolling deploy before the additive migration lands.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") return 0;
+    throw error;
+  }
+}
 
 async function acquireLease(now: Date) {
   await prisma.eventTicketPortalRateLimit.deleteMany({
@@ -46,18 +59,19 @@ export async function runEventTicketOutboxCycle(options: {
   now?: Date;
   transferSender?: Sender;
   portalSender?: Sender;
+  reminderSender?: Sender;
   afterLeaseAcquired?: () => Promise<void>;
 } = {}) {
-  if ((options.transferSender || options.portalSender || options.afterLeaseAcquired) && process.env.NODE_ENV !== "test") {
+  if ((options.transferSender || options.portalSender || options.reminderSender || options.afterLeaseAcquired) && process.env.NODE_ENV !== "test") {
     throw new Error("EVENT_TICKET_OUTBOX_TEST_HOOK_FORBIDDEN");
   }
   const config = validateEventTicketOperationalConfig();
-  if (!config.transfersEnabled && !config.portalEnabled) {
+  const now = options.now ?? new Date();
+  const hasDueReminder = await countDueReminders(now);
+  if (!config.transfersEnabled && !config.portalEnabled && hasDueReminder === 0) {
     logEventTicketOperation("outbox.cycle_skipped", { reason: "disabled" });
     return { status: "disabled" as const };
   }
-
-  const now = options.now ?? new Date();
   const lease = await acquireLease(now);
   if (!lease) {
     logEventTicketOperation("outbox.cycle_skipped", { reason: "busy" });
@@ -74,6 +88,7 @@ export async function runEventTicketOutboxCycle(options: {
     const portal = config.portalEnabled
       ? await processEventTicketPortalOutbox({ limit, now, sender: options.portalSender })
       : { processed: 0, sent: 0, failed: 0, exhausted: 0 };
+    const reminder = await processDueEventTicketReminderCampaigns({ limit, now, sender: options.reminderSender });
     const [transferPending, transferExhausted, portalPending, portalExhausted] = await Promise.all([
       prisma.eventTicketTransferOutbox.count({ where: { encryptedPayload: { not: null }, attemptCount: { lt: EVENT_TICKET_OUTBOX_MAX_ATTEMPTS } } }),
       prisma.eventTicketTransferOutbox.count({ where: { encryptedPayload: { not: null }, attemptCount: { gte: EVENT_TICKET_OUTBOX_MAX_ATTEMPTS } } }),
@@ -85,13 +100,14 @@ export async function runEventTicketOutboxCycle(options: {
       expired: expired.count,
       transfer,
       portal,
+      reminder,
       pending: transferPending + portalPending,
       exhausted: transferExhausted + portalExhausted,
     };
     logEventTicketOperation("outbox.cycle_completed", {
-      processed: transfer.processed + portal.processed,
-      sent: transfer.sent + portal.sent,
-      failed: transfer.failed + portal.failed,
+      processed: transfer.processed + portal.processed + reminder.processed,
+      sent: transfer.sent + portal.sent + reminder.sent,
+      failed: transfer.failed + portal.failed + reminder.failed,
       exhausted: result.exhausted,
       pending: result.pending,
       expired: result.expired,

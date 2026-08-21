@@ -198,6 +198,8 @@ export async function cleanEventTestData() {
   await testPrisma.eventCheckInLog.deleteMany();
   await testPrisma.eventAdminAuditLog.deleteMany();
   await testPrisma.eventStaffAssignment.deleteMany();
+  await testPrisma.eventTicketReminderDelivery.deleteMany();
+  await testPrisma.eventTicketReminderCampaign.deleteMany();
   await testPrisma.eventTicketAccessGrant.deleteMany();
   await testPrisma.eventTicketQrVersion.deleteMany();
   await testPrisma.eventTicketTransferOutbox.deleteMany();

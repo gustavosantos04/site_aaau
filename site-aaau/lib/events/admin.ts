@@ -402,7 +402,7 @@ export async function getAdminEventCockpit(
   if (!event) return null;
 
   const shouldLoadKpis = section === "geral";
-  const [orders, tickets, partnerCodes, salesBySourceRows, paid, pendingOrders, checkIns, paidOrdersCount, totalIssuedTickets] = await Promise.all([
+  const [orders, tickets, partnerCodes, salesBySourceRows, paid, pendingOrders, checkIns, paidOrdersCount, totalIssuedTickets, reminderCampaigns] = await Promise.all([
     section === "pedidos" ? loadAdminEventOrders(eventId, query.orders) : Promise.resolve([]),
     section === "ingressos" ? loadAdminEventTickets(eventId, query.tickets) : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 25, pageCount: 1 }),
     section === "codigos" || section === "ingressos" ? loadAdminPartnerCodes(eventId) : Promise.resolve([]),
@@ -419,6 +419,15 @@ export async function getAdminEventCockpit(
     shouldLoadKpis ? prisma.eventTicket.count({ where: { eventId, status: "USED" } }) : Promise.resolve(0),
     shouldLoadKpis ? prisma.eventOrder.count({ where: { eventId, status: "PAID" } }) : Promise.resolve(0),
     shouldLoadKpis ? prisma.eventTicket.count({ where: { eventId } }) : Promise.resolve(0),
+    section === "pedidos" ? prisma.eventTicketReminderCampaign.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true, scheduledFor: true, status: true, eligibleCount: true,
+        sentCount: true, failedCount: true, skippedCount: true, createdAt: true,
+      },
+    }) : Promise.resolve([]),
   ]);
 
   const checkInRate = totalIssuedTickets === 0 ? 0 : Math.round((checkIns / totalIssuedTickets) * 100);
@@ -471,6 +480,7 @@ export async function getAdminEventCockpit(
         checkedInAt: participant.ticket?.checkedInAt ?? null,
       })),
     })),
+    reminderCampaigns,
     tickets: tickets.items.map((ticket) => ({
       id: ticket.id,
       ticketCode: ticket.ticketCode,

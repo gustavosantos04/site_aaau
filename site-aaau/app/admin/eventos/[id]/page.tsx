@@ -7,12 +7,13 @@ import {
   assignEventStaffAction,
   createEventStaffAction,
   eventStatusAction,
+  retryTicketReminderCampaignAction,
   setEventStaffAssignmentAction,
 } from "@/app/admin/eventos/actions";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ManualTicketIssuanceForm } from "@/components/admin/manual-ticket-issuance-form";
 import { EventAdminForm, EventLotForm, EventPartnerCodeForm } from "@/components/admin/event-admin-forms";
-import { ResendTicketEmailForm } from "@/components/admin/resend-ticket-email-form";
+import { TicketReminderCampaignForm } from "@/components/admin/ticket-reminder-campaign-form";
 import { SummaryCard } from "@/components/admin/summary-card";
 import { buttonVariants } from "@/components/shared/button";
 import { requireAdminRole } from "@/lib/auth";
@@ -472,13 +473,25 @@ export default async function AdminEventCockpitPage({
 
       {activeTab === "pedidos" ? (
         <section className="space-y-4 rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 sm:p-6">
+          <TicketReminderCampaignForm eventId={event.id} />
+          {cockpit.reminderCampaigns.length ? <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[720px] text-left text-sm [&_td]:px-3 [&_th]:px-3">
+              <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.14em] text-white/45"><tr><th className="py-3">Horário</th><th>Status</th><th>Elegíveis</th><th>Enviados</th><th>Falhas</th><th>Ignorados</th><th>Ação</th></tr></thead>
+              <tbody className="divide-y divide-white/10 text-white/70">{cockpit.reminderCampaigns.map((campaign) => <tr key={campaign.id}>
+                <td className="py-3">{formatDate(campaign.scheduledFor)}</td>
+                <td>{adminStatusLabel(campaign.status)}</td>
+                <td>{campaign.eligibleCount}</td><td>{campaign.sentCount}</td><td>{campaign.failedCount}</td><td>{campaign.skippedCount}</td>
+                <td>{campaign.failedCount > 0 ? <form action={retryTicketReminderCampaignAction}><input type="hidden" name="eventId" value={event.id} /><input type="hidden" name="campaignId" value={campaign.id} /><button className="text-xs font-bold uppercase tracking-[0.12em] text-aaau-sand">Tentar falhas</button></form> : "-"}</td>
+              </tr>)}</tbody>
+            </table>
+          </div> : null}
           <nav className="flex flex-wrap gap-2" aria-label="Visualizacao de pedidos">
             {[["active", "Ativos"], ["archived", "Arquivados"], ["all", "Todos"]].map(([value, label]) => <Link key={value} href={`/admin/eventos/${event.id}?tab=pedidos&pedidos=${value}` as Route} className={buttonVariants({ variant: (query.pedidos ?? "active") === value ? "primary" : "secondary", size: "sm" })}>{label}</Link>)}
           </nav>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-sm [&_td]:pr-3 [&_th]:pr-3">
               <thead className="text-xs uppercase tracking-[0.16em] text-white/45">
-                <tr><th>Pedido</th><th>Comprador</th><th>Compra</th><th>Ingressos</th><th>Subtotal</th><th>Desconto</th><th>Total</th><th>Codigo</th><th>Status</th><th>Email</th><th>Data</th><th>Acao</th></tr>
+                <tr><th>Pedido</th><th>Comprador</th><th>Compra</th><th>Ingressos</th><th>Subtotal</th><th>Desconto</th><th>Total</th><th>Codigo</th><th>Status</th><th>Email</th><th>Data</th></tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-white/70">
                 {cockpit.orders.map((order) => (
@@ -487,15 +500,6 @@ export default async function AdminEventCockpitPage({
                     <td>{order.buyerName}<br /><span className="text-xs text-white/45">{order.buyerEmail} - {order.buyerCpfMasked}</span></td>
                     <td>{order.commercialUnitQuantity} {order.ticketsPerUnit > 1 ? "pacote(s)" : "unidade(s)"}<br /><span className="text-xs text-white/45">{order.ticketLotName} · {formatAdminMoney(order.commercialUnitPrice)} cada</span></td>
                     <td>{order.participantCount}</td><td>{formatAdminMoney(order.subtotal)}</td><td>{formatAdminMoney(order.discountAmount)}</td><td className="font-semibold text-aaau-sand">{formatAdminMoney(order.total)}</td><td>{order.partnerCode ?? "-"}</td><td>{adminStatusLabel(order.status)}</td><td>{emailDeliveryStatusLabel(order.emailStatus)}</td><td>{formatDate(order.createdAt)}</td>
-                    <td>
-                      {order.emailStatus !== "SENDING" && order.status === "PAID" ? (
-                        <ResendTicketEmailForm
-                          eventId={event.id}
-                          eventOrderId={order.id}
-                          alreadySent={["SENT", "DELIVERED", "DELAYED"].includes(order.emailStatus)}
-                        />
-                      ) : "-"}
-                    </td>
                   </tr>
                 ))}
               </tbody>

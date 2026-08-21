@@ -28,6 +28,11 @@ import {
   type TicketEventAdminInput,
 } from "@/lib/events/admin";
 import { issueManualEventTicket } from "@/lib/events/manual-issuance";
+import {
+  createEventTicketReminderCampaign,
+  processEventTicketReminderCampaign,
+  retryEventTicketReminderCampaign,
+} from "@/lib/events/ticket-reminder-campaign";
 
 export type AdminEventFormState = {
   status: "idle" | "success" | "error";
@@ -200,6 +205,51 @@ export async function resendTicketEmailAction(formData: FormData) {
   const eventId = String(formData.get("eventId") ?? "");
   const confirmAmbiguous = formData.get("confirmAmbiguous") === "on";
   await resendTicketConfirmationEmailAdmin({ eventOrderId, confirmAmbiguous, actor });
+  revalidateEventAdmin(eventId);
+}
+
+async function processTicketReminderCampaignUntilIdle(campaignId: string, now: Date) {
+  const batchSize = 100;
+  let processed: number;
+  do {
+    ({ processed } = await processEventTicketReminderCampaign({ campaignId, now, limit: batchSize }));
+  } while (processed > 0);
+}
+
+export async function createTicketReminderCampaignAction(
+  _prevState: AdminEventFormState = idle,
+  formData: FormData,
+): Promise<AdminEventFormState> {
+  const actor = await requireAdminRole("super_admin");
+  const eventId = String(formData.get("eventId") ?? "");
+  try {
+    const now = new Date();
+    const result = await createEventTicketReminderCampaign({
+      eventId,
+      scheduledFor: now,
+      idempotencyKey: String(formData.get("idempotencyKey") ?? ""),
+      actor,
+      now,
+    });
+    await processTicketReminderCampaignUntilIdle(result.campaign.id, now);
+    revalidateEventAdmin(eventId);
+    return {
+      status: "success",
+      message: result.created
+        ? "Campanha processada."
+        : "Esta campanha ja estava registrada; nenhum envio foi duplicado.",
+    };
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function retryTicketReminderCampaignAction(formData: FormData) {
+  const actor = await requireAdminRole("super_admin");
+  const eventId = String(formData.get("eventId") ?? "");
+  const now = new Date();
+  const campaign = await retryEventTicketReminderCampaign(String(formData.get("campaignId") ?? ""), actor, now);
+  await processTicketReminderCampaignUntilIdle(campaign.id, now);
   revalidateEventAdmin(eventId);
 }
 

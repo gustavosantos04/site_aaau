@@ -25,6 +25,7 @@ import {
   createTicketLotAdmin,
   getAdminEventCockpit,
   getAdminEventReport,
+  parseSaoPauloDateTime,
   archivedEventOrderWhere,
   getAdminEventsDashboard,
   publishTicketEventAdmin,
@@ -136,6 +137,11 @@ import {
 import { consumePortalRateLimits } from "@/lib/events/portal-rate-limit";
 import { runEventTicketOutboxCycle } from "@/lib/events/outbox-operations";
 import { deliverEventTicketOutboxImmediately } from "@/lib/events/immediate-outbox";
+import {
+  createEventTicketReminderCampaign,
+  processEventTicketReminderCampaign,
+  retryEventTicketReminderCampaign,
+} from "@/lib/events/ticket-reminder-campaign";
 import {
   assignEventStaff,
   confirmPortariaManualTicket,
@@ -4799,6 +4805,131 @@ test("emissao manual PIX e cortesia criam pedido, lote administrativo, QR v1, au
   });
   assert.equal(retryEmail.sent, true);
   assert.equal(await testPrisma.eventTicket.count({ where: { eventOrderId: emailFailure.orderId } }), ticketCountBeforeRetry);
+});
+
+test("campanha de lembrete resolve titular e credencial no disparo, deduplica e recupera falha parcial", async () => {
+  const restore = enableTransferTestEnvironment();
+  try {
+  const { event } = await createEventWithLot(20);
+  const website = await reserveOrder({ eventId: event.id, idempotencyKey: "reminder-website", quantity: 2 });
+  await confirmEventOrderPayment({ eventOrderId: website.orderId, paymentId: "PAY-REMINDER-WEB", paidAmount: website.total });
+  const websiteTickets = await testPrisma.eventTicket.findMany({ where: { eventOrderId: website.orderId }, orderBy: { participantName: "asc" } });
+  const transferredTicketBefore = websiteTickets[0];
+  const siblingTicket = websiteTickets[1];
+
+  const actor = { role: "super_admin" as const, adminUserId: null };
+  const pix = await issueManualEventTicket({
+    eventId: event.id, idempotencyKey: crypto.randomUUID(), type: "ADMIN_PIX",
+    amountReceived: new Prisma.Decimal("50"), participant: participant(20),
+  }, actor, { emailSender: { sendMail: async () => ({}) }, emailFrom: "AAAU <eventos@test.local>", baseUrl: "https://aaau.test" });
+  const courtesy = await issueManualEventTicket({
+    eventId: event.id, idempotencyKey: crypto.randomUUID(), type: "COMPLIMENTARY",
+    amountReceived: new Prisma.Decimal(0), participant: participant(21),
+  }, actor, { emailSender: { sendMail: async () => ({}) }, emailFrom: "AAAU <eventos@test.local>", baseUrl: "https://aaau.test" });
+
+  const canceledOrder = await reserveOrder({ eventId: event.id, idempotencyKey: "reminder-canceled", quantity: 1, participantOffset: 4 });
+  await confirmEventOrderPayment({ eventOrderId: canceledOrder.orderId, paymentId: "PAY-REMINDER-CANCELED", paidAmount: canceledOrder.total });
+  const canceledTicket = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: canceledOrder.orderId } });
+  await testPrisma.eventTicket.update({ where: { id: canceledTicket.id }, data: { status: "CANCELED" } });
+
+  const revokedOrder = await reserveOrder({ eventId: event.id, idempotencyKey: "reminder-revoked", quantity: 1, participantOffset: 2 });
+  await confirmEventOrderPayment({ eventOrderId: revokedOrder.orderId, paymentId: "PAY-REMINDER-REVOKED", paidAmount: revokedOrder.total });
+  const revokedTicket = await testPrisma.eventTicket.findFirstOrThrow({ where: { eventOrderId: revokedOrder.orderId } });
+  await testPrisma.eventTicketQrVersion.updateMany({ where: { ticketId: revokedTicket.id }, data: { status: "REVOKED", revokedAt: new Date() } });
+  await reserveOrder({ eventId: event.id, idempotencyKey: "reminder-pending", quantity: 1, participantOffset: 3 });
+
+  const now = new Date();
+  const scheduledFor = new Date(now.getTime() + 60 * 60_000);
+  const idempotencyKey = crypto.randomUUID();
+  const created = await createEventTicketReminderCampaign({ eventId: event.id, scheduledFor, idempotencyKey, actor, now });
+  const duplicateByKey = await createEventTicketReminderCampaign({ eventId: event.id, scheduledFor, idempotencyKey, actor, now });
+  const duplicateBySlot = await createEventTicketReminderCampaign({ eventId: event.id, scheduledFor, idempotencyKey: crypto.randomUUID(), actor, now });
+  assert.equal(created.created, true);
+  assert.equal(duplicateByKey.created, false);
+  assert.equal(duplicateBySlot.created, false);
+  assert.equal(created.campaign.id, duplicateByKey.campaign.id);
+  assert.equal(created.campaign.id, duplicateBySlot.campaign.id);
+
+  const readyTransfer = await createReadyTransfer(transferredTicketBefore.id);
+  await completeEventTicketTransfer({
+    transferId: readyTransfer.id,
+    ticketId: transferredTicketBefore.id,
+    expectedOwnershipVersion: transferredTicketBefore.ownershipVersion,
+    recipient: transferRecipient,
+  });
+  const transferredTicket = await testPrisma.eventTicket.findUniqueOrThrow({ where: { id: transferredTicketBefore.id } });
+  assert.notEqual(transferredTicket.qrToken, transferredTicketBefore.qrToken);
+
+  const immutableBeforeSend = await testPrisma.eventTicket.findMany({
+    where: { eventId: event.id },
+    orderBy: { id: "asc" },
+    select: { id: true, status: true, qrToken: true, ticketCode: true, qrVersion: true, ownershipVersion: true },
+  });
+  const messages: Array<Parameters<typeof sendTrackedEmail>[0]> = [];
+  const result = await processEventTicketReminderCampaign({
+    campaignId: created.campaign.id,
+    now: scheduledFor,
+    limit: 100,
+    sender: async (message) => { messages.push(message); return { sent: true }; },
+  });
+  assert.deepEqual(result, { processed: 4, sent: 4, failed: 0, skipped: 0 });
+  assert.deepEqual(messages.map((message) => message.to).sort(), [
+    transferRecipient.email,
+    siblingTicket.participantEmail!,
+    participant(20).email,
+    participant(21).email,
+  ].sort());
+  assert.equal(messages.some((message) => message.to === transferredTicketBefore.participantEmail), false);
+  const transferredMessage = messages.find((message) => message.to === transferRecipient.email)!;
+  assert.ok(transferredMessage.text.includes(transferredTicket.ticketCode));
+  assert.ok(transferredMessage.text.includes(encodeURIComponent(transferredTicket.qrToken)));
+  assert.equal(transferredMessage.text.includes(transferredTicketBefore.ticketCode), false);
+  assert.equal(transferredMessage.text.includes(transferredTicketBefore.qrToken), false);
+  assert.equal(messages.some((message) => message.eventOrderId === canceledOrder.orderId || message.eventOrderId === revokedOrder.orderId), false);
+  assert.deepEqual(await testPrisma.eventTicket.findMany({
+    where: { eventId: event.id }, orderBy: { id: "asc" },
+    select: { id: true, status: true, qrToken: true, ticketCode: true, qrVersion: true, ownershipVersion: true },
+  }), immutableBeforeSend);
+  assert.equal((await testPrisma.eventTicketReminderCampaign.findUniqueOrThrow({ where: { id: created.campaign.id } })).status, "COMPLETED");
+
+  const partialAt = new Date(scheduledFor.getTime() + 60 * 60_000);
+  const partial = await createEventTicketReminderCampaign({ eventId: event.id, scheduledFor: partialAt, idempotencyKey: crypto.randomUUID(), actor, now: scheduledFor });
+  const partialRecipients: string[] = [];
+  await processEventTicketReminderCampaign({
+    campaignId: partial.campaign.id, now: partialAt, limit: 100,
+    sender: async (message) => {
+      partialRecipients.push(message.to);
+      if (message.to === transferRecipient.email) throw new Error("falha parcial simulada");
+      return { sent: true };
+    },
+  });
+  const partialStatus = await testPrisma.eventTicketReminderCampaign.findUniqueOrThrow({ where: { id: partial.campaign.id } });
+  assert.deepEqual({ status: partialStatus.status, sent: partialStatus.sentCount, failed: partialStatus.failedCount }, {
+    status: "COMPLETED_WITH_FAILURES", sent: 3, failed: 1,
+  });
+  await retryEventTicketReminderCampaign(partial.campaign.id, actor, new Date(partialAt.getTime() + 60_000));
+  const retriedRecipients: string[] = [];
+  await processEventTicketReminderCampaign({
+    campaignId: partial.campaign.id, now: new Date(partialAt.getTime() + 60_000), limit: 100,
+    sender: async (message) => { retriedRecipients.push(message.to); return { sent: true }; },
+  });
+  assert.deepEqual(retriedRecipients, [transferRecipient.email]);
+  assert.equal((await testPrisma.eventTicketReminderCampaign.findUniqueOrThrow({ where: { id: partial.campaign.id } })).status, "COMPLETED");
+
+  const immediateAt = new Date(partialAt.getTime() + 2 * 60 * 60_000);
+  const immediate = await createEventTicketReminderCampaign({ eventId: event.id, scheduledFor: immediateAt, idempotencyKey: crypto.randomUUID(), actor, now: immediateAt });
+  const immediateMessages: string[] = [];
+  await processEventTicketReminderCampaign({ campaignId: immediate.campaign.id, now: immediateAt, limit: 100, sender: async (message) => { immediateMessages.push(message.to); } });
+  assert.equal(immediateMessages.length, 4);
+  assert.equal((await testPrisma.eventOrder.findUniqueOrThrow({ where: { id: pix.orderId } })).source, "ADMIN_PIX");
+  assert.equal((await testPrisma.eventOrder.findUniqueOrThrow({ where: { id: courtesy.orderId } })).source, "COMPLIMENTARY");
+  } finally {
+    restore();
+  }
+});
+
+test("horario administrativo normaliza meio-dia de Porto Alegre para 15:00 UTC", () => {
+  assert.equal(parseSaoPauloDateTime("2026-08-21T12:00")?.toISOString(), "2026-08-21T15:00:00.000Z");
 });
 
 test("pedidos de evento expirados ha mais de 24h sao arquivados apenas na visao administrativa", async () => {

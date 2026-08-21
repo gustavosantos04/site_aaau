@@ -78,6 +78,7 @@ enum EventTicketConfirmationEmailStatus {
 
 enum EmailDeliveryKind {
   EVENT_TICKET_CONFIRMATION
+  EVENT_TICKET_REMINDER
   STORE_ORDER_CONFIRMATION
   INTERNAL_ORDER_NOTIFICATION
   EVENT_TICKET_TRANSFER_HOLDER_CONFIRMATION
@@ -88,6 +89,26 @@ enum EmailDeliveryKind {
   EVENT_TICKET_TRANSFER_REJECTED
   EVENT_TICKET_TRANSFER_EXPIRED
   EVENT_TICKET_PORTAL_ACCESS
+}
+
+enum EventTicketReminderCampaignType {
+  EVENT_TICKET_REMINDER
+}
+
+enum EventTicketReminderCampaignStatus {
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_FAILURES
+  CANCELED
+}
+
+enum EventTicketReminderDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 enum EmailDeliveryStatus {
@@ -308,6 +329,7 @@ model AdminUser {
   eventAssignments         EventStaffAssignment[] @relation("EventStaffAssignmentUser")
   createdAssignments       EventStaffAssignment[] @relation("EventStaffAssignmentCreator")
   initiatedTicketTransfers EventTicketTransfer[]  @relation("EventTicketTransferInitiator")
+  createdReminderCampaigns  EventTicketReminderCampaign[]
 }
 
 model Event {
@@ -405,6 +427,7 @@ model TicketEvent {
   checkInLogs             EventCheckInLog[]
   auditLogs               EventAdminAuditLog[]
   staffAssignments        EventStaffAssignment[]
+  reminderCampaigns       EventTicketReminderCampaign[]
 
   @@index([published, startAt])
   @@index([status, startAt])
@@ -713,6 +736,7 @@ model EventTicket {
   transfers                    EventTicketTransfer[]
   accessGrants                 EventTicketAccessGrant[]
   qrVersions                   EventTicketQrVersion[]
+  reminderDeliveries           EventTicketReminderDelivery[]
 
   @@index([eventId, status])
   @@index([eventOrderId])
@@ -720,6 +744,54 @@ model EventTicket {
   @@index([participantCpfHash])
   @@index([checkedInAt])
   @@index([originalOrderAccessRevokedAt])
+}
+
+model EventTicketReminderCampaign {
+  id                   String                            @id @default(cuid())
+  eventId              String
+  campaignType         EventTicketReminderCampaignType   @default(EVENT_TICKET_REMINDER)
+  scheduledFor         DateTime
+  status               EventTicketReminderCampaignStatus @default(SCHEDULED)
+  idempotencyKey       String                            @unique
+  eligibleCount        Int                               @default(0)
+  sentCount            Int                               @default(0)
+  failedCount          Int                               @default(0)
+  skippedCount         Int                               @default(0)
+  processingStartedAt  DateTime?
+  completedAt          DateTime?
+  canceledAt           DateTime?
+  createdByAdminUserId String?
+  createdAt            DateTime                          @default(now())
+  updatedAt            DateTime                          @updatedAt
+  event                TicketEvent                       @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  createdByAdminUser   AdminUser?                        @relation(fields: [createdByAdminUserId], references: [id], onDelete: SetNull)
+  deliveries           EventTicketReminderDelivery[]
+
+  @@unique([eventId, campaignType, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([eventId, createdAt])
+}
+
+model EventTicketReminderDelivery {
+  id                  String                            @id @default(cuid())
+  campaignId          String
+  ticketId            String
+  status              EventTicketReminderDeliveryStatus @default(PENDING)
+  attemptCount        Int                               @default(0)
+  nextAttemptAt       DateTime                          @default(now())
+  processingStartedAt DateTime?
+  recipient           String?
+  sentAt              DateTime?
+  lastError           String?                           @db.Text
+  createdAt           DateTime                          @default(now())
+  updatedAt           DateTime                          @updatedAt
+  campaign            EventTicketReminderCampaign       @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  ticket              EventTicket                       @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+
+  @@unique([campaignId, ticketId])
+  @@index([status, nextAttemptAt])
+  @@index([campaignId, status])
+  @@index([ticketId, createdAt])
 }
 
 model EventTicketTransfer {
