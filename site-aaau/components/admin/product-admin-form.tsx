@@ -11,6 +11,7 @@ import {
   toggleProductStatusAction,
   type ProductFormState,
 } from "@/app/admin/produtos/actions";
+import { ProductOptionsFields } from "@/components/admin/product-options-fields";
 import { Button } from "@/components/shared/button";
 import { siteConfig } from "@/lib/site";
 import { formatCurrency } from "@/lib/utils";
@@ -227,11 +228,10 @@ export function ProductAdminForm({
           </FormField>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <FormField label="Preço de venda">
+            <FormField label="Preço de venda (produto simples)">
               <input
                 key={`price-${selectedProduct.id}`}
                 name="price"
-                required
                 inputMode="decimal"
                 defaultValue={selectedProduct.price || ""}
                 className={inputClass}
@@ -265,57 +265,7 @@ export function ProductAdminForm({
             </FormField>
           </div>
 
-          <FormField label="Tamanhos disponíveis">
-            <input
-              key={`sizes-${selectedProduct.id}`}
-              name="sizes"
-              required
-              defaultValue={selectedProduct.sizes.join(", ")}
-              className={inputClass}
-              placeholder="P, M, G, GG ou Único"
-            />
-          </FormField>
-
-          <div className="space-y-3 rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
-            <label className="flex items-center gap-3 text-sm text-white/70">
-              <input key={`detailed-${selectedProduct.id}`} type="checkbox" name="trackDetailedStock" defaultChecked={Boolean(selectedProduct.stockItems?.length)} className="h-4 w-4 accent-aaau-ember" />
-              Controlar estoque por opcao e tamanho
-            </label>
-            <p className="text-xs leading-5 text-white/40">Ao marcar, cada combinacao abaixo vira a fonte de verdade. Zero significa esgotado.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {(selectedProduct.variants?.length ? selectedProduct.variants : [{ id: "", label: "Produto", price: selectedProduct.price }]).flatMap((variant) => selectedProduct.sizes.map((size) => {
-                const saved = selectedProduct.stockItems?.find((item) => item.variantId === variant.id && item.size === size);
-                return <FormField key={`${selectedProduct.id}-${variant.id}-${size}`} label={`${variant.label} / ${size}${saved?.stock === 0 ? " - Esgotado" : ""}`}><input className={inputClass} type="number" min={0} name={`stockItem:${encodeURIComponent(variant.id)}:${encodeURIComponent(size)}`} defaultValue={saved?.stock ?? 0} /></FormField>;
-              }))}
-            </div>
-          </div>
-
-          {selectedProduct.variants?.length ? (
-            <div className="space-y-3 rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.45]">
-                  Preços das opções
-                </p>
-                <p className="mt-1 text-xs leading-5 text-white/40">
-                  Estes valores aparecem na página do produto, carrinho e checkout.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {selectedProduct.variants.map((variant) => (
-                  <FormField key={`${selectedProduct.id}-${variant.id}`} label={variant.label}>
-                    <input
-                      name={`variantPrice:${variant.id}`}
-                      required
-                      inputMode="decimal"
-                      defaultValue={variant.price || ""}
-                      className={inputClass}
-                      placeholder="79,90"
-                    />
-                  </FormField>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <ProductOptionsFields key={`${selectedProduct.id}-${JSON.stringify(selectedProduct)}`} product={selectedProduct} />
 
           <FormField label="Foto principal do produto">
             <ProductImagePicker

@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test:store": "tsx --test tests/store-products.test.ts tests/store-products-client.test.tsx",
     "test:events": "tsx --test tests/events-domain.test.ts",
     "test:events:client": "tsx --test tests/*-client.test.tsx",
     "test:events:integration": "tsx tests/events-integration-runner.ts",

@@ -421,6 +421,13 @@ export async function createCheckout(request: Request) {
       if (!selectedVariant) {
         return { error: `Opcao invalida para ${product.name}.`, status: 400 };
       }
+    } else if (item.variantId) {
+      return { error: `Opcao invalida para ${product.name}.`, status: 400 };
+    }
+
+    const unitPrice = selectedVariant?.price ?? Number(product.price);
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      return { error: `Preco indisponivel para ${product.name}.`, status: 400 };
     }
 
     if (product.stockItems?.length) {

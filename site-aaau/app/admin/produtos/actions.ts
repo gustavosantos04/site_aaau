@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { requireAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { buildProductMetadata } from "@/lib/store/product-metadata";
 import { productsSeed } from "@/lib/data/seed-content";
 
 export type ProductFormState = {
@@ -48,12 +49,16 @@ function buildSlug(value: string) {
 }
 
 function parseProductForm(formData: FormData) {
+  const variants = formData.has("variants")
+    ? buildProductMetadata(formData).variants as Array<{ price: number }>
+    : [];
   return productSchema.safeParse({
     productId: formData.get("productId")?.toString() || undefined,
     name: formData.get("name"),
     slug: formData.get("slug")?.toString() || undefined,
     description: formData.get("description"),
-    price: formData.get("price")?.toString().replace(",", "."),
+    price: variants.length ? Math.min(...variants.map((variant) => variant.price))
+      : formData.get("price")?.toString().replace(",", "."),
     imageUrl: formData.get("imageUrl"),
     category: formData.get("category"),
     sizes: formData.get("sizes"),
@@ -63,16 +68,6 @@ function parseProductForm(formData: FormData) {
     isNew: formData.get("isNew") === "on",
     isActive: formData.get("isActive") === "on",
   });
-}
-
-function parsePriceValue(value: FormDataEntryValue | null) {
-  const normalized = value?.toString().replace(",", ".").trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const price = Number(normalized);
-  return Number.isFinite(price) && price > 0 ? price : null;
 }
 
 function parseDetailedStock(formData: FormData) {
@@ -87,54 +82,6 @@ function parseDetailedStock(formData: FormData) {
   }
   if (!items.length) throw new Error("Configure ao menos uma combinacao de estoque.");
   return items;
-}
-
-function buildProductMetadata(
-  formData: FormData,
-  productId: string | undefined,
-  slug: string,
-  basePrice: number,
-): Prisma.InputJsonObject | undefined {
-  const seedProduct = productsSeed.find(
-    (product) => product.id === productId || product.slug === slug,
-  );
-
-  if (!seedProduct?.variants?.length && !seedProduct?.options && !seedProduct?.measurementGuide) {
-    return undefined;
-  }
-
-  const metadata: Record<string, Prisma.InputJsonValue> = {};
-
-  if (seedProduct.variants?.length) {
-    metadata.variants = seedProduct.variants.map((variant, index) => {
-      const submittedPrice = parsePriceValue(formData.get(`variantPrice:${variant.id}`));
-      const savedVariant: Record<string, Prisma.InputJsonValue> = {
-        id: variant.id,
-        label: variant.label,
-        price: submittedPrice ?? (index === 0 ? basePrice : variant.price),
-      };
-
-      if (variant.description) {
-        savedVariant.description = variant.description;
-      }
-
-      if (variant.requiredOptionIds?.length) {
-        savedVariant.requiredOptionIds = variant.requiredOptionIds;
-      }
-
-      return savedVariant;
-    });
-  }
-
-  if (seedProduct.options) {
-    metadata.options = seedProduct.options as unknown as Prisma.InputJsonValue;
-  }
-
-  if (seedProduct.measurementGuide) {
-    metadata.measurementGuide = seedProduct.measurementGuide as unknown as Prisma.InputJsonValue;
-  }
-
-  return metadata;
 }
 
 async function saveUploadedProductImage(file: File, slug: string) {
@@ -174,7 +121,12 @@ export async function saveProductAction(
     };
   }
 
-  const parsed = parseProductForm(formData);
+  let parsed: ReturnType<typeof parseProductForm>;
+  try {
+    parsed = parseProductForm(formData);
+  } catch {
+    return { status: "error", message: "Revise as opcoes do produto." };
+  }
 
   if (!parsed.success) {
     return {
@@ -185,7 +137,7 @@ export async function saveProductAction(
 
   const data = parsed.data;
   const slug = buildSlug(data.slug || data.name);
-  const metadata = buildProductMetadata(formData, data.productId, slug, data.price);
+
   let detailedStock: ReturnType<typeof parseDetailedStock>;
   try {
     detailedStock = parseDetailedStock(formData);
@@ -213,6 +165,28 @@ export async function saveProductAction(
   }
 
   try {
+    const existingProduct = data.productId ? await prisma.product.findUnique({
+      where: { id: data.productId }, include: { images: true },
+    }) : null;
+    if (data.productId && !existingProduct) return { status: "error", message: "Produto nao encontrado." };
+    const seedProduct = productsSeed.find((product) => product.id === data.productId || product.slug === (existingProduct?.slug ?? slug));
+    const saved = existingProduct?.metadata;
+    const metadata = buildProductMetadata(formData, {
+      ...(seedProduct?.variants ? { variants: seedProduct.variants } : {}),
+      ...(seedProduct?.options ? { options: seedProduct.options } : {}),
+      ...(seedProduct?.measurementGuide ? { measurementGuide: seedProduct.measurementGuide } : {}),
+      ...(saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {}),
+    }) as Prisma.InputJsonObject;
+    const variants = metadata.variants as unknown as Array<{ id: string; price: number }>;
+    const price = variants.length ? Math.min(...variants.map((variant) => variant.price)) : data.price;
+    if (detailedStock) {
+      const validVariants = new Set(variants.length ? variants.map((variant) => variant.id) : [""]);
+      if (detailedStock.some((item) => !validVariants.has(item.variantId) || !sizes.includes(item.size)) ||
+          new Set(detailedStock.map((item) => JSON.stringify([item.variantId, item.size]))).size !== detailedStock.length ||
+          detailedStock.length !== validVariants.size * new Set(sizes).size) {
+        return { status: "error", message: "Revise o estoque de cada opcao e tamanho." };
+      }
+    }
     const existingSlug = await prisma.product.findUnique({
       where: { slug },
       select: { id: true },
@@ -244,7 +218,7 @@ export async function saveProductAction(
           name: data.name,
           slug,
           description: data.description,
-          price: data.price,
+          price,
           metadata,
           category: data.category,
           sizes,
@@ -253,15 +227,11 @@ export async function saveProductAction(
           featured: data.featured,
           isNew: data.isNew,
           isActive: data.isActive,
-          images: {
-            deleteMany: {},
-            create: {
-              url: imageUrl,
-              alt: data.name,
-              isPrimary: true,
-              sortOrder: 0,
-            },
-          },
+          images: (() => {
+            const primary = existingProduct?.images.find((image) => image.isPrimary) ?? existingProduct?.images[0];
+            const image = { url: imageUrl, alt: data.name, isPrimary: true, sortOrder: 0 };
+            return primary ? { update: { where: { id: primary.id }, data: image } } : { create: image };
+          })(),
           stockItems: {
             deleteMany: {},
             ...(detailedStock ? { create: detailedStock } : {}),
@@ -274,7 +244,7 @@ export async function saveProductAction(
           name: data.name,
           slug,
           description: data.description,
-          price: data.price,
+          price,
           metadata,
           category: data.category,
           sizes,
@@ -298,6 +268,8 @@ export async function saveProductAction(
 
     revalidatePath("/admin/produtos");
     revalidatePath("/produtos");
+    revalidatePath(`/produtos/${slug}`);
+    if (existingProduct?.slug && existingProduct.slug !== slug) revalidatePath(`/produtos/${existingProduct.slug}`);
     revalidatePath("/");
 
     return {
